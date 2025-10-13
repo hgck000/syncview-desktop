@@ -5,6 +5,7 @@
     "tailwindcss": "^4.1.14"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.14"
+    "@tailwindcss/vite": "^4.1.14",
+    "tinykeys": "^3.0.0"
   }
 }

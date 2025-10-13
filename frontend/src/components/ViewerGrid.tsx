@@ -6,21 +6,20 @@ export default function ViewerGrid() {
   const tab = tabs.find(t => t.id === activeTabId)!;
   const n = tab.panes.length;
 
-  // Quy tắc grid
+  // Quy tắc lưới mới: 1→1 cột, 2→2 cột, 3→3 cột, 4→2x2
+  const gridBase = "h-full p-1 gap-1 bg-neutral-950 grid auto-rows-fr";
   const gridClass =
-    n === 4
-      ? "grid grid-cols-2 grid-rows-2 gap-1"
-      : "grid grid-cols-3 auto-rows-[1fr] gap-1";
+    n === 1
+      ? `${gridBase} grid-cols-1`
+      : n === 2
+      ? `${gridBase} grid-cols-2`
+      : n === 3
+      ? `${gridBase} grid-cols-3`
+      : `${gridBase} grid-cols-2 grid-rows-2`;
 
   return (
-    <div className={`h-full p-1 ${gridClass} bg-neutral-950`}>
-      {tab.panes.map((id) => (
-        <Pane key={id} id={id} />
-      ))}
-      {/* placeholder ô trống cho đủ lưới */}
-      {n < 4 && Array.from({ length: 3 - ((n - 1) % 3) - 1 }).map((_, i) => (
-        <div key={i} className="hidden md:block" />
-      ))}
+    <div className={gridClass}>
+      {tab.panes.map((id) => <Pane key={id} id={id} />)}
     </div>
   );
 }

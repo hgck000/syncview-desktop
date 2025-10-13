@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import ViewerGrid from "./components/ViewerGrid";
 import { useApp } from "./app/store";
+import Hotkeys from "./app/hotkeys";
 
 export default function App() {
   const { tabs, activeTabId, setSidebarSize } = useApp();
@@ -10,6 +11,7 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-neutral-950 text-neutral-200">
+      <Hotkeys />
       <PanelGroup
         direction="horizontal"
         onLayout={([left]) => setSidebarSize(left)}
