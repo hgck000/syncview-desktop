@@ -1,35 +1,32 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import Sidebar from "./components/Sidebar";
+import Toolbar from "./components/Toolbar";
+import ViewerGrid from "./components/ViewerGrid";
+import { useApp } from "./app/store";
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const { tabs, activeTabId, setSidebarSize } = useApp();
+  const tab = tabs.find(t => t.id === activeTabId)!;
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="h-screen w-screen bg-neutral-950 text-neutral-200">
+      <PanelGroup
+        direction="horizontal"
+        onLayout={([left]) => setSidebarSize(left)}
+      >
+        <Panel defaultSize={tab.sizes.sidebar} minSize={16} maxSize={45}>
+          <Sidebar />
+        </Panel>
+        <PanelResizeHandle className="w-1 bg-neutral-700/50 hover:bg-neutral-600 cursor-col-resize" />
+        <Panel minSize={40}>
+          <div className="flex flex-col h-full">
+            <Toolbar />
+            <div className="flex-1 overflow-hidden">
+              <ViewerGrid />
+            </div>
+          </div>
+        </Panel>
+      </PanelGroup>
+    </div>
+  );
 }
-
-export default App
