@@ -1,15 +1,26 @@
 import { Link2, LayoutGrid, Maximize, RefreshCw, Hash, Camera, Sun, Image as ImageIcon } from "lucide-react";
 import { useApp } from "../app/store";
+import { openFileDialog } from "../app/bridge";
 
 export default function Toolbar() {
   const toggleLinkAll = useApp(s => s.toggleLinkAll);
   const cycleLayout   = useApp(s => s.cycleLayout);
   const setLayout     = useApp(s => s.setLayout);
+  const setFileForPane= useApp(s => s.setFileForPane);
   const t = useApp(s => s.getActive());
+  const panes = t.panes;
+  const focusPane = panes[t.focusIndex];
+
+  async function onOpen() {
+    const path = await openFileDialog(focusPane);
+    if (path) setFileForPane(focusPane, path);
+  }
 
   return (
     <div className="h-12 flex items-center gap-2 px-3 border-b border-neutral-800 bg-neutral-900 text-black">
-      <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1">
+      <button onClick={onOpen}
+        title="Open (Ctrl/Cmd+O)"
+        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1">
         <ImageIcon size={16}/> Open
       </button>
 

@@ -11,6 +11,7 @@ type TabState = {
   sizes: { sidebar: number; leftSplit: number };
   panes: PaneId[];          // các slot đang hiển thị
   focusIndex: number;       // pane đang focus (0..panes.length-1)
+  files: Record<PaneId, string | undefined>;
 };
 
 type AppState = {
@@ -27,6 +28,7 @@ type AppState = {
   focusNext: () => void;
   focusPrev: () => void;
   setPaneCount: (n: 1 | 2 | 3 | 4) => void; // đổi số pane nhanh để test
+  setFileForPane: (pane: PaneId, path?: string) => void;
 };
 
 const initial: TabState = {
@@ -37,6 +39,7 @@ const initial: TabState = {
   sizes: { sidebar: 26, leftSplit: 70 },
   panes: ["A", "B", "C"],
   focusIndex: 0,
+  files: { A: undefined, B: undefined, C: undefined, D: undefined },
 };
 
 const layoutForCount = (n: number): Layout =>
@@ -110,6 +113,15 @@ export const useApp = create<AppState>((set, get) => ({
         ? { ...t, panes: (["A","B","C","D"] as PaneId[]).slice(0, n), layout: layoutForCount(n), focusIndex: 0 }
         : t
       )
+    });
+  },
+  // ... giữ nguyên các action cũ ...
+  setFileForPane: (pane, path) => {
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(t => t.id === activeTabId
+        ? { ...t, files: { ...t.files, [pane]: path } }
+        : t)
     });
   },
 }));
