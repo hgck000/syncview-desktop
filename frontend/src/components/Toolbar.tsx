@@ -4,22 +4,30 @@ import { openFileDialog } from "../app/bridge";
 
 export default function Toolbar() {
   const toggleLinkAll = useApp(s => s.toggleLinkAll);
-  const cycleLayout   = useApp(s => s.cycleLayout);
-  const setLayout     = useApp(s => s.setLayout);
-  const setFileForPane= useApp(s => s.setFileForPane);
   const t = useApp(s => s.getActive());
-  const panes = t.panes;
-  const focusPane = panes[t.focusIndex];
+  const setFileForPane= useApp(s => s.setFileForPane);
+  const nextEmpty     = useApp(s => s.nextEmptyPaneId);
+  // const cycleLayout   = useApp(s => s.cycleLayout);
+  // const setLayout     = useApp(s => s.setLayout);
+  // const panes = t.panes;
+  // const focusPane = panes[t.focusIndex];
+
+  // async function onOpen() {
+  //   const path = await openFileDialog(focusPane);
+  //   if (path) setFileForPane(focusPane, path);
+  // }
 
   async function onOpen() {
-    const path = await openFileDialog(focusPane);
-    if (path) setFileForPane(focusPane, path);
+    // nếu chưa có pane nào, chọn slot trống đầu tiên (A/B/C/D)
+    const target = t.panes.length ? t.panes[t.focusIndex] : (nextEmpty() ?? "D");
+    console.log("[UI] Open -> target pane =", target);
+    const path = await openFileDialog(target);
+    if (path) setFileForPane(target, path);
   }
 
   return (
     <div className="h-12 flex items-center gap-2 px-3 border-b border-neutral-800 bg-neutral-900 text-black">
-      <button onClick={onOpen}
-        title="Open (Ctrl/Cmd+O)"
+      <button onClick={onOpen} title="Open (Ctrl/Cmd+O)"
         className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1">
         <ImageIcon size={16}/> Open
       </button>
@@ -31,9 +39,9 @@ export default function Toolbar() {
         <Link2 size={16}/> {t.linkAll ? "Linked" : "Link"}
       </button>
 
-      <button onClick={cycleLayout} className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1">
+      {/* <button onClick={cycleLayout} className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1">
         <LayoutGrid size={16}/> Layout
-      </button>
+      </button> */}
 
       <div className="w-px h-6 bg-neutral-800" />
 

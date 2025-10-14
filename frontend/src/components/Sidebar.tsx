@@ -72,18 +72,17 @@ export default function Sidebar() {
             </div>
             <div className="flex flex-wrap gap-2">
               {tab.panes.map((p) => {
-                const name = basename(tab.files[p]) ?? `${p}: Empty`;
-                const has  = !!tab.files[p];
+                const name = tab.names[p] ?? basename(tab.files[p]) ?? `${p}: Empty`;
+                const has  = !!tab.files[p] || !!tab.dataURL[p];
                 return (
                   <div key={p} className={`flex items-center gap-1 px-2 py-1 rounded ${has ? "bg-neutral-800 text-neutral-200" : "border border-dashed border-neutral-700 text-neutral-500"}`}>
                     <span className="truncate max-w-[140px]">{name}</span>
                     {has && (
                       <button
-                        className="text-neutral-400 hover:text-red-400"
-                        onClick={() => useApp.getState().setFileForPane(p, undefined)}
-                        title="Remove">
-                        ✕
-                      </button>
+                        className={`ml-1 ${has ? "text-neutral-400 hover:text-red-400" : "text-neutral-700 cursor-not-allowed"}`}
+                        onClick={() => has && useApp.getState().setDataURLForPane(p, undefined) || useApp.getState().setFileForPane(p, undefined)}
+                        title={has ? "Remove" : "No image to remove"}
+                      >✕</button>
                       // <button
                       //   className={`ml-1 ${has ? "text-neutral-400 hover:text-red-400" : "text-neutral-700 cursor-not-allowed"}`}
                       //   onClick={() => has && useApp.getState().setFileForPane(p, undefined)}

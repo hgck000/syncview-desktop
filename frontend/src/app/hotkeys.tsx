@@ -7,8 +7,8 @@ import { openFileDialog } from "./bridge";
 export default function Hotkeys() {
   const t             = useApp(s => s.getActive());
   const toggleLinkAll = useApp(s => s.toggleLinkAll);
-  const cycleLayout   = useApp(s => s.cycleLayout);
-  const setLayout     = useApp(s => s.setLayout);
+  // const cycleLayout   = useApp(s => s.cycleLayout);
+  // const setLayout     = useApp(s => s.setLayout);
   const focusNext     = useApp(s => s.focusNext);
   const focusPrev     = useApp(s => s.focusPrev);
   const setFileForPane= useApp(s => s.setFileForPane);
@@ -16,9 +16,9 @@ export default function Hotkeys() {
   useEffect(() => {
     const unsubscribe = tinykeys(window, {
       "l": (e) => { e.preventDefault(); toggleLinkAll(); },
-      "1": (e) => { e.preventDefault(); setLayout("1up"); },
-      "2": (e) => { e.preventDefault(); setLayout("2up"); },
-      "]": (e) => { e.preventDefault(); cycleLayout(); },
+      // "1": (e) => { e.preventDefault(); setLayout("1up"); },
+      // "2": (e) => { e.preventDefault(); setLayout("2up"); },
+      // "]": (e) => { e.preventDefault(); cycleLayout(); },
       "arrowright": (e) => { e.preventDefault(); focusNext(); },
       "arrowleft":  (e) => { e.preventDefault(); focusPrev(); },
       "tab":        (e) => { e.preventDefault(); focusNext(); },
@@ -37,7 +37,7 @@ export default function Hotkeys() {
       },
     });
     return () => unsubscribe();
-  }, [t, toggleLinkAll, cycleLayout, setLayout, focusNext, focusPrev, setFileForPane]);
+  }, [t, toggleLinkAll, focusNext, focusPrev, setFileForPane]);
 
   return null;
 }

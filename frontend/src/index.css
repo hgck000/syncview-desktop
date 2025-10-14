@@ -8,6 +8,11 @@
 @tailwind components;
 @tailwind utilities;
 
+canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
