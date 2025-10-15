@@ -1,7 +1,9 @@
 import { create } from "zustand";
 
-// export type Layout = "auto"; // luôn auto theo số ảnh
 export type PaneId = "A" | "B" | "C" | "D";
+export type View = { scale: number; offsetX: number; offsetY: number; imgW?: number; imgH?: number };
+type PaneSize = { cw: number; ch: number };
+
 const ORDER: PaneId[] = ["A","B","C","D"];
 
 
@@ -17,6 +19,8 @@ type TabState = {
   files:   Record<PaneId, string|undefined>;     // path tuyệt đối (từ Open)
   dataURL: Record<PaneId, string|undefined>;     // dùng khi drop không có path
   names:   Record<PaneId, string|undefined>;     // label ưu tiên hiển thị
+  view: Record<PaneId, View>;
+  paneSize: Record<PaneId, PaneSize>; // <— NEW: kích thước khung vẽ theo pane
 };
 
 type AppState = {
@@ -38,6 +42,21 @@ type AppState = {
 
   setFileForPane: (pane: PaneId, path?: string, nameOverride?: string) => void;
   setDataURLForPane: (pane: PaneId, dataURL?: string, name?: string) => void;
+
+  // view & meta
+  setImageMeta: (pane: PaneId, w: number, h: number) => void;
+  setView: (pane: PaneId, patch: Partial<View>) => void;
+  fitView: (pane: PaneId, cw: number, ch: number) => void;
+  // resetView: (pane: PaneId) => void;
+  applyPan: (pane: PaneId, dx: number, dy: number) => void;
+  // applyZoom: (pane: PaneId, factor: number, around?: { cx: number; cy: number; cw: number; ch: number }) => void;
+
+  setPaneSize: (pane: PaneId, cw: number, ch: number) => void;
+  resetView: (pane: PaneId) => void;  // (sẽ áp cho ALL khi linkAll)
+  applyZoom: (pane: PaneId, factor: number, around:
+    | { type: 'abs', cx: number, cy: number, cw: number, ch: number }
+    | { type: 'norm', u: number, v: number }
+  ) => void;
 };
 
 function panesFromSources(files: Record<PaneId, string | undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
@@ -58,10 +77,20 @@ const initial: TabState = {
   files:   { A: undefined, B: undefined, C: undefined, D: undefined },
   dataURL: { A: undefined, B: undefined, C: undefined, D: undefined },
   names:   { A: undefined, B: undefined, C: undefined, D: undefined },
+  view: {
+    A: { scale: 1, offsetX: 0, offsetY: 0 },
+    B: { scale: 1, offsetX: 0, offsetY: 0 },
+    C: { scale: 1, offsetX: 0, offsetY: 0 },
+    D: { scale: 1, offsetX: 0, offsetY: 0 },
+  },
+  paneSize: { A:{cw:1,ch:1}, B:{cw:1,ch:1}, C:{cw:1,ch:1}, D:{cw:1,ch:1} }, // tránh chia 0
 };
 
-// const layoutForCount = (n: number): Layout =>
-//   n === 1 ? "1up" : n === 2 ? "2up" : n === 3 ? "3up" : "4up";
+// function panesFromSources(files: Record<PaneId, string|undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
+//   const used = (["A","B","C","D"] as PaneId[]).filter(id => !!files[id] || !!dataURL[id]);
+//   console.log("[store] panesFromSources ->", used);
+//   return used;
+// }
 
 export const useApp = create<AppState>((set, get) => ({
   tabs: [initial],
@@ -86,29 +115,6 @@ export const useApp = create<AppState>((set, get) => ({
     set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, linkAll: !t.linkAll } : t) });
   },
 
-  // cycleLayout: () => {
-  //   const { tabs, activeTabId } = get();
-  //   set({
-  //     tabs: tabs.map(t => {
-  //       if (t.id !== activeTabId) return t;
-  //       const n = t.panes.length;
-  //       const next = n === 1 ? 2 : n === 2 ? 3 : n === 3 ? 4 : 1;
-  //       return { ...t, panes: (["A","B","C","D"] as PaneId[]).slice(0, next), layout: layoutForCount(next), focusIndex: 0 };
-  //     })
-  //   });
-  // },
-
-  // setLayout: (l) => {
-  //   const { tabs, activeTabId } = get();
-  //   set({
-  //     tabs: tabs.map(t => {
-  //       if (t.id !== activeTabId) return t;
-  //       const n = l === "1up" ? 1 : l === "2up" ? 2 : l === "3up" ? 3 : 4;
-  //       return { ...t, layout: l, panes: (["A","B","C","D"] as PaneId[]).slice(0, n), focusIndex: 0 };
-  //     })
-  //   });
-  // },
-
   focusNext: () => {
     const t = get().getActive();
     const len = t.panes.length || 1;
@@ -126,16 +132,6 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
-  // setPaneCount: (n) => {
-  //   const { tabs, activeTabId } = get();
-  //   set({
-  //     tabs: tabs.map(t => t.id === activeTabId
-  //       ? { ...t, panes: (["A","B","C","D"] as PaneId[]).slice(0, n), layout: layoutForCount(n), focusIndex: 0 }
-  //       : t
-  //     )
-  //   });
-  // },
-  // ... giữ nguyên các action cũ ...
   setFileForPane: (pane, path, nameOverride) => {
     console.log("[store] setFileForPane", pane, path);
     const { tabs, activeTabId } = get();
@@ -143,18 +139,29 @@ export const useApp = create<AppState>((set, get) => ({
       tabs: tabs.map(t => {
         if (t.id !== activeTabId) return t;
         // cập nhật files
-        const files = { ...t.files, [pane]: path };
+        const files =   { ...t.files,   [pane]: path };
         const dataURL = { ...t.dataURL, [pane]: undefined }; // path có thì bỏ dataURL cũ
         const names   = { ...t.names,   [pane]: nameOverride ?? t.names[pane] };
         // suy ra panes mới
-        const panes = panesFromFiles(files, dataURL).slice(0, 4);
+        const panes = panesFromSources(files, dataURL).slice(0, 4);
         // clamp focus
+        const view    = { ...t.view, [pane]: { scale: 1, offsetX: 0, offsetY: 0 } };
         const focusIndex = panes.length ? Math.min(t.focusIndex, panes.length - 1) : 0;
-        return { ...t, files, dataURL, names, panes, focusIndex };
+        return { ...t, files, dataURL, names, panes, view, focusIndex };
       })
     });
   },
 
+  setPaneSize: (pane, cw, ch) => {
+    const { tabs, activeTabId } = get();
+    console.log("[store] setPaneSize", pane, {cw, ch});
+    set({
+      tabs: tabs.map(t => t.id === activeTabId
+        ? { ...t, paneSize: { ...t.paneSize, [pane]: { cw, ch } } }
+        : t
+      )
+    });
+  },
   setDataURLForPane: (pane, data, name) => {
     console.log("[store] setDataURLForPane", pane, data ? data.slice(0,22)+"..." : null);
     const { tabs, activeTabId } = get();
@@ -165,13 +172,111 @@ export const useApp = create<AppState>((set, get) => ({
         const files   = { ...t.files,   [pane]: undefined }; // ưu tiên dataURL
         const names   = { ...t.names,   [pane]: name ?? t.names[pane] };
         const panes   = panesFromSources(files, dataURL).slice(0, 4);
+        const view    = { ...t.view, [pane]: { scale: 1, offsetX: 0, offsetY: 0 } };
         const focusIndex = panes.length ? Math.min(t.focusIndex, panes.length - 1) : 0;
-        return { ...t, files, dataURL, names, panes, focusIndex };
+        return { ...t, files, dataURL, names, panes, view, focusIndex };
       })
     });
   },
 
+  setImageMeta: (pane, w, h) => {
+    console.log("[store] setImageMeta", pane, w, h);
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(t => t.id === activeTabId
+        ? { ...t, view: { ...t.view, [pane]: { ...t.view[pane], imgW: w, imgH: h } } }
+        : t
+      )
+    });
+  },
 
+  setView: (pane, patch) => {
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(t => t.id === activeTabId
+        ? { ...t, view: { ...t.view, [pane]: { ...t.view[pane], ...patch } } }
+        : t
+      )
+    });
+  },
+
+  fitView: (pane, cw, ch) => {
+    const t = get().getActive();
+    const v = t.view[pane]; const iw = v.imgW ?? 1, ih = v.imgH ?? 1;
+    const fit = Math.min(cw / iw, ch / ih);
+    console.log("[store] fitView", pane, {cw, ch, iw, ih, fit});
+    get().setView(pane, { scale: 1, offsetX: 0, offsetY: 0 }); // scale tương đối (1=fit)
+  },
+
+  resetView: (pane) => {
+    const t = get().getActive();
+    const ids = t.linkAll ? t.panes : [pane];
+    console.log("[store] resetView", ids);
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(tab => {
+        if (tab.id !== activeTabId) return tab;
+        const view = { ...tab.view };
+        ids.forEach(id => { view[id] = { ...view[id], scale: 1, offsetX: 0, offsetY: 0 }; });
+        return { ...tab, view };
+      })
+    });
+  },
+
+  applyPan: (pane, dx, dy) => {
+    const t = get().getActive();
+    const ids = t.linkAll ? t.panes : [pane];
+    ids.forEach(id => {
+      const v = t.view[id];
+      get().setView(id, { offsetX: v.offsetX + dx, offsetY: v.offsetY + dy });
+    });
+  },
+
+  applyZoom: (pane, factor, around) => {
+    const t = get().getActive();
+    const ids = t.linkAll ? t.panes : [pane];
+
+    // Nếu nhận ABS từ pane focus, chuyển về NORM để áp cho pane khác
+    let norm: {u:number,v:number} | null = null;
+    if ('type' in around && around.type === 'abs') {
+      const { cx, cy, cw, ch } = around;
+      norm = { u: cw ? cx / cw : 0.5, v: ch ? cy / ch : 0.5 };
+    } else if ('type' in around && around.type === 'norm') {
+      norm = around;
+    }
+
+
+    ids.forEach(id => {
+      const v = t.view[id];
+      const { cw, ch } = t.paneSize[id] || { cw: 1, ch: 1 };
+      // zoom quanh tâm khi linkAll để đồng bộ (đơn giản & mượt)
+      const iw = v.imgW ?? 1, ih = v.imgH ?? 1;
+
+      const fit = Math.min(cw / iw, ch / ih);
+      const w   = iw * fit * v.scale;
+      const h   = ih * fit * v.scale;
+
+      const newScale = Math.max(0.1, Math.min(8, v.scale * factor));
+      const w2  = iw * fit * newScale;
+      const h2  = ih * fit * newScale;
+
+      const cx = norm ? norm.u * cw : (cw / 2);
+      const cy = norm ? norm.v * ch : (ch / 2);
+
+      const center  = (CW:number, W:number) => (CW - W) / 2;
+      const c1x = center(cw, w),  c1y = center(ch, h);
+      const c2x = center(cw, w2), c2y = center(ch, h2);
+
+      // const newScale = Math.max(0.1, Math.min(8, v.scale * factor));
+      // Giữ điểm (cx,cy) tương đối: dịch offset theo thay đổi scale
+      const k = newScale / v.scale;
+      const nx = k * v.offsetX + k * c1x - c2x + (1 - k) * cx;
+      const ny = k * v.offsetY + k * c1y - c2y + (1 - k) * cy;
+
+      get().setView(id, { scale: newScale, offsetX: nx, offsetY: ny });
+      console.log("[store] applyZoom", id, { old: v.scale, new: newScale, cx, cy, cw, ch });
+    });
+  },
   nextEmptyPaneId: () => {
   const t = get().getActive();
   for (const id of ORDER) {
@@ -180,6 +285,3 @@ export const useApp = create<AppState>((set, get) => ({
   return null; // đã đủ 4 ảnh
   },
 }));
-
-
-
