@@ -1,15 +1,18 @@
 import { useEffect, useRef } from "react";
 import { readImageDataURL } from "./bridge";
 
+type GridOpt = { on: boolean; size: number; opacity: number };
 type Opts = {
   path?: string;
   dataURL?: string;
   view: { scale: number; offsetX: number; offsetY: number };
+  grid: GridOpt;
   onImageMeta?: (w: number, h: number) => void;
 };
 
+
 export function useImageCanvas(opts: Opts) {
-  const { path, dataURL, view, onImageMeta } = opts;
+  const { path, dataURL, view, onImageMeta, grid } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -40,10 +43,34 @@ export function useImageCanvas(opts: Opts) {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, x, y, w, h);
-    // LOG
-    // console.log("[canvas] draw", {fit, scale:view.scale, total, w, h, x, y});
-  }
 
+    // === GRID OVERLAY (tĩnh theo viewer, không theo ảnh) ===
+    if (grid.on && grid.size > 0) {
+      const step = Math.max(4, grid.size); // bước lưới theo pixel viewer
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, grid.opacity));
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.lineWidth = 1;
+
+      // kẻ phủ toàn bộ viewer (canvas)
+      // dọc
+      for (let gx = 0; gx <= cwCss + 0.5; gx += step) {
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, chCss);
+        ctx.stroke();
+      }
+      // ngang
+      for (let gy = 0; gy <= chCss + 0.5; gy += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.lineTo(cwCss, gy);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+  }
   useEffect(() => {
     let cancelled = false;
 
@@ -67,12 +94,12 @@ export function useImageCanvas(opts: Opts) {
     };
 
     load();
-    
+
     const ro = new ResizeObserver(() => draw());
     if (canvasRef.current) ro.observe(canvasRef.current);
     return () => { cancelled = true; ro.disconnect(); };
   // re-run vẽ khi view đổi
-  }, [path, dataURL, view.scale, view.offsetX, view.offsetY]);
+  }, [path, dataURL, view.scale, view.offsetX, view.offsetY, grid.on, grid.size, grid.opacity]);
 
   return canvasRef;
 }

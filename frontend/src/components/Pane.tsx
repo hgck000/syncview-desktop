@@ -28,9 +28,10 @@ export default function Pane({ id }: Props) {
   // lưu vị trí con trỏ đã biết (chuẩn hoá) để dblclick dùng đúng chỗ đó
   const lastNormRef = useRef<{u:number; v:number}>({u:0.5, v:0.5});
 
+  const grid = t.grid;
 
   const canvasRef = useImageCanvas({
-    path, dataURL: data, view: view,
+    path, dataURL: data, view, grid,
     onImageMeta: (w,h) => setMeta(id, w, h),
   });
   

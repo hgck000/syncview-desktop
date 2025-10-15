@@ -2,6 +2,8 @@ import { create } from "zustand";
 
 export type PaneId = "A" | "B" | "C" | "D";
 export type View = { scale: number; offsetX: number; offsetY: number; imgW?: number; imgH?: number };
+
+type GridState = { on: boolean; size: number; opacity: number };
 type PaneSize = { cw: number; ch: number };
 
 const ORDER: PaneId[] = ["A","B","C","D"];
@@ -21,6 +23,7 @@ type TabState = {
   names:   Record<PaneId, string|undefined>;     // label ưu tiên hiển thị
   view: Record<PaneId, View>;
   paneSize: Record<PaneId, PaneSize>; // <— NEW: kích thước khung vẽ theo pane
+  grid: GridState;
 };
 
 type AppState = {
@@ -57,6 +60,10 @@ type AppState = {
     | { type: 'abs', cx: number, cy: number, cw: number, ch: number }
     | { type: 'norm', u: number, v: number }
   ) => void;
+
+  toggleGrid: () => void;
+  setGridSize: (px: number) => void;      // theo pixel ảnh (chưa nhân zoom)
+  setGridOpacity: (v: number) => void;    // 0..1
 };
 
 function panesFromSources(files: Record<PaneId, string | undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
@@ -84,6 +91,7 @@ const initial: TabState = {
     D: { scale: 1, offsetX: 0, offsetY: 0 },
   },
   paneSize: { A:{cw:1,ch:1}, B:{cw:1,ch:1}, C:{cw:1,ch:1}, D:{cw:1,ch:1} }, // tránh chia 0
+  grid: { on: false, size: 32, opacity: 0.35 },
 };
 
 // function panesFromSources(files: Record<PaneId, string|undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
@@ -256,7 +264,7 @@ export const useApp = create<AppState>((set, get) => ({
       const w   = iw * fit * v.scale;
       const h   = ih * fit * v.scale;
 
-      const newScale = Math.max(0.1, Math.min(8, v.scale * factor));
+      const newScale = Math.max(1, Math.min(10, v.scale * factor));
       const w2  = iw * fit * newScale;
       const h2  = ih * fit * newScale;
 
@@ -283,5 +291,26 @@ export const useApp = create<AppState>((set, get) => ({
     if (!t.files[id] && !t.dataURL[id]) return id;
   }
   return null; // đã đủ 4 ảnh
+  },
+  toggleGrid: () => {
+    const { tabs, activeTabId } = get();
+    console.log("[store] toggleGrid");
+    set({
+      tabs: tabs.map(t => t.id === activeTabId ? { ...t, grid: { ...t.grid, on: !t.grid.on } } : t)
+    });
+  },
+  setGridSize: (px) => {
+    const { tabs, activeTabId } = get();
+    console.log("[store] setGridSize", px);
+    set({
+      tabs: tabs.map(t => t.id === activeTabId ? { ...t, grid: { ...t.grid, size: Math.max(4, Math.min(512, Math.round(px))) } } : t)
+    });
+  },
+  setGridOpacity: (v) => {
+    const { tabs, activeTabId } = get();
+    console.log("[store] setGridOpacity", v);
+    set({
+      tabs: tabs.map(t => t.id === activeTabId ? { ...t, grid: { ...t.grid, opacity: Math.max(0, Math.min(1, v)) } } : t)
+    });
   },
 }));

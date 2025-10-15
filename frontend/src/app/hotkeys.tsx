@@ -12,6 +12,8 @@ export default function Hotkeys() {
   const focusNext     = useApp(s => s.focusNext);
   const focusPrev     = useApp(s => s.focusPrev);
   const setFileForPane= useApp(s => s.setFileForPane);
+  const toggleGrid  = useApp(s => s.toggleGrid);
+
 
   useEffect(() => {
     const unsubscribe = tinykeys(window, {
@@ -23,6 +25,7 @@ export default function Hotkeys() {
       "arrowleft":  (e) => { e.preventDefault(); focusPrev(); },
       "tab":        (e) => { e.preventDefault(); focusNext(); },
       "shift+tab":  (e) => { e.preventDefault(); focusPrev(); },
+      "#": (e) => { e.preventDefault(); toggleGrid(); },  // Shift+3 trên US layout
       "ctrl+o": async (e) => {
         e.preventDefault();
         const pane = t.panes[t.focusIndex];
@@ -37,7 +40,7 @@ export default function Hotkeys() {
       },
     });
     return () => unsubscribe();
-  }, [t, toggleLinkAll, focusNext, focusPrev, setFileForPane]);
+  }, [t, toggleLinkAll, focusNext, focusPrev, setFileForPane, toggleGrid]);
 
   return null;
 }

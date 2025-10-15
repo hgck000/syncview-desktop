@@ -1,10 +1,12 @@
 import { Link2, LayoutGrid, Maximize, RefreshCw, Hash, Camera, Sun, Image as ImageIcon } from "lucide-react";
 import { useApp } from "../app/store";
 import { openFileDialog } from "../app/bridge";
-import { useRef } from "react";
+import { useRef, useState  } from "react";
 
 export default function Toolbar() {
   const t = useApp(s => s.getActive());
+  const toggleGrid   = useApp(s => s.toggleGrid);
+  const setGridSize  = useApp(s => s.setGridSize);
   const toggleLinkAll = useApp(s => s.toggleLinkAll);
   const setFileForPane= useApp(s => s.setFileForPane);
   const nextEmpty     = useApp(s => s.nextEmptyPaneId);
@@ -60,7 +62,22 @@ export default function Toolbar() {
       <button onClick={onFit} className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1"><Maximize size={16}/> Fit</button>
       <button onClick={on100} className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700">100%</button>
       <button onClick={onReset} className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700"><RefreshCw size={16}/></button>
-      <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700"><Hash size={16}/></button>
+      {/* <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700"><Hash size={16}/></button> */}
+      {/* <div className="relative"> */}
+      <button
+        onClick={toggleGrid}
+        title="Grid (#)"
+        className={`px-2 py-1 rounded flex items-center gap-1 ${t.grid.on ? "bg-blue-700/60 hover:bg-blue-700" : "bg-neutral-800 hover:bg-neutral-700"}`}>
+        <Hash size={16}/> Grid
+      </button>
+      {/* menu size nhỏ gọn: Alt/Option-click để đổi nhanh */}
+      <button
+        onClick={() => setGridSize(t.grid.size === 32 ? 64 : t.grid.size === 64 ? 16 : 32)}
+        title={`Grid size: ${t.grid.size}px (Alt: vòng 16/32/64)`}
+        className="ml-1 px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs">
+        {t.grid.size}px
+      </button>
+    {/* </div> */}
 
       <div className="ml-auto" />
       <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1"><Camera size={16}/> Snapshot</button>
