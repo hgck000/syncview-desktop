@@ -4,21 +4,24 @@ declare global {
     pywebview?: { api: {
       open_dialog(pane: string): Promise<string | null>,
       read_image_dataurl(path: string): Promise<string | null>,
+      read_exif_from_path(path: string): Promise<any | null>,
+      read_exif_from_dataurl(dataurl: string): Promise<any | null>,
      }};
   }
 }
 
-// export async function openFileDialog(pane: string): Promise<string | null> {
-//   if (window.pywebview?.api?.open_dialog) {
-//     try { return await window.pywebview.api.open_dialog(pane); }
-//     catch { return null; }
-//   } else {
-//     alert("Không chạy trong PyWebview: mở app dev bằng backend/run_dev.py để dùng file dialog hệ thống.");
-//     return null;
-//   }
-// }
-
-
+export async function readExifFromPath(path: string) {
+  console.log("[FE] readExifFromPath ->", path);
+  return window.pywebview?.api?.read_exif_from_path
+    ? await window.pywebview.api.read_exif_from_path(path)
+    : null;
+}
+export async function readExifFromDataURL(dataurl: string) {
+  console.log("[FE] readExifFromDataURL ->", dataurl?.slice(0,32)+"...");
+  return window.pywebview?.api?.read_exif_from_dataurl
+    ? await window.pywebview.api.read_exif_from_dataurl(dataurl)
+    : null;
+}
 
 export async function openFileDialog(pane: string) {
   console.log("[FE] openFileDialog ->", pane);

@@ -6,6 +6,8 @@ import { openFileDialog } from "./bridge";
 
 export default function Hotkeys() {
   const t             = useApp(s => s.getActive());
+  const toggleDetails = useApp(s => s.toggleDetails);
+
   const toggleLinkAll = useApp(s => s.toggleLinkAll);
   // const cycleLayout   = useApp(s => s.cycleLayout);
   // const setLayout     = useApp(s => s.setLayout);
@@ -25,6 +27,7 @@ export default function Hotkeys() {
       "arrowleft":  (e) => { e.preventDefault(); focusPrev(); },
       "tab":        (e) => { e.preventDefault(); focusNext(); },
       "shift+tab":  (e) => { e.preventDefault(); focusPrev(); },
+      "I": (e) => { e.preventDefault(); if (t.panes.length) toggleDetails(t.panes[t.focusIndex]); },
       "#": (e) => { e.preventDefault(); toggleGrid(); },  // Shift+3 trên US layout
       "ctrl+o": async (e) => {
         e.preventDefault();

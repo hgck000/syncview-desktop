@@ -19,8 +19,14 @@ if __name__ == "__main__":
     
     window = webview.create_window("SyncView — Dev", FRONTEND_DEV_URL)
     api = Bridge(APP_DATA_DIR, window)
-    window.expose(api.open_dialog, api.recent_files)  # <-- expose từng hàm
-    window.expose(api.open_dialog, api.recent_files, api.read_image_dataurl)  # <— thêm
+    # window.expose(api.open_dialog, api.recent_files)  # <-- expose từng hàm
+    window.expose(
+        api.open_dialog,
+        api.recent_files,
+        api.read_image_dataurl,
+        api.read_exif_from_path,
+        api.read_exif_from_dataurl
+    )  # <— thêm
 
     print("[Dev] Starting webview…")  # LOG
     webview.start()

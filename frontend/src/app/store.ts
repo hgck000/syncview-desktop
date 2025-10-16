@@ -3,6 +3,8 @@ import { create } from "zustand";
 export type PaneId = "A" | "B" | "C" | "D";
 export type View = { scale: number; offsetX: number; offsetY: number; imgW?: number; imgH?: number };
 
+export type Exif = Record<string, any>;
+
 type GridState = { on: boolean; size: number; opacity: number };
 type PaneSize = { cw: number; ch: number };
 
@@ -24,6 +26,8 @@ type TabState = {
   view: Record<PaneId, View>;
   paneSize: Record<PaneId, PaneSize>; // <— NEW: kích thước khung vẽ theo pane
   grid: GridState;
+  exif: Record<PaneId, Exif | undefined>;
+  showDetails: Record<PaneId, boolean>;
 };
 
 type AppState = {
@@ -64,6 +68,8 @@ type AppState = {
   toggleGrid: () => void;
   setGridSize: (px: number) => void;      // theo pixel ảnh (chưa nhân zoom)
   setGridOpacity: (v: number) => void;    // 0..1
+  setExif: (pane: PaneId, exif?: Exif) => void;
+  toggleDetails: (pane: PaneId) => void;
 };
 
 function panesFromSources(files: Record<PaneId, string | undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
@@ -92,6 +98,8 @@ const initial: TabState = {
   },
   paneSize: { A:{cw:1,ch:1}, B:{cw:1,ch:1}, C:{cw:1,ch:1}, D:{cw:1,ch:1} }, // tránh chia 0
   grid: { on: false, size: 32, opacity: 0.35 },
+  exif: { A: undefined, B: undefined, C: undefined, D: undefined },
+  showDetails: { A: false, B: false, C: false, D: false },
 };
 
 // function panesFromSources(files: Record<PaneId, string|undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
@@ -311,6 +319,25 @@ export const useApp = create<AppState>((set, get) => ({
     console.log("[store] setGridOpacity", v);
     set({
       tabs: tabs.map(t => t.id === activeTabId ? { ...t, grid: { ...t.grid, opacity: Math.max(0, Math.min(1, v)) } } : t)
+    });
+  },
+  setExif: (pane, exif) => {
+    console.log("[store] setExif", pane, exif);
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(t => t.id === activeTabId
+        ? { ...t, exif: { ...t.exif, [pane]: exif } }
+        : t
+      )
+    });
+  },
+  toggleDetails: (pane) => {
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(t => t.id === activeTabId
+        ? { ...t, showDetails: { ...t.showDetails, [pane]: !t.showDetails[pane] } }
+        : t
+      )
     });
   },
 }));

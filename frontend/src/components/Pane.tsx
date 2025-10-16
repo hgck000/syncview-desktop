@@ -2,6 +2,8 @@ import { useApp } from "../app/store";
 import { basename } from "../app/path";
 import { useImageCanvas } from "../app/useImageCanvas";
 import { useRef, useState, useEffect } from "react";
+import { readExifFromPath, readExifFromDataURL } from "../app/bridge";
+
 
 type Props = { id: "A" | "B" | "C" | "D" };
 
@@ -34,6 +36,11 @@ export default function Pane({ id }: Props) {
     path, dataURL: data, view, grid,
     onImageMeta: (w,h) => setMeta(id, w, h),
   });
+
+  const exif = t.exif[id];
+  const showDetails = t.showDetails[id];
+  const setExif = useApp(s => s.setExif);
+  const toggleDetails = useApp(s => s.toggleDetails);
   
   useEffect(() => {
     const el = wrapRef.current;
@@ -51,6 +58,18 @@ export default function Pane({ id }: Props) {
   }, [id, setSize]);
 
   // const name = basename(path) ?? `${id}: Empty`;
+  async function onToggleDetails() {
+    // bật panel trước để có phản hồi
+    toggleDetails(id);
+
+    // nếu chưa có EXIF thì fetch (theo path hoặc dataURL)
+    if (!exif && (path || data)) {
+      const info = path
+        ? await readExifFromPath(path)
+        : await readExifFromDataURL(data!);
+      setExif(id, info || {});
+    }
+  }
 
   function onMouseDown(e: React.MouseEvent) {
     if (!path && !data) return;
@@ -133,10 +152,30 @@ export default function Pane({ id }: Props) {
       onWheel={onWheel}
       onDoubleClick={onDoubleClick}  
     >
+      
       <div className="absolute top-0 left-0 right-0 h-7 px-2 flex items-center justify-between bg-neutral-900/90 border-b border-neutral-800 text-xs z-10">
         <div className="truncate">{label}</div>
         <div className="text-neutral-400">{Math.round(view.scale*100)}%</div>
         {/* <button className="text-neutral-400 hover:text-neutral-200">Details ▾</button> */}
+        <button onClick={onToggleDetails} className="text-neutral-400 hover:text-neutral-200">
+          Details ▾
+          {showDetails && (path || data) && (
+            <div className="absolute top-7 left-0 right-0 z-10 bg-neutral-950/95 border-b border-neutral-800 p-2 text-[12px] leading-5">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <span><b>Make</b>: {exif?.Make ?? "-"}</span>
+                <span><b>Model</b>: {exif?.Model ?? "-"}</span>
+                <span><b>Date</b>: {exif?.DateTimeOriginal ?? "-"}</span>
+                <span><b>ƒ</b>: {exif?.FNumber ? `ƒ${exif.FNumber}` : "-"}</span>
+                <span><b>ISO</b>: {exif?.ISOSpeedRatings ?? "-"}</span>
+                <span><b>Shutter</b>: {exif?.ExposureTime ? `${exif.ExposureTime}s` : "-"}</span>
+                <span><b>Focal</b>: {exif?.FocalLength ? `${exif.FocalLength}mm` : "-"}</span>
+                <span><b>Size</b>: {view.imgW && view.imgH ? `${view.imgW}×${view.imgH}` : "-"}</span>
+                <span><b>Lens</b>: {exif?.LensModel ?? "-"}</span>
+                <span><b>Orient</b>: {exif?.Orientation ?? "-"}</span>
+              </div>
+            </div>
+          )}
+        </button>
       </div>
 
 

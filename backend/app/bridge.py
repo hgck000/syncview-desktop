@@ -2,8 +2,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional
 import webview
-from PIL import Image
-import io, base64
+from PIL import Image, ExifTags
+import io, base64, json
 
 class Bridge:
     """
@@ -65,3 +65,70 @@ class Bridge:
             items.remove(path)
         items.insert(0, path)
         self.recent[pane] = items[:10]
+        
+    def _exif_to_dict(self, img: Image.Image) -> Dict:
+        """Chuyển EXIF của Pillow sang dict khoẻ mạnh (keys human-readable)"""
+        out = {}
+        try:
+            raw = img.getexif() or {}
+        except Exception:
+            raw = {}
+        tagmap = {v: k for k, v in ExifTags.TAGS.items()}
+        def get(tag):
+            key = tagmap.get(tag)
+            return raw.get(key) if key is not None else None
+
+        # lấy các trường hay dùng
+        out["Make"] = get("Make")
+        out["Model"] = get("Model")
+        out["DateTimeOriginal"] = get("DateTimeOriginal") or get("DateTime")
+        out["FNumber"] = self._ratio_to_float(get("FNumber"))
+        out["ExposureTime"] = self._ratio_to_float(get("ExposureTime"))
+        out["ISOSpeedRatings"] = get("ISOSpeedRatings") or get("PhotographicSensitivity")
+        out["FocalLength"] = self._ratio_to_float(get("FocalLength"))
+        out["LensModel"] = get("LensModel")
+        out["Orientation"] = get("Orientation")
+        # kích thước gốc
+        try:
+            out["ImageWidth"], out["ImageHeight"] = img.size
+        except Exception:
+            pass
+        return out
+
+    def _ratio_to_float(self, v):
+        # EXIF có thể là (num, den) hoặc Fraction
+        try:
+            if v is None: return None
+            if isinstance(v, tuple) and len(v) == 2:
+                num, den = v
+                return float(num) / float(den) if den else None
+            return float(v)
+        except Exception:
+            return None
+
+    def read_exif_from_path(self, path: str) -> Optional[Dict]:
+        try:
+            p = Path(path)
+            if not p.exists():
+                print(f"[Bridge][EXIF] not found: {path}")
+                return None
+            with Image.open(p) as im:
+                info = self._exif_to_dict(im)
+            print(f"[Bridge][EXIF] path OK: {path}")
+            return info
+        except Exception as e:
+            print(f"[Bridge][EXIF][ERROR] path: {e}")
+            return None
+
+    def read_exif_from_dataurl(self, dataurl: str) -> Optional[Dict]:
+        try:
+            # data:image/...;base64,XXXX
+            head, b64 = dataurl.split(",", 1)
+            buf = io.BytesIO(base64.b64decode(b64))
+            with Image.open(buf) as im:
+                info = self._exif_to_dict(im)
+            print(f"[Bridge][EXIF] dataURL OK")
+            return info
+        except Exception as e:
+            print(f"[Bridge][EXIF][ERROR] dataURL: {e}")
+            return None
