@@ -49,24 +49,6 @@ export default function Sidebar() {
         {/* IMAGE PANEL CONTROL BOX */}
         <Panel minSize={20}>
           <div className="h-full p-3 border-t border-neutral-800">
-            {/* 
-            <div className="text-xs uppercase text-neutral-400 mb-2">
-              Images in this tab
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {tab.panes.map((p) => (
-                <div key={p} className="flex items-center gap-1 px-2 py-1 rounded bg-neutral-800 text-neutral-200">
-                  <span>{p}.jpg</span>
-                  <button className="text-neutral-400 hover:text-red-400">✕</button>
-                </div>
-              ))}
-              {[...Array(4 - tab.panes.length)].map((_, i) => (
-                <div key={i} className="px-2 py-1 rounded border border-dashed border-neutral-700 text-neutral-500">
-                  Empty
-                </div>
-              ))}
-            </div> 
-            */}
             <div className="text-xs uppercase text-neutral-400 mb-2">
               Images in this tab
             </div>
@@ -77,18 +59,14 @@ export default function Sidebar() {
                 return (
                   <div key={p} className={`flex items-center gap-1 px-2 py-1 rounded ${has ? "bg-neutral-800 text-neutral-200" : "border border-dashed border-neutral-700 text-neutral-500"}`}>
                     <span className="truncate max-w-[140px]">{name}</span>
-                    {has && (
+                    {/* {has && (
                       <button
                         className={`ml-1 ${has ? "text-neutral-400 hover:text-red-400" : "text-neutral-700 cursor-not-allowed"}`}
                         onClick={() => has && useApp.getState().setDataURLForPane(p, undefined) || useApp.getState().setFileForPane(p, undefined)}
+                        // onClick={() => has && useApp.getState().setFileForPane(p, undefined)}
                         title={has ? "Remove" : "No image to remove"}
                       >✕</button>
-                      // <button
-                      //   className={`ml-1 ${has ? "text-neutral-400 hover:text-red-400" : "text-neutral-700 cursor-not-allowed"}`}
-                      //   onClick={() => has && useApp.getState().setFileForPane(p, undefined)}
-                      //   title={has ? "Remove" : "No image to remove"}
-                      // >✕</button>
-                    )}
+                    )} */}
                   </div>
                 );
               })}

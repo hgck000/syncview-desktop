@@ -2,14 +2,13 @@ import { create } from "zustand";
 
 export type PaneId = "A" | "B" | "C" | "D";
 export type View = { scale: number; offsetX: number; offsetY: number; imgW?: number; imgH?: number };
-
 export type Exif = Record<string, any>;
+export type LoupeState = { on: boolean; size: number; zoom: number; shape: 'circle'|'square' };
 
 type GridState = { on: boolean; size: number; opacity: number };
 type PaneSize = { cw: number; ch: number };
 
 const ORDER: PaneId[] = ["A","B","C","D"];
-
 
 type TabState = {
   id: string;
@@ -28,6 +27,8 @@ type TabState = {
   grid: GridState;
   exif: Record<PaneId, Exif | undefined>;
   showDetails: Record<PaneId, boolean>;
+  loupe: LoupeState;
+  pointerNorm: Record<PaneId, {u:number; v:number}>; // vị trí con trỏ chuẩn hoá 0..1
 };
 
 type AppState = {
@@ -46,10 +47,10 @@ type AppState = {
   // setPaneCount: (n: 1 | 2 | 3 | 4) => void; // đổi số pane nhanh để test
   // setFileForPane: (pane: PaneId, path?: string) => void;
   nextEmptyPaneId: () => PaneId | null; // để Open khi chưa có pane nào
-
+  
   setFileForPane: (pane: PaneId, path?: string, nameOverride?: string) => void;
   setDataURLForPane: (pane: PaneId, dataURL?: string, name?: string) => void;
-
+  
   // view & meta
   setImageMeta: (pane: PaneId, w: number, h: number) => void;
   setView: (pane: PaneId, patch: Partial<View>) => void;
@@ -57,19 +58,29 @@ type AppState = {
   // resetView: (pane: PaneId) => void;
   applyPan: (pane: PaneId, dx: number, dy: number) => void;
   // applyZoom: (pane: PaneId, factor: number, around?: { cx: number; cy: number; cw: number; ch: number }) => void;
-
+  
   setPaneSize: (pane: PaneId, cw: number, ch: number) => void;
   resetView: (pane: PaneId) => void;  // (sẽ áp cho ALL khi linkAll)
   applyZoom: (pane: PaneId, factor: number, around:
     | { type: 'abs', cx: number, cy: number, cw: number, ch: number }
     | { type: 'norm', u: number, v: number }
   ) => void;
-
+  
   toggleGrid: () => void;
   setGridSize: (px: number) => void;      // theo pixel ảnh (chưa nhân zoom)
   setGridOpacity: (v: number) => void;    // 0..1
   setExif: (pane: PaneId, exif?: Exif) => void;
   toggleDetails: (pane: PaneId) => void;
+  
+  toggleLoupe: () => void;
+  setLoupeSize: (px: number) => void;
+  // setLoupeZoom: (z: number) => void;
+  setPointerNorm: (pane: PaneId, u: number, v: number) => void;
+  setPointerNormAll: (u: number, v: number) => void;   // <— NEW
+
+  helpOn: boolean;
+  toggleHelp: () => void;
+  clearPane: (pane: PaneId) => void;
 };
 
 function panesFromSources(files: Record<PaneId, string | undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
@@ -77,6 +88,12 @@ function panesFromSources(files: Record<PaneId, string | undefined>, dataURL: Re
   // log tiện debug
   console.log("[store] panesFromFiles ->", used);
   return used;
+}
+function usedPanes(
+  files: Record<PaneId, string|undefined>,
+  dataURL: Record<PaneId, string|undefined>
+): PaneId[] {
+  return (["A","B","C","D"] as PaneId[]).filter(id => !!files[id] || !!dataURL[id]);
 }
 
 const initial: TabState = {
@@ -100,17 +117,15 @@ const initial: TabState = {
   grid: { on: false, size: 32, opacity: 0.35 },
   exif: { A: undefined, B: undefined, C: undefined, D: undefined },
   showDetails: { A: false, B: false, C: false, D: false },
+  loupe: { on: false, size: 160, zoom: 2, shape: 'circle' },
+  pointerNorm: { A:{u:0.5,v:0.5}, B:{u:0.5,v:0.5}, C:{u:0.5,v:0.5}, D:{u:0.5,v:0.5} },
 };
-
-// function panesFromSources(files: Record<PaneId, string|undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
-//   const used = (["A","B","C","D"] as PaneId[]).filter(id => !!files[id] || !!dataURL[id]);
-//   console.log("[store] panesFromSources ->", used);
-//   return used;
-// }
 
 export const useApp = create<AppState>((set, get) => ({
   tabs: [initial],
   activeTabId: "tab-1",
+  helpOn: false,
+  toggleHelp: () => set(s => ({ helpOn: !s.helpOn })),
 
   getActive: () => {
     const { tabs, activeTabId } = get();
@@ -160,10 +175,11 @@ export const useApp = create<AppState>((set, get) => ({
         const names   = { ...t.names,   [pane]: nameOverride ?? t.names[pane] };
         // suy ra panes mới
         const panes = panesFromSources(files, dataURL).slice(0, 4);
+         const showDetails = { ...t.showDetails, [pane]: false };
         // clamp focus
         const view    = { ...t.view, [pane]: { scale: 1, offsetX: 0, offsetY: 0 } };
         const focusIndex = panes.length ? Math.min(t.focusIndex, panes.length - 1) : 0;
-        return { ...t, files, dataURL, names, panes, view, focusIndex };
+        return { ...t, files, dataURL, names, panes, view, focusIndex, showDetails };
       })
     });
   },
@@ -189,8 +205,9 @@ export const useApp = create<AppState>((set, get) => ({
         const names   = { ...t.names,   [pane]: name ?? t.names[pane] };
         const panes   = panesFromSources(files, dataURL).slice(0, 4);
         const view    = { ...t.view, [pane]: { scale: 1, offsetX: 0, offsetY: 0 } };
+        const showDetails = { ...t.showDetails, [pane]: false };
         const focusIndex = panes.length ? Math.min(t.focusIndex, panes.length - 1) : 0;
-        return { ...t, files, dataURL, names, panes, view, focusIndex };
+        return { ...t, files, dataURL, names, panes, view, focusIndex, showDetails };
       })
     });
   },
@@ -272,7 +289,7 @@ export const useApp = create<AppState>((set, get) => ({
       const w   = iw * fit * v.scale;
       const h   = ih * fit * v.scale;
 
-      const newScale = Math.max(1, Math.min(10, v.scale * factor));
+      const newScale = Math.max(0.8, Math.min(10, v.scale * factor));
       const w2  = iw * fit * newScale;
       const h2  = ih * fit * newScale;
 
@@ -338,6 +355,84 @@ export const useApp = create<AppState>((set, get) => ({
         ? { ...t, showDetails: { ...t.showDetails, [pane]: !t.showDetails[pane] } }
         : t
       )
+    });
+  },
+
+  // LOUPE && SYNC LOUPE
+  toggleLoupe: () => {
+  const { tabs, activeTabId, getActive } = get();
+  const tab = getActive();
+  const next = !tab.loupe.on;
+  console.log("[store] toggleLoupe ->", next);
+  set({
+    tabs: tabs.map(t => {
+      if (t.id !== activeTabId) return t;
+      return {
+        ...t,
+        loupe: { ...t.loupe, on: next, zoom: next ? 2 : t.loupe.zoom } // <-- ép 2x khi bật
+      };
+    })
+  });
+  if (next && tab.linkAll && tab.panes.length) {
+    const focus = tab.panes[tab.focusIndex] || tab.panes[0];
+    const p = tab.pointerNorm[focus] || { u: 0.5, v: 0.5 };
+    get().setPointerNormAll(p.u, p.v);
+  }
+},
+  setLoupeSize: (px) => {
+    const { tabs, activeTabId } = get();
+    const size = Math.max(150, Math.min(500, Math.round(px))); // <— clamp mới
+    console.log("[store] setLoupeSize", size);
+    set({
+      tabs: tabs.map(t => t.id === activeTabId ? { ...t, loupe: { ...t.loupe, size } } : t)
+    });
+  },
+  // setLoupeZoom: (z) => {
+  //   const { tabs, activeTabId } = get();
+  //   const zoom = Math.max(1.5, Math.min(6, z));
+  //   console.log("[store] setLoupeZoom", zoom);
+  //   set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, loupe: { ...t.loupe, zoom } } : t) });
+  // },
+  setPointerNorm: (pane, u, v) => {
+    const { tabs, activeTabId } = get();
+    const clamp = (x:number)=> Math.max(0, Math.min(1, x));
+    const val = { u: clamp(u), v: clamp(v) };
+    set({
+      tabs: tabs.map(t => t.id === activeTabId
+        ? { ...t, pointerNorm: { ...t.pointerNorm, [pane]: val } }
+        : t
+      )
+    });
+  },
+  setPointerNormAll: (u, v) => { // <— NEW
+    const { tabs, activeTabId } = get();
+    const clamp = (x:number)=> Math.max(0, Math.min(1, x));
+    const val = { u: clamp(u), v: clamp(v) };
+    set({
+      tabs: tabs.map(t => {
+        if (t.id !== activeTabId) return t;
+        const pn = { ...t.pointerNorm };
+        t.panes.forEach(id => { pn[id] = val; });
+        return { ...t, pointerNorm: pn };
+      })
+    });
+  },
+  clearPane: (pane) => {
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(t => {
+        if (t.id !== activeTabId) return t;
+        const files   = { ...t.files,   [pane]: undefined };
+        const dataURL = { ...t.dataURL, [pane]: undefined };
+        const names   = { ...t.names,   [pane]: undefined };
+        const exif    = t.exif ? { ...t.exif, [pane]: undefined } : t.exif;
+        const view    = { ...t.view, [pane]: { scale: 1, offsetX: 0, offsetY: 0 } };
+        const panes   = usedPanes(files, dataURL);
+        const focusIndex = panes.length ? Math.min(t.focusIndex, panes.length-1) : 0;
+        const showDetails = { ...t.showDetails, [pane]: false };
+        console.log("[store] clearPane", pane, "->", panes);
+        return { ...t, files, dataURL, names, exif, view, panes, focusIndex, showDetails };
+      })
     });
   },
 }));

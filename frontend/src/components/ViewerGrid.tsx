@@ -2,7 +2,6 @@ import Pane from "./Pane";
 import { useApp } from "../app/store";
 import DropZone from "./DropZone";
 
-
 export default function ViewerGrid() {
   const { tabs, activeTabId } = useApp();
   const tab = tabs.find(t => t.id === activeTabId)!;

@@ -121,6 +121,7 @@ class Bridge:
             return None
 
     def read_exif_from_dataurl(self, dataurl: str) -> Optional[Dict]:
+
         try:
             # data:image/...;base64,XXXX
             head, b64 = dataurl.split(",", 1)
@@ -132,3 +133,14 @@ class Bridge:
         except Exception as e:
             print(f"[Bridge][EXIF][ERROR] dataURL: {e}")
             return None
+
+
+        p = self._keymap_path()
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"[Bridge] write_keymap OK ({p})")
+            return True
+        except Exception as e:
+            print(f"[Bridge][ERROR] write_keymap: {e}")
+            return False
