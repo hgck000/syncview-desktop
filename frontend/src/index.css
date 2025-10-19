@@ -8,6 +8,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Emergency: tắt kéo cửa sổ ở toàn bộ app (nếu đang frameless) */
+#root, #root * { -webkit-app-region: no-drag; }
+
+/* Tabs: cho phép nhận sự kiện và tránh select/drag ảnh/text */
+.tabs-bar, .tab, .tab .title {
+  pointer-events: auto !important;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 canvas {
   width: 100%;
   height: 100%;

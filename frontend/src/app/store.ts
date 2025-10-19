@@ -131,6 +131,7 @@ type AppState = {
   setFocusIndex: (i: number) => void;
   hydrated: boolean;
   markHydrated: (v: boolean) => void;
+  reorderTabs: (fromIndex: number, toIndex: number) => void;
 };
 
 function makeEmptyTab(name = "Untitled"): TabState {
@@ -172,30 +173,30 @@ function usedPanes(
   return (["A","B","C","D"] as PaneId[]).filter(id => !!files[id] || !!dataURL[id]);
 }
 
-const initial: TabState = {
-  id: "tab-1",
-  name: "Untitled",
-  layout: "auto",
-  linkAll: true,
-  sizes: { sidebar: 26, leftSplit: 70 },
-  panes: [],
-  focusIndex: 0,
-  files:   { A: undefined, B: undefined, C: undefined, D: undefined },
-  dataURL: { A: undefined, B: undefined, C: undefined, D: undefined },
-  names:   { A: undefined, B: undefined, C: undefined, D: undefined },
-  view: {
-    A: { scale: 1, offsetX: 0, offsetY: 0 },
-    B: { scale: 1, offsetX: 0, offsetY: 0 },
-    C: { scale: 1, offsetX: 0, offsetY: 0 },
-    D: { scale: 1, offsetX: 0, offsetY: 0 },
-  },
-  paneSize: { A:{cw:1,ch:1}, B:{cw:1,ch:1}, C:{cw:1,ch:1}, D:{cw:1,ch:1} }, // tránh chia 0
-  grid: { on: false, size: 32, opacity: 0.35 },
-  exif: { A: undefined, B: undefined, C: undefined, D: undefined },
-  showDetails: { A: false, B: false, C: false, D: false },
-  loupe: { on: false, size: 160, zoom: 2, shape: 'circle' },
-  pointerNorm: { A:{u:0.5,v:0.5}, B:{u:0.5,v:0.5}, C:{u:0.5,v:0.5}, D:{u:0.5,v:0.5} },
-};
+// const initial: TabState = {
+//   id: "tab-1",
+//   name: "Untitled",
+//   layout: "auto",
+//   linkAll: true,
+//   sizes: { sidebar: 26, leftSplit: 70 },
+//   panes: [],
+//   focusIndex: 0,
+//   files:   { A: undefined, B: undefined, C: undefined, D: undefined },
+//   dataURL: { A: undefined, B: undefined, C: undefined, D: undefined },
+//   names:   { A: undefined, B: undefined, C: undefined, D: undefined },
+//   view: {
+//     A: { scale: 1, offsetX: 0, offsetY: 0 },
+//     B: { scale: 1, offsetX: 0, offsetY: 0 },
+//     C: { scale: 1, offsetX: 0, offsetY: 0 },
+//     D: { scale: 1, offsetX: 0, offsetY: 0 },
+//   },
+//   paneSize: { A:{cw:1,ch:1}, B:{cw:1,ch:1}, C:{cw:1,ch:1}, D:{cw:1,ch:1} }, // tránh chia 0
+//   grid: { on: false, size: 32, opacity: 0.35 },
+//   exif: { A: undefined, B: undefined, C: undefined, D: undefined },
+//   showDetails: { A: false, B: false, C: false, D: false },
+//   loupe: { on: false, size: 160, zoom: 2, shape: 'circle' },
+//   pointerNorm: { A:{u:0.5,v:0.5}, B:{u:0.5,v:0.5}, C:{u:0.5,v:0.5}, D:{u:0.5,v:0.5} },
+// };
 
 export const useApp = create<AppState>((set, get) => ({
   tabs: [],
@@ -527,12 +528,6 @@ export const useApp = create<AppState>((set, get) => ({
       tabs: tabs.map(t => t.id === activeTabId ? { ...t, loupe: { ...t.loupe, size } } : t)
     });
   },
-  // setLoupeZoom: (z) => {
-  //   const { tabs, activeTabId } = get();
-  //   const zoom = Math.max(1.5, Math.min(6, z));
-  //   console.log("[store] setLoupeZoom", zoom);
-  //   set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, loupe: { ...t.loupe, zoom } } : t) });
-  // },
   setPointerNorm: (pane, u, v) => {
     const { tabs, activeTabId } = get();
     const clamp = (x:number)=> Math.max(0, Math.min(1, x));
@@ -589,5 +584,15 @@ export const useApp = create<AppState>((set, get) => ({
   hasActive: () => {
     const s = get();
     return !!s.tabs.find(t => t.id === s.activeTabId);
+  },
+  // store.ts – thêm action tối thiểu, không đổi state cũ
+  reorderTabs: (fromIndex: number, toIndex: number) => {
+    const s = get();
+    const n = s.tabs.length;
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= n || toIndex >= n) return;
+    const tabs = s.tabs.slice();
+    const [moved] = tabs.splice(fromIndex, 1);
+    tabs.splice(toIndex, 0, moved);
+    set({ tabs });
   },
 }));

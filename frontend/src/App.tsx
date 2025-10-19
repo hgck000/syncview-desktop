@@ -8,6 +8,9 @@ import Hotkeys from "./app/hotkeys";
 // [step21] imports
 import { useEffect, useRef } from "react";
 import { readLastSession, writeLastSession } from "./app/bridge";
+import AppEventDebug from "./dev/AppEventDebug";
+// import DndProbe from "./dev/DndProbe";
+
 
 export default function App() {
   // const { tabs, activeTabId, setSidebarSize } = useApp();
@@ -64,6 +67,8 @@ export default function App() {
   const sidebarSize = (active as any)?.sizes?.sidebar ?? 24;
 
 return (
+  <><AppEventDebug />
+  {/* <DndProbe /> */}
   <div className="h-screen w-screen bg-neutral-950 text-neutral-800">
     {active && <Hotkeys />}
 
@@ -82,6 +87,6 @@ return (
       </Panel>
     </PanelGroup>
     <HelpOverlay />
-  </div>
+  </div></>
   );
 }
