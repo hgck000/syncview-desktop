@@ -4,7 +4,9 @@ import { openFileDialog } from "../app/bridge";
 // import { useRef, useState  } from "react";
 
 export default function Toolbar() {
-  const t = useApp(s => s.getActive());
+  // const t = useApp(s => s.getActive());
+  const t = useApp(s => s.getActiveSafe());
+  const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
   const toggleGrid   = useApp(s => s.toggleGrid);
   const setGridSize  = useApp(s => s.setGridSize);
   const toggleLinkAll = useApp(s => s.toggleLinkAll);

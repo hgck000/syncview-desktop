@@ -1,7 +1,10 @@
 import { create } from "zustand";
 
 export type PaneId = "A" | "B" | "C" | "D";
-export type View = { scale: number; offsetX: number; offsetY: number; imgW?: number; imgH?: number };
+export type View = {
+  scale: number; offsetX: number; offsetY: number;
+  imgW?: number; imgH?: number
+};
 export type Exif = Record<string, any>;
 export type LoupeState = { on: boolean; size: number; zoom: number; shape: 'circle'|'square' };
 
@@ -9,16 +12,41 @@ type GridState = { on: boolean; size: number; opacity: number };
 type PaneSize = { cw: number; ch: number };
 
 const ORDER: PaneId[] = ["A","B","C","D"];
+const genId = () => `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`;
+
+const SAFE_EMPTY_TAB: TabState = {
+  id: "tab-1",
+  name: "Untitled",
+  layout: "auto",
+  linkAll: true,
+  sizes: { sidebar: 26, leftSplit: 70 },
+  panes: [],
+  focusIndex: 0,
+  files:   { A: undefined, B: undefined, C: undefined, D: undefined },
+  dataURL: { A: undefined, B: undefined, C: undefined, D: undefined },
+  names:   { A: undefined, B: undefined, C: undefined, D: undefined },
+  view: {
+    A: { scale: 1, offsetX: 0, offsetY: 0 },
+    B: { scale: 1, offsetX: 0, offsetY: 0 },
+    C: { scale: 1, offsetX: 0, offsetY: 0 },
+    D: { scale: 1, offsetX: 0, offsetY: 0 },
+  },
+  paneSize: { A:{cw:1,ch:1}, B:{cw:1,ch:1}, C:{cw:1,ch:1}, D:{cw:1,ch:1} }, // tránh chia 0
+  grid: { on: false, size: 32, opacity: 0.35 },
+  exif: { A: undefined, B: undefined, C: undefined, D: undefined },
+  showDetails: { A: false, B: false, C: false, D: false },
+  loupe: { on: false, size: 160, zoom: 2, shape: 'circle' },
+  pointerNorm: { A:{u:0.5,v:0.5}, B:{u:0.5,v:0.5}, C:{u:0.5,v:0.5}, D:{u:0.5,v:0.5} },
+};
 
 type TabState = {
   id: string;
   name: string;
   layout: "auto";
   linkAll: boolean;
-  sizes: { sidebar: number; leftSplit: number };
+  // sizes: { sidebar: number; leftSplit: number };
   panes: PaneId[];          // các slot đang hiển thị
   focusIndex: number;       // pane đang focus (0..panes.length-1)
-  // files: Record<PaneId, string | undefined>;
   files:   Record<PaneId, string|undefined>;     // path tuyệt đối (từ Open)
   dataURL: Record<PaneId, string|undefined>;     // dùng khi drop không có path
   names:   Record<PaneId, string|undefined>;     // label ưu tiên hiển thị
@@ -29,13 +57,32 @@ type TabState = {
   showDetails: Record<PaneId, boolean>;
   loupe: LoupeState;
   pointerNorm: Record<PaneId, {u:number; v:number}>; // vị trí con trỏ chuẩn hoá 0..1
+
+  // title: string;
+  sizes?: { sidebar?: number; leftSplit?: number };
 };
 
 type AppState = {
   tabs: TabState[];
   activeTabId: string;
   // getters tiện dụng
-  getActive: () => TabState;
+
+  sidebarSize: number;
+  // tab ops
+  newTab: (title?: string) => void;
+  setActiveTab: (id: string) => void;
+  renameTab: (id: string, title: string) => void;
+  closeTab: (id: string) => void;
+
+  // setSidebarSize: (pct: number) => void;
+  // getActive: () => TabState | null;
+  // session
+  serialize: () => any;
+  loadFromSession: (data: any) => void;
+
+  getActive: () => TabState | null;
+  getActiveSafe: () => TabState;         // [step21-safe] THÊM
+  hasActive: () => boolean;              // [step21-safe] THÊM
   // actions UI
   setSidebarSize: (v: number) => void;
   setLeftSplit: (v: number) => void;
@@ -81,8 +128,37 @@ type AppState = {
   helpOn: boolean;
   toggleHelp: () => void;
   clearPane: (pane: PaneId) => void;
+  setFocusIndex: (i: number) => void;
+  hydrated: boolean;
+  markHydrated: (v: boolean) => void;
 };
 
+function makeEmptyTab(name = "Untitled"): TabState {
+  return {
+    id: genId(),
+    name,
+    panes: [],
+    files:   { A:undefined, B:undefined, C:undefined, D:undefined },
+    dataURL: { A:undefined, B:undefined, C:undefined, D:undefined },
+    names:   { A:undefined, B:undefined, C:undefined, D:undefined },
+    view: {
+      A:{scale:1,offsetX:0,offsetY:0},
+      B:{scale:1,offsetX:0,offsetY:0},
+      C:{scale:1,offsetX:0,offsetY:0},
+      D:{scale:1,offsetX:0,offsetY:0},
+    },
+    showDetails: { A:false, B:false, C:false, D:false },
+    linkAll: false,
+    grid: { on:false, size:32, opacity:0.2 },
+    loupe:{ on:false, size:220, zoom:2, shape:"circle" },
+    sizes: { sidebar: 24, leftSplit: 60 },
+    focusIndex: 0,
+    exif: { A:undefined, B:undefined, C:undefined, D:undefined },
+    pointerNorm: { A:{u:0.5,v:0.5}, B:{u:0.5,v:0.5}, C:{u:0.5,v:0.5}, D:{u:0.5,v:0.5} },
+    paneSize: { A:{cw:0,ch:0}, B:{cw:0,ch:0}, C:{cw:0,ch:0}, D:{cw:0,ch:0} },
+    layout: "auto",
+  };
+}
 function panesFromSources(files: Record<PaneId, string | undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
   const used = ORDER.filter(id => !!files[id] || !!dataURL[id]);
   // log tiện debug
@@ -122,20 +198,84 @@ const initial: TabState = {
 };
 
 export const useApp = create<AppState>((set, get) => ({
-  tabs: [initial],
-  activeTabId: "tab-1",
+  tabs: [],
+  activeTabId: "",
+  sidebarSize: 24,
   helpOn: false,
   toggleHelp: () => set(s => ({ helpOn: !s.helpOn })),
+  hydrated: false,
+  markHydrated: (v) => set({ hydrated: v }),
 
+  // getActive: () => {
+  //   const { tabs, activeTabId } = get();
+  //   return tabs.find(t => t.id === activeTabId)!;
+  // },
+
+  // setSidebarSize: (v) => {
+  //   const { tabs, activeTabId } = get();
+  //   set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, sizes: { ...t.sizes, sidebar: v } } : t) });
+  // },
+
+    // [step21] tab ops
+  newTab: (title) => set(state => {
+    const t = makeEmptyTab(title ?? `Tab ${state.tabs.length + 1}`);
+    return { ...state, tabs: [...state.tabs, t], activeTabId: t.id };
+  }),
+
+  setActiveTab: (id) => set(state => ({ ...state, activeTabId: id })),
+
+  renameTab: (id, title) => set(state => ({
+    ...state,
+    tabs: state.tabs.map(t => t.id === id ? { ...t, title: title || t.name } : t)
+  })),
+
+  closeTab: (id) => set(state => {
+    const idx = state.tabs.findIndex(x => x.id === id);
+    if (idx === -1) return state;
+    const tabs = state.tabs.filter(x => x.id !== id);
+    let activeTabId = state.activeTabId;
+    if (id === state.activeTabId) {
+      activeTabId = tabs.length ? tabs[Math.max(0, idx-1)].id : "";
+    }
+    return { ...state, tabs, activeTabId };
+  }),
+
+  // [step21] layout
+  setSidebarSize: (pct) => set(state => {
+    const t = state.tabs.find(x => x.id === state.activeTabId);
+    if (!t) return { ...state, sidebarSize: pct };
+    const tabs = state.tabs.map(tab => tab.id === t.id
+      ? { ...tab, sizes: { ...(tab.sizes||{}), sidebar: pct } }
+      : tab
+    );
+    return { ...state, tabs, sidebarSize: pct };
+  }),
+
+  // [step21] helpers
   getActive: () => {
-    const { tabs, activeTabId } = get();
-    return tabs.find(t => t.id === activeTabId)!;
+    const s = get();
+    return s.tabs.find(t => t.id === s.activeTabId) || null;
   },
 
-  setSidebarSize: (v) => {
-    const { tabs, activeTabId } = get();
-    set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, sizes: { ...t.sizes, sidebar: v } } : t) });
+  // [step21] session
+  serialize: () => {
+    const s = get();
+    return {
+      version: 1,
+      activeTabId: s.activeTabId,
+      tabs: s.tabs,
+    };
   },
+
+  loadFromSession: (data:any) => set(state => {
+    if (!data || !Array.isArray(data.tabs)) return state;
+    // đảm bảo tab nào cũng có id
+    const tabs: TabState[] = data.tabs.map((t:any) => ({ ...t, id: t.id || genId() }));
+    const activeTabId =
+      tabs.find(x => x.id === data.activeTabId)?.id || (tabs[0]?.id ?? "");
+    return { ...state, tabs, activeTabId };
+  }),
+
   setLeftSplit: (v) => {
     const { tabs, activeTabId } = get();
     set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, sizes: { ...t.sizes, leftSplit: v } } : t) });
@@ -434,5 +574,20 @@ export const useApp = create<AppState>((set, get) => ({
         return { ...t, files, dataURL, names, exif, view, panes, focusIndex, showDetails };
       })
     });
+  },
+  setFocusIndex: (i: number) => set(state => {
+    const t = state.getActive?.() as any; // tùy bạn định nghĩa getActive
+    if (!t) return state;
+    const tabs = state.tabs.map(tab => tab.id === state.activeTabId ? { ...tab, focusIndex: i } : tab);
+    return { ...state, tabs };
+  }),
+  getActiveSafe: () => {
+    const s = get();
+    return s.tabs.find(t => t.id === s.activeTabId) ?? SAFE_EMPTY_TAB;
+  },
+
+  hasActive: () => {
+    const s = get();
+    return !!s.tabs.find(t => t.id === s.activeTabId);
   },
 }));

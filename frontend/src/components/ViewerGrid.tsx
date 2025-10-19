@@ -5,9 +5,11 @@ import DropZone from "./DropZone";
 export default function ViewerGrid() {
   const { tabs, activeTabId } = useApp();
   const tab = tabs.find(t => t.id === activeTabId)!;
-  const n = tab.panes.length;
+  const t   = useApp(s => s.getActiveSafe());
+  const has = useApp(s => s.hasActive());
+  const n = t.panes.length;
 
-  if (n === 0) {
+  if (!has || n === 0) {
     return (
       <DropZone>
         <div className="h-full flex items-center justify-center text-neutral-500">

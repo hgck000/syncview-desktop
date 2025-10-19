@@ -45,3 +45,60 @@ export async function readImageDataURL(path: string) {
   console.log("[FE] readImageDataURL <-", res ? "ok" : "null");
   return res;
 }
+// [step21] last-session helpers (no dialogs)
+// [step21] Wait until window.pywebview.api is ready (dev & prod)
+async function waitForPywebviewApi(maxWaitMs = 3000): Promise<any | null> {
+  const hasApi = () => (window as any)?.pywebview?.api;
+
+  if (hasApi()) return hasApi();
+
+  // Wait for event first
+  const api = await new Promise<any | null>((resolve) => {
+    const t = setTimeout(() => resolve(null), maxWaitMs);
+    const onReady = () => {
+      clearTimeout(t);
+      resolve(hasApi() || null);
+      window.removeEventListener('pywebviewready', onReady as any);
+    };
+    window.addEventListener('pywebviewready', onReady as any);
+  });
+
+  // Fallback: small polling in case event didn’t fire
+  if (api) return api;
+  const started = Date.now();
+  while (Date.now() - started < maxWaitMs) {
+    if (hasApi()) return hasApi();
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return null;
+}
+
+// [step21] safe wrappers that wait for api
+export async function readLastSession(): Promise<any | null> {
+  try {
+    const api = await waitForPywebviewApi();
+    if (!api) {
+      console.warn('[bridge] pywebview api not ready -> readLastSession skipped');
+      return null;
+    }
+    const data = await api.read_last_session();
+    return data ?? null;
+  } catch (e) {
+    console.error('[bridge] readLastSession error', e);
+    return null;
+  }
+}
+
+export async function writeLastSession(data: any): Promise<boolean> {
+  try {
+    const api = await waitForPywebviewApi();
+    if (!api) {
+      console.warn('[bridge] pywebview api not ready -> writeLastSession skipped');
+      return false;
+    }
+    return !!(await api.write_last_session(data));
+  } catch (e) {
+    console.error('[bridge] writeLastSession error', e);
+    return false;
+  }
+}

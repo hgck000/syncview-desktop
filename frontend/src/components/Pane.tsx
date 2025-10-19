@@ -296,7 +296,7 @@ export default function Pane({ id }: Props) {
               }
             >
               <div className="flex items-start gap-2">
-                <Camera className="w-4 h-4 opacity-70 mt-[2px]" />
+                <Camera className="w-4 h-4 opacity-70 mt-[2px] text-neutral-100" />
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] font-semibold text-neutral-100 truncate" title={displayName}>
                     {displayName}

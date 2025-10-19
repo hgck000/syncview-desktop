@@ -121,7 +121,6 @@ class Bridge:
             return None
 
     def read_exif_from_dataurl(self, dataurl: str) -> Optional[Dict]:
-
         try:
             # data:image/...;base64,XXXX
             head, b64 = dataurl.split(",", 1)
@@ -134,13 +133,33 @@ class Bridge:
             print(f"[Bridge][EXIF][ERROR] dataURL: {e}")
             return None
 
+    # def __init__(self, app_data_dir: Path):
+    #     self.app_data_dir = app_data_dir
+    #     self.app_data_dir.mkdir(parents=True, exist_ok=True)
 
-        p = self._keymap_path()
+    def _last_session_path(self) -> Path:
+        return self.app_data_dir / "last_session.json"
+
+    # [step21] public API
+    def read_last_session(self) -> dict | None:
         try:
-            p.parent.mkdir(parents=True, exist_ok=True)
+            p = self._last_session_path()
+            if not p.exists():
+                print("[Bridge] last_session not found")
+                return None
+            data = json.loads(p.read_text(encoding="utf-8"))
+            print("[Bridge] read_last_session OK")
+            return data
+        except Exception as e:
+            print(f"[Bridge][ERROR] read_last_session: {e}")
+            return None
+
+    def write_last_session(self, data: dict) -> bool:
+        try:
+            p = self._last_session_path()
             p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"[Bridge] write_keymap OK ({p})")
+            print(f"[Bridge] write_last_session -> {p}")
             return True
         except Exception as e:
-            print(f"[Bridge][ERROR] write_keymap: {e}")
+            print(f"[Bridge][ERROR] write_last_session: {e}")
             return False
