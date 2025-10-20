@@ -1,9 +1,8 @@
-// import tinykeys from "tinykeys";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useEffect } from "react";
 import tinykeys from "../lib/tinykeys-compat";
 import { useApp } from "./store";
-import { openFileDialog } from "./bridge";
-
 function isEditableTarget(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
   if (!el) return false;
@@ -11,7 +10,6 @@ function isEditableTarget(e: KeyboardEvent) {
   return tag === "INPUT" || tag === "TEXTAREA" || (el as any).isContentEditable || el.getAttribute?.("role")==="textbox";
 }
 
-// NEW: build id combo dạng 'ctrl+shift+tab', 'meta+o', 'ctrl+1'...
 function comboKeyId(e: KeyboardEvent) {
   const parts: string[] = [];
   if (e.ctrlKey) parts.push("ctrl");
@@ -24,12 +22,10 @@ function comboKeyId(e: KeyboardEvent) {
   return parts.length ? parts.join("+") + "+" + k : k;
 }
 
-// NEW: các helper “tự dò” tên hàm trong store để tránh lỗi đỏ
 type StoreAny = ReturnType<typeof useApp.getState> & Record<string, any>;
 
 function callSetActiveById(id: string) {
   const s = useApp.getState() as StoreAny;
-  // thứ tự ưu tiên tên hàm thường gặp trong code tabs
   const fn =
     s.setActive ??
     s.setActiveTab ??
@@ -57,7 +53,6 @@ function callSaveSession() {
     fn();
     return true;
   }
-  // im lặng nếu không có, vì không bắt buộc
   return false;
 }
 
@@ -138,8 +133,8 @@ export default function Hotkeys() {
         case "ctrl+8":
         case "ctrl+9": {
           e.preventDefault(); e.stopPropagation();
-          const n = parseInt(id.slice(-1), 10);   // 1..9
-          const idx = n - 1;                      // 0..8
+          const n = parseInt(id.slice(-1), 10);
+          const idx = n - 1;
           if (idx >= 0 && idx < (tabs?.length ?? 0)) {
             const target = tabs[idx];
             const ok = callSetActiveById(target.id);
@@ -148,7 +143,6 @@ export default function Hotkeys() {
           }
           return;
         }
-
         default:
           return;
       }
@@ -159,7 +153,6 @@ export default function Hotkeys() {
       unsubscribe?.();
       window.removeEventListener("keydown", onKeyDown, { capture: true });
     };
-  // thêm deps tabs để cập nhật số tab
   }, [t, tabs, toggleLinkAll, focusNext, focusPrev, setFileForPane, toggleGrid, toggleLoupe, toggleDetails, toggleHelp, resetView]);
 
   return null;

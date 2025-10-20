@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useApp } from "../app/store";
 // import { basename } from "../app/path";
-
 export default function DropZone({ children }: { children: React.ReactNode }) {
-  const t = useApp(s => s.getActive());
+  const t = useApp(s => s.getActive())!;
   const setFileForPane = useApp(s => s.setFileForPane);
   const setDataURLForPane= useApp(s => s.setDataURLForPane);
 

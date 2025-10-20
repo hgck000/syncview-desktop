@@ -87,8 +87,7 @@ export default function TabsBar() {
   const items = tabs.map((t) => String(t.id));
 
   const onDragStart = (e: DragStartEvent) => {
-    // nếu muốn log trong dev:
-    // console.debug("[Tabs] dnd start", e.active.id);
+    void e
   };
 
   const onDragEnd = (e: DragEndEvent) => {

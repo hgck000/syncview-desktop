@@ -1,4 +1,5 @@
-// Simple wrapper cho window.pywebview.api
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 declare global {
   interface Window {
     pywebview?: { api: {
@@ -6,8 +7,34 @@ declare global {
       read_image_dataurl(path: string): Promise<string | null>,
       read_exif_from_path(path: string): Promise<any | null>,
       read_exif_from_dataurl(dataurl: string): Promise<any | null>,
+      read_keymap?: () => Promise<Record<string, string> | null>;
      }};
+     api?: {
+      read_keymap?: () => Promise<Record<string, string> | null>;
+    };
   }
+}
+// export {};
+
+export type Keymap = Record<string, string>;
+
+export async function readKeymap(): Promise<Keymap | null> {
+  try {
+    // 1) Ưu tiên gọi API từ backend (pywebview expose)
+    const api = window.pywebview?.api ?? window.api;
+    if (api?.read_keymap) {
+      const km = await api.read_keymap();
+      if (km && typeof km === 'object') return km as Keymap;
+    }
+  } catch {/* ignore */}
+
+  try {
+    // 2) Fallback: localStorage (nếu bạn có lưu ở FE)
+    const raw = localStorage.getItem('keymap');
+    if (raw) return JSON.parse(raw) as Keymap;
+  } catch {/* ignore */}
+
+  return null;
 }
 
 export async function readExifFromPath(path: string) {
@@ -45,8 +72,7 @@ export async function readImageDataURL(path: string) {
   console.log("[FE] readImageDataURL <-", res ? "ok" : "null");
   return res;
 }
-// [step21] last-session helpers (no dialogs)
-// [step21] Wait until window.pywebview.api is ready (dev & prod)
+
 async function waitForPywebviewApi(maxWaitMs = 3000): Promise<any | null> {
   const hasApi = () => (window as any)?.pywebview?.api;
 
@@ -63,7 +89,6 @@ async function waitForPywebviewApi(maxWaitMs = 3000): Promise<any | null> {
     window.addEventListener('pywebviewready', onReady as any);
   });
 
-  // Fallback: small polling in case event didn’t fire
   if (api) return api;
   const started = Date.now();
   while (Date.now() - started < maxWaitMs) {
@@ -73,7 +98,6 @@ async function waitForPywebviewApi(maxWaitMs = 3000): Promise<any | null> {
   return null;
 }
 
-// [step21] safe wrappers that wait for api
 export async function readLastSession(): Promise<any | null> {
   try {
     const api = await waitForPywebviewApi();

@@ -16,6 +16,10 @@ export default function ViewerGrid() {
           Kéo-thả 1–4 ảnh vào đây
           <span className="mx-1 px-1.5 py-0.5 bg-neutral-900 rounded text-size:xs text-neutral-300">Tạo tab mới trước</span>
         </div>
+        <div className="mt-4 text-center text-neutral-600">
+    Dòng chữ mới đây
+    <span className="mx-1 px-1.5 py-0.5 bg-neutral-900 rounded text-size:xs text-neutral-300">Thông tin bổ sung</span>
+  </div>
       </DropZone>
     );
   }

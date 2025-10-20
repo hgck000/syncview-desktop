@@ -1,21 +1,23 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useApp } from "../app/store";
 import { basename } from "../app/path";
 import { useImageCanvas } from "../app/useImageCanvas";
 import { useRef, useState, useEffect } from "react";
 import { readExifFromPath, readExifFromDataURL } from "../app/bridge";
-import { X, ChevronDown, ChevronUp, Camera, Calendar, MapPin, HardDrive, Aperture, Timer, SunMedium, CircleX  } from "lucide-react";
+import { ChevronDown, ChevronUp, Camera, Calendar, MapPin, HardDrive, Aperture, Timer, SunMedium, CircleX  } from "lucide-react";
 
 
 type Props = { id: "A" | "B" | "C" | "D" };
 
 export default function Pane({ id }: Props) {
-  const t = useApp(s => s.getActive());
+  const t = useApp(s => s.getActive())!;
+  
   const idx = t.panes.indexOf(id);
   const focused = idx === t.focusIndex;
 
   const path = t.files[id];
   const data = t.dataURL[id];
-  const label = t.names[id] ?? basename(path) ?? `${id}: Empty`;
+  // const label = t.names[id] ?? basename(path) ?? `${id}: Empty`;
   const view = t.view[id];
   
   const setMeta  = useApp(s => s.setImageMeta);
@@ -49,21 +51,114 @@ export default function Pane({ id }: Props) {
 
   const [rdrag, setRdrag] = useState<{startX:number; startSize:number} | null>(null);
 
-  const clearPane     = useApp(s => s.clearPane);          // hoặc action xoá sẵn có của bạn
-  // Tên ảnh hiển thị
+  const clearPane     = useApp(s => s.clearPane);
   const displayName =
     t.names[id] ??
     (t.files[id] ? basename(t.files[id]!) : (t.dataURL[id] ? "(dropped image)" : "(Empty)"));
 
-  // Thiết bị
   const device =
     (exif?.Make && exif?.Model) ? `${exif.Make} ${exif.Model}` :
     (exif?.Model || exif?.Make || "—");
 
-  // Kích thước gốc (đã set qua onImageMeta ở useImageCanvas)
   const sizeLabel = (view.imgW && view.imgH) ? `${view.imgW}×${view.imgH}` : "—";
 
 
+  function dataURLByteLength(u?: string) {
+    if (!u) return undefined;
+    const i = u.indexOf(',');
+    const b64 = i >= 0 ? u.slice(i + 1) : u;
+    const pad = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+    return Math.max(0, (b64.length * 3) / 4 - pad) | 0;
+  }
+  const fileSizeBytes = exif?.FileSize ?? (data ? dataURLByteLength(data) : undefined);
+  const dateRaw = exif?.DateTimeOriginal ?? exif?.CreateDate ?? exif?.DateTime;
+  
+
+  const shutterRaw = (() => {
+    const et =
+      exif?.ExposureTime ??
+      exif?.Exif?.ExposureTime ??
+      exif?.Photo?.ExposureTime ??
+      exif?.tags?.ExposureTime ??
+      exif?.ShutterSpeed ??
+      exif?.Exif?.ShutterSpeed ??
+      exif?.Photo?.ShutterSpeed ??
+      exif?.tags?.ShutterSpeed;
+
+    if (typeof et === 'number' && isFinite(et)) return et;
+
+    if (typeof et === 'string') {
+      const s = et.trim().toLowerCase().replace(/\s*(sec|s)\s*$/, '');
+      const frac = s.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+      if (frac) {
+        const a = parseFloat(frac[1]); const b = parseFloat(frac[2]);
+        if (b) return a / b;
+      }
+      const n = parseFloat(s);
+      if (isFinite(n)) return n;
+    }
+
+    const sv =
+      exif?.ShutterSpeedValue ??
+      exif?.Exif?.ShutterSpeedValue ??
+      exif?.Photo?.ShutterSpeedValue ??
+      exif?.tags?.ShutterSpeedValue;
+
+    if (typeof sv === 'number' && isFinite(sv)) return Math.pow(2, -sv);
+    return undefined;
+  })();
+
+  // ---------- APERTURE: chuẩn hoá sang f-number ----------
+  const apertureRaw = (() => {
+    const fn =
+      exif?.FNumber ??
+      exif?.Exif?.FNumber ??
+      exif?.Photo?.FNumber ??
+      exif?.SubIFD?.FNumber ??
+      exif?.tags?.FNumber ??
+      exif?.Aperture ??
+      exif?.Exif?.Aperture ??
+      exif?.Photo?.Aperture ??
+      exif?.tags?.Aperture;
+
+    if (typeof fn === 'number' && isFinite(fn)) return fn;
+
+    if (typeof fn === 'string') {
+      const m = fn.match(/(\d+(?:\.\d+)?)/i);
+      if (m) {
+        const n = parseFloat(m[1]);
+        if (isFinite(n)) return n;
+      }
+    }
+
+    const av =
+      exif?.ApertureValue ??
+      exif?.Exif?.ApertureValue ??
+      exif?.Photo?.ApertureValue ??
+      exif?.tags?.ApertureValue;
+
+    if (typeof av === 'number' && isFinite(av)) return Math.pow(2, av / 2);
+    return undefined;
+  })();
+
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!path && !data) return;
+        // tránh nạp lại nếu exif đã có & nguồn không đổi
+        if (t.exif?.[id] && (t.files[id] === path || t.dataURL[id] === data)) return;
+
+        console.log(`[pane:${id}] read exif...`, path ? "path" : "dataURL");
+        const meta = path ? await readExifFromPath(path) : await readExifFromDataURL(data!);
+        if (!cancelled && meta) setExif(id, meta);
+      } catch (e) {
+        console.warn(`[pane:${id}] exif error`, e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, path, data, setExif, t.exif, t.files, t.dataURL]);
   
   useEffect(() => {
     const el = wrapRef.current;
@@ -80,7 +175,7 @@ export default function Pane({ id }: Props) {
     return () => ro.disconnect();
   }, [id, setSize]);
 
-
+  
   function Row({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string }) {
     return (
       <div className="flex items-center gap-2 py-1.5">
@@ -109,65 +204,122 @@ export default function Pane({ id }: Props) {
   }
 
   function fmtShutter(v: number) {
-    return v < 1 ? `1/${Math.round(1 / v)}` : `${v}s`;
+    if (v == null || !isFinite(v) || v <= 0) return "—";
+    return v < 1 ? `1/${Math.round(1 / v)}` : `${v < 10 ? v.toFixed(2).replace(/\.?0+$/, '') : Math.round(v)}s`;
   }
 
   function fmtIso(exif: any) {
-    return String(exif?.ISOSpeedRatings ?? exif?.PhotographicSensitivity ?? "");
+    const v =
+      exif?.ISO ??
+      exif?.ISOSpeedRatings ??
+      exif?.PhotographicSensitivity ??
+      exif?.Exif?.ISO ??
+      exif?.Photo?.ISO ??
+      exif?.SubIFD?.ISO ??
+      exif?.tags?.ISO ??
+      exif?.ExifIFD?.ISO ??
+      exif?.Image?.ISO;
+
+    if (v == null) return undefined;
+
+    if (Array.isArray(v)) {
+      const n = Number(v[0]);
+      return isFinite(n) ? String(n) : undefined;
+    }
+
+    const n = Number(v);
+    if (isFinite(n)) return String(n);
+
+    if (typeof v === 'string') {
+      const m = v.match(/(\d+)/);
+      return m ? m[1] : undefined;
+    }
+
+    return undefined;
   }
+
 
   function fmtGps(exif: any) {
-    const lat = exif?.GPSLatitude, lon = exif?.GPSLongitude;
-    if (lat == null || lon == null) return undefined;
-    const f = (x:number)=> (Math.abs(x).toFixed(6));
-    return `${lat >= 0 ? "" : "-"}${f(lat)}, ${lon >= 0 ? "" : "-"}${f(lon)}`;
+    const lat =
+      exif?.GPSLatitude ??
+      exif?.GPS?.GPSLatitude ??
+      exif?.gps?.GPSLatitude ??
+      exif?.latitude ??
+      exif?.GPS?.latitude;
+
+    const lon =
+      exif?.GPSLongitude ??
+      exif?.GPS?.GPSLongitude ??
+      exif?.gps?.GPSLongitude ??
+      exif?.longitude ??
+      exif?.GPS?.longitude;
+
+    // Một số lib gộp sẵn thành chuỗi "lat, lon"
+    const pos = exif?.GPSPosition ?? exif?.GPS?.GPSPosition ?? exif?.gps?.GPSPosition;
+    if ((lat == null || lon == null) && typeof pos === 'string') {
+      const m = pos.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+      if (m) {
+        const la = parseFloat(m[1]), lo = parseFloat(m[2]);
+        if (isFinite(la) && isFinite(lo)) return `${la.toFixed(6)}, ${lo.toFixed(6)}`;
+      }
+    }
+
+    const latRef = exif?.GPSLatitudeRef ?? exif?.GPS?.GPSLatitudeRef ?? exif?.gps?.GPSLatitudeRef;
+    const lonRef = exif?.GPSLongitudeRef ?? exif?.GPS?.GPSLongitudeRef ?? exif?.gps?.GPSLongitudeRef;
+
+    const toNum = (val: any): number | undefined => {
+      if (typeof val === 'number' && isFinite(val)) return val;
+
+      if (Array.isArray(val) && val.length >= 1) {
+        const d = Number(val[0]) || 0;
+        const m = Number(val[1]) || 0;
+        const s = Number(val[2]) || 0;
+        return d + m / 60 + s / 3600;
+      }
+
+      if (typeof val === 'string') {
+        const s = val.trim();
+
+        // DMS chuỗi có ký hiệu độ/phút/giây: 20° 30' 10.2" N (N/S/E/W có thể kèm hoặc tách)
+        const dms1 = s.match(/^(\d+(?:\.\d+)?)\s*[°deg]?\s*(\d+(?:\.\d+)?)?'\s*(\d+(?:\.\d+)?)?"?\s*([NSEW])?$/i);
+        if (dms1) {
+          let res = parseFloat(dms1[1]) + (parseFloat(dms1[2]) || 0) / 60 + (parseFloat(dms1[3]) || 0) / 3600;
+          const ref = dms1[4]?.toUpperCase();
+          if (ref === 'S' || ref === 'W') res = -Math.abs(res);
+          return res;
+        }
+
+        // fraction "a/b"
+        const frac = s.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+        if (frac) {
+          const a = parseFloat(frac[1]); const b = parseFloat(frac[2]);
+          if (b) return a / b;
+        }
+
+        const n = parseFloat(s);
+        if (isFinite(n)) return n;
+      }
+
+      return undefined;
+    };
+
+    let latNum = toNum(lat);
+    let lonNum = toNum(lon);
+    if (latNum == null || lonNum == null) return undefined;
+
+    if (typeof latRef === 'string' && latRef.toUpperCase() === 'S') latNum = -Math.abs(latNum);
+    if (typeof lonRef === 'string' && lonRef.toUpperCase() === 'W') lonNum = -Math.abs(lonNum);
+
+    const f = (x: number) => x.toFixed(6);
+    return `${f(latNum)}, ${f(lonNum)}`;
   }
 
 
-//   function Row({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string }) {
-//   return (
-//     <div className="flex items-start gap-2">
-//       <div className="text-neutral-300 mt-[1px]">{icon}</div>
-//       <div className="flex-1 min-w-0">
-//         <div className="text-neutral-400">{label}</div>
-//         <div className="text-neutral-200 truncate">{value ?? "—"}</div>
-//       </div>
-//     </div>
-//   );
-// }
-//   function fmtFileSize(bytes?: number|string) {
-//     const b = Number(bytes);
-//     if (!isFinite(b) || b <= 0) return undefined;
-//     const units = ["B","KB","MB","GB"];
-//     let i = 0, n = b;
-//     while (n >= 1024 && i < units.length-1) { n /= 1024; i++; }
-//     return `${n % 1 ? n.toFixed(1) : n} ${units[i]}`;
-//   }
-//   function fmtDate(s?: string) {
-//     if (!s) return undefined;
-//     // EXIF DateTimeOriginal thường "YYYY:MM:DD HH:MM:SS"
-//     const t = s.replace(/:/, "-").replace(/:/, "-"); // khá đủ cho hiển thị
-//     return t;
-//   }
-//   function fmtShutter(v: number) {
-//     // nếu < 1 → 1/x, nếu >=1 → x s
-//     return v < 1 ? `1/${Math.round(1/v)}` : `${v}s`;
-//   }
-//   function fmtGps(exif: any) {
-//     // nếu BE chưa parse GPS → trả undefined (sau này có thể bổ sung bridge đọc GPS)
-//     const lat = exif?.GPSLatitude;
-//     const lon = exif?.GPSLongitude;
-//     if (lat == null || lon == null) return undefined;
-//     return `${lat}, ${lon}`;
-//   }
+
 
   function onContextMenu(e: React.MouseEvent) {
     if (loupe.on) e.preventDefault();
   }
-  // function onMouseDown(e: React.MouseEvent) {
-  //   if (!path && !data) return;
-  //   setDrag({ x: e.clientX, y: e.clientY });
-  // }
   function onMouseDown(e: React.MouseEvent) {
     if (!path && !data) return;
     // LMB pan như cũ
@@ -177,40 +329,21 @@ export default function Pane({ id }: Props) {
       setRdrag({ startX: e.clientX, startSize: loupe.size });
     }
   }
-  // function onMouseMove(e: React.MouseEvent) {
-  //   const rect = wrapRef.current?.getBoundingClientRect();
-  //   if (rect) {
-  //     const uN = (e.clientX - rect.left) / rect.width;
-  //     const vN = (e.clientY - rect.top)  / rect.height;
-  //     lastNormRef.current = { u: uN, v: vN };
-  //     setPointerNorm(id, uN, vN);
-  //   }
-  //   if (!drag) return;
-  //   const dx = e.clientX - drag.x;
-  //   const dy = e.clientY - drag.y;
-  //   setDrag({ x: e.clientX, y: e.clientY });
-  //   applyPan(id, dx, dy);
-  // }
   function onMouseMove(e: React.MouseEvent) {
-    // cập nhật pivot chuẩn hóa (u,v)
     const rect = wrapRef.current?.getBoundingClientRect();
     if (rect) {
       const uN = (e.clientX - rect.left) / rect.width;
       const vN = (e.clientY - rect.top)  / rect.height;
       lastNormRef.current = { u: uN, v: vN };
-      // LinkAll ON → broadcast vị trí tới tất cả panes; OFF → chỉ pane hiện tại
       if (t.linkAll) setPointerNormAll(uN, vN); else setPointerNorm(id, uN, vN);
     }
 
-    // RMB drag để đổi size
     if (rdrag && loupe.on) {
       const dx = e.clientX - rdrag.startX;
-      // nhạy vừa phải: mỗi 4px → +/− 10px
       const next = rdrag.startSize + Math.round(dx / 4) * 10;
       setLoupeSize(next);
     }
 
-    // LMB pan như cũ
     if (!drag) return;
     const dx = e.clientX - drag.x;
     const dy = e.clientY - drag.y;
@@ -220,21 +353,6 @@ export default function Pane({ id }: Props) {
 
   function onMouseUp() { setDrag(null); setRdrag(null); }
   function onMouseLeave() { setDrag(null); setRdrag(null); }
-
-  // function onWheel(e: React.WheelEvent) {
-  //   if (!path && !data) return;
-  //   e.preventDefault();
-  //   const rect = wrapRef.current?.getBoundingClientRect();
-  //   const factor = e.deltaY < 0 ? 1.1 : 1/1.1;
-  //   if (rect) {
-  //     const u = (e.clientX - rect.left) / rect.width;
-  //     const v = (e.clientY - rect.top)  / rect.height;
-  //     lastNormRef.current = {u, v}; // ghi nhớ để dblclick kế tiếp hợp lý
-  //     applyZoom(id, factor, { type: 'norm', u, v });
-  //   } else {
-  //     applyZoom(id, factor, { type: 'norm', u: 0.5, v: 0.5 });
-  //   }
-  // }
 
   function onWheel(e: React.WheelEvent) {
     if (!path && !data) return;
@@ -254,13 +372,10 @@ export default function Pane({ id }: Props) {
   }
 
   function onDoubleClick() {
-    // Toggle Fit<->100%
     if (!wrapRef.current || (!path && !data)) return;
-    const { u, v } = lastNormRef.current; // dùng đúng vị trí con trỏ đã lưu
+    const { u, v } = lastNormRef.current;
     if (Math.abs(view.scale - 1) < 0.01) {
-      // 100% = scale sao cho total = 1 * (cw/iw)^{-1}? Không—ta coi 1 là fit.
-      // Ở đây: phóng to gấp 2 lần fit cho dễ thấy.
-      applyZoom(id, 3, { type: 'norm', u, v });  // <— Link All sẽ áp cho tất cả
+      applyZoom(id, 3, { type: 'norm', u, v });
       if (t.linkAll) setPointerNormAll(u, v); else setPointerNorm(id, u, v);
     } else {
       resetView(id);
@@ -268,8 +383,6 @@ export default function Pane({ id }: Props) {
   }
 
   return (
-    
-    // <div className={`relative min-h-0 bg-neutral-900 border rounded ${focused ? "border-blue-600" : "border-neutral-800"}`}>
     <div
       ref={wrapRef}
       className={`relative min-h-0 bg-neutral-900 border rounded overflow-hidden ${focused ? "border-neutral-400" : "border-neutral-800"}`}
@@ -289,7 +402,7 @@ export default function Pane({ id }: Props) {
             {/* Header */}
             <div
               className={
-                "px-3 py-2 bg-neutral-900/90 border border-neutral-700/70 shadow-sm " +
+                "px-3 py-2 bg-black border border-neutral-700/70 shadow-sm " +
                 (showDetails
                   ? "rounded-t-xl rounded-b-none border-b-0"
                   : "rounded-xl")
@@ -324,20 +437,40 @@ export default function Pane({ id }: Props) {
             {/* Details – gắn liền khung, không khe hở */}
             {showDetails && (t.files[id] || t.dataURL[id]) && (
               <div
-                className="bg-neutral-900/90 border border-neutral-700/70 border-t-0
+                className="bg-black border border-neutral-700/70 border-t-0
                           rounded-b-xl shadow-sm p-3"
               >
                 {/* subtitle */}
 
                 {/* rows */}
-                <div className="flex flex-col divide-y divide-neutral-800/80">
-                  <Row icon={<HardDrive className="w-4 h-4" />} label="File size"  value={fmtFileSize(exif?.FileSize)} />
-                  <Row icon={<Calendar  className="w-4 h-4" />} label="Date"       value={fmtDate(exif?.DateTimeOriginal || exif?.DateTime)} />
-                  <Row icon={<MapPin    className="w-4 h-4" />} label="Location"   value={fmtGps(exif)} />
-                  <Row icon={<Camera    className="w-4 h-4" />} label="Device"     value={device !== "—" ? device : undefined} />
-                  <Row icon={<Timer     className="w-4 h-4" />} label="Shutter"    value={exif?.ExposureTime ? fmtShutter(exif.ExposureTime) : undefined} />
-                  <Row icon={<SunMedium className="w-4 h-4" />} label="ISO"        value={fmtIso(exif)} />
-                  <Row icon={<Aperture  className="w-4 h-4" />} label="Aperture"   value={exif?.FNumber ? `f/${exif.FNumber}` : undefined} />
+                <div className="flex flex-col divide-y divide-neutral-800/80 text-[12px]">
+                  <Row icon={<HardDrive className="w-4 h-4" />}
+                      label="File size"
+                      value={fileSizeBytes != null ? fmtFileSize(fileSizeBytes) : "—"} />
+
+                  <Row icon={<Calendar className="w-4 h-4" />}
+                      label="Date"
+                      value={dateRaw ? fmtDate(dateRaw) : "—"} />
+
+                  <Row icon={<MapPin className="w-4 h-4" />}
+                      label="Location"
+                      value={fmtGps(exif) || "—"} />
+
+                  <Row icon={<Camera className="w-4 h-4" />}
+                      label="Device"
+                      value={device !== "—" ? device : "—"} />
+
+                  <Row icon={<Timer className="w-4 h-4" />}
+                      label="Shutter"
+                      value={shutterRaw ? fmtShutter(shutterRaw) : "—"} />
+
+                  <Row icon={<SunMedium className="w-4 h-4" />}
+                      label="ISO"
+                      value={fmtIso(exif) || "—"} />
+
+                  <Row icon={<Aperture className="w-4 h-4" />}
+                      label="Aperture"
+                      value={apertureRaw ? `f/${(+apertureRaw).toFixed(1).replace(/\.0$/, '')}` : "—"} />
                 </div>
               </div>
             )}

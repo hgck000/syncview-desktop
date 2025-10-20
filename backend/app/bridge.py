@@ -3,20 +3,29 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import webview
 from PIL import Image, ExifTags
-import io, base64, json
+import io, base64, json, os, sys
+
+def default_app_data() -> Path:
+    # Windows: %LOCALAPPDATA%\SyncView
+    if sys.platform.startswith("win"):
+        root = os.getenv("LOCALAPPDATA") or Path.home()
+        return Path(root) / "SyncView"
+    # Linux: ~/.local/share/SyncView
+    xdg = os.getenv("XDG_DATA_HOME")
+    if xdg:
+        return Path(xdg) / "SyncView"
+    return Path.home() / ".local" / "share" / "SyncView"
 
 class Bridge:
-    """
-    JS gọi: window.pywebview.api.open_dialog(pane)
-    v5: dùng window.create_file_dialog; expose từng hàm.
-    """
-    def __init__(self, app_data_dir: Path, window: "webview.Window"):
-        self.app_data_dir = app_data_dir
+    def __init__(self, app_data_dir: Path | None = None, window=None):
+        self.app_data_dir = Path(app_data_dir) if app_data_dir else default_app_data()
         self.app_data_dir.mkdir(parents=True, exist_ok=True)
         self.recent: Dict[str, List[str]] = {"A": [], "B": [], "C": [], "D": []}
         self.window = window
+        
+    def attach_window(self, window):
+        self.window = window
 
-    # ===== HÀM SẼ EXPOSE =====
     def open_dialog(self, pane: str) -> Optional[str]:
         print(f"[Bridge] open_dialog pane={pane}")
         try:
@@ -58,7 +67,6 @@ class Bridge:
     def recent_files(self) -> Dict[str, List[str]]:
         return self.recent
 
-    # ===== internal =====
     def _remember(self, pane: str, path: str) -> None:
         items = self.recent.get(pane, [])
         if path in items:
@@ -78,7 +86,6 @@ class Bridge:
             key = tagmap.get(tag)
             return raw.get(key) if key is not None else None
 
-        # lấy các trường hay dùng
         out["Make"] = get("Make")
         out["Model"] = get("Model")
         out["DateTimeOriginal"] = get("DateTimeOriginal") or get("DateTime")
@@ -88,7 +95,6 @@ class Bridge:
         out["FocalLength"] = self._ratio_to_float(get("FocalLength"))
         out["LensModel"] = get("LensModel")
         out["Orientation"] = get("Orientation")
-        # kích thước gốc
         try:
             out["ImageWidth"], out["ImageHeight"] = img.size
         except Exception:
@@ -96,7 +102,6 @@ class Bridge:
         return out
 
     def _ratio_to_float(self, v):
-        # EXIF có thể là (num, den) hoặc Fraction
         try:
             if v is None: return None
             if isinstance(v, tuple) and len(v) == 2:
@@ -122,7 +127,6 @@ class Bridge:
 
     def read_exif_from_dataurl(self, dataurl: str) -> Optional[Dict]:
         try:
-            # data:image/...;base64,XXXX
             head, b64 = dataurl.split(",", 1)
             buf = io.BytesIO(base64.b64decode(b64))
             with Image.open(buf) as im:
@@ -133,14 +137,9 @@ class Bridge:
             print(f"[Bridge][EXIF][ERROR] dataURL: {e}")
             return None
 
-    # def __init__(self, app_data_dir: Path):
-    #     self.app_data_dir = app_data_dir
-    #     self.app_data_dir.mkdir(parents=True, exist_ok=True)
-
     def _last_session_path(self) -> Path:
         return self.app_data_dir / "last_session.json"
 
-    # [step21] public API
     def read_last_session(self) -> dict | None:
         try:
             p = self._last_session_path()

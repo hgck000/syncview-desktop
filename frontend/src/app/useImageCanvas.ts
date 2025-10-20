@@ -148,7 +148,7 @@ export function useImageCanvas(opts: Opts) {
       if (!canvas || (!path && !dataURL)) return;
 
       let url = dataURL;
-      if (!url && path) url = await readImageDataURL(path);
+      if (!url && path) url = (await readImageDataURL(path)) ?? undefined;
       if (cancelled || !url) return;
 
       const img = new Image();

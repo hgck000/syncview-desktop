@@ -11,19 +11,26 @@ APP_DATA_DIR.mkdir(exist_ok=True)
 
 def start_api():
     uvicorn.run("app.main:app", host="localhost", port=API_PORT, reload=False, log_level="info")
+def on_shown():
+    window.maximize()
 
 if __name__ == "__main__":
     t = threading.Thread(target=start_api, daemon=True)
     t.start()
     time.sleep(0.8)
     
-    window = webview.create_window("SyncView — Dev", FRONTEND_DEV_URL)
+    window = webview.create_window("SyncView — Dev", FRONTEND_DEV_URL, width=1280,
+    height=800,
+    resizable=True )
     api = Bridge(APP_DATA_DIR, window)
     window.expose(
-        api.open_dialog, api.recent_files, api.read_image_dataurl,
+        # api.open_dialog,
+        api.recent_files, api.read_image_dataurl,
         api.read_exif_from_path, api.read_exif_from_dataurl,
         api.read_last_session, api.write_last_session,
     )
 
     print("[Dev] Starting webview…")
+    
+    window.events.shown += on_shown
     webview.start()

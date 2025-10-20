@@ -1,21 +1,21 @@
-import { Link2, LayoutGrid, Maximize, Camera, Sun, Image as ImageIcon, Search, Trash2 } from "lucide-react";
+import { Link2, Maximize, Search, Trash2 } from "lucide-react";
 import { useApp } from "../app/store";
-import { openFileDialog } from "../app/bridge";
+// import { openFileDialog } from "../app/bridge";
 // import { useRef, useState  } from "react";
 
 export default function Toolbar() {
   // const t = useApp(s => s.getActive());
   const t = useApp(s => s.getActiveSafe());
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
-  const toggleGrid   = useApp(s => s.toggleGrid);
-  const setGridSize  = useApp(s => s.setGridSize);
+  // const toggleGrid   = useApp(s => s.toggleGrid);
+  // const setGridSize  = useApp(s => s.setGridSize);
   const toggleLinkAll = useApp(s => s.toggleLinkAll);
-  const setFileForPane= useApp(s => s.setFileForPane);
-  const nextEmpty     = useApp(s => s.nextEmptyPaneId);
+  // const setFileForPane= useApp(s => s.setFileForPane);
+  // const nextEmpty     = useApp(s => s.nextEmptyPaneId);
   const resetView     = useApp(s => s.resetView);
-  const applyZoom     = useApp(s => s.applyZoom);
+  // const applyZoom     = useApp(s => s.applyZoom);
   const toggleLoupe = useApp(s => s.toggleLoupe);
-  const setLoupeSize = useApp(s => s.setLoupeSize);
+  // const setLoupeSize = useApp(s => s.setLoupeSize);
   const clearAllPanes = useApp(s => s.clearAllPanes);
   const hasAny = !!(t?.panes?.length);
   // const setLoupeZoom = useApp(s => s.setLoupeZoom);

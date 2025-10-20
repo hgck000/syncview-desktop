@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useApp } from "../app/store";
 import { basename } from "../app/path";
-import { Pencil, ImageUp , X, SquarePlus  } from "lucide-react";
+import { Pencil, ImageUp , X, Plus  } from "lucide-react";
 import React, { useState } from "react";
 import {
   DndContext,
@@ -122,9 +123,9 @@ function SortableTabRow({
 }
 
 export default function Sidebar() {
-  const { tabs, activeTabId, setLeftSplit } = useApp();
+  const { tabs, setLeftSplit } = useApp();
   const tab = useApp(s => s.getActiveSafe());
-  const has = useApp(s => s.hasActive());
+  // const has = useApp(s => s.hasActive());
   const leftSplit = tab?.sizes?.leftSplit ?? 60;
   const paneIds = tab?.panes ?? [];
   const activeId = useApp(s => s.activeTabId);
@@ -158,7 +159,7 @@ export default function Sidebar() {
                     active:scale-95 cursor-pointer transition"
           title="New Tab"
         >
-  <SquarePlus className="h-4 w-4" strokeWidth={2.2} />
+  <Plus className="h-4 w-4" strokeWidth={2.2} />
 </div>
       </div>
       <PanelGroup
@@ -169,9 +170,8 @@ export default function Sidebar() {
         <Panel defaultSize={leftSplit} minSize={30}>
           {(() => {
             const onDragStart = (_e: DragStartEvent) => {
+              void _e;
               setDragging(true);
-              // có thể mở log dev nếu cần
-              // console.debug("[Tabs] dnd start", _e.active.id);
             };
             const onDragEnd = (e: DragEndEvent) => {
               setDragging(false);

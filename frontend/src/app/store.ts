@@ -1,5 +1,6 @@
-import { create } from "zustand";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { create } from "zustand";
 export type PaneId = "A" | "B" | "C" | "D";
 export type View = {
   scale: number; offsetX: number; offsetY: number;
@@ -10,7 +11,7 @@ export type LoupeState = { on: boolean; size: number; zoom: number; shape: 'circ
 
 type GridState = { on: boolean; size: number; opacity: number };
 type PaneSize = { cw: number; ch: number };
-
+type Keymap = Record<string, string>;
 const ORDER: PaneId[] = ["A","B","C","D"];
 const genId = () => `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`;
 
@@ -123,6 +124,8 @@ type AppState = {
   hydrated: boolean;
   markHydrated: (v: boolean) => void;
   reorderTabs: (fromIndex: number, toIndex: number) => void;
+  keymap: Keymap;
+  setKeymap: (km: Keymap) => void;
 };
 
 function makeEmptyTab(name = "Untitled"): TabState {
@@ -172,16 +175,9 @@ export const useApp = create<AppState>((set, get) => ({
   hydrated: false,
   markHydrated: (v) => set({ hydrated: v }),
 
-  // getActive: () => {
-  //   const { tabs, activeTabId } = get();
-  //   return tabs.find(t => t.id === activeTabId)!;
-  // },
+  keymap: {},
 
-  // setSidebarSize: (v) => {
-  //   const { tabs, activeTabId } = get();
-  //   set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, sizes: { ...t.sizes, sidebar: v } } : t) });
-  // },
-
+  setKeymap: (km) => set({ keymap: km }),
   newTab: (title) => set(state => {
     const t = makeEmptyTab(title ?? `Tab ${state.tabs.length + 1}`);
     return { ...state, tabs: [...state.tabs, t], activeTabId: t.id };
@@ -249,7 +245,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   focusNext: () => {
-    const t = get().getActive();
+    const t = get().getActive()!;
     const len = t.panes.length || 1;
     const idx = (t.focusIndex + 1) % len;
     set({
@@ -257,7 +253,7 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
   focusPrev: () => {
-    const t = get().getActive();
+    const t = get().getActive()!;
     const len = t.panes.length || 1;
     const idx = (t.focusIndex - 1 + len) % len;
     set({
@@ -336,7 +332,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   fitView: (pane, cw, ch) => {
-    const t = get().getActive();
+    const t = get().getActive()!;
     const v = t.view[pane]; const iw = v.imgW ?? 1, ih = v.imgH ?? 1;
     const fit = Math.min(cw / iw, ch / ih);
     console.log("[store] fitView", pane, {cw, ch, iw, ih, fit});
@@ -344,7 +340,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   resetView: (pane) => {
-    const t = get().getActive();
+    const t = get().getActive()!;
     const ids = t.linkAll ? t.panes : [pane];
     console.log("[store] resetView", ids);
     const { tabs, activeTabId } = get();
@@ -359,7 +355,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   applyPan: (pane, dx, dy) => {
-    const t = get().getActive();
+    const t = get().getActive()!;
     const ids = t.linkAll ? t.panes : [pane];
     ids.forEach(id => {
       const v = t.view[id];
@@ -368,7 +364,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   applyZoom: (pane, factor, around) => {
-    const t = get().getActive();
+    const t = get().getActive()!;
     const ids = t.linkAll ? t.panes : [pane];
 
     let norm: {u:number,v:number} | null = null;
@@ -411,7 +407,7 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
   nextEmptyPaneId: () => {
-  const t = get().getActive();
+  const t = get().getActive()!;
   for (const id of ORDER) {
     if (!t.files[id] && !t.dataURL[id]) return id;
   }
@@ -568,7 +564,7 @@ export const useApp = create<AppState>((set, get) => ({
         };
       }),
     });
-    try { (get() as any).saveLastSession?.() } catch {}
+    try { (get() as any).saveLastSession?.() } catch (e) { void e }
   },
 
   setFocusIndex: (i: number) => set(state => {
