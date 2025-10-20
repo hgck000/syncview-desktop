@@ -65,57 +65,47 @@ type TabState = {
 type AppState = {
   tabs: TabState[];
   activeTabId: string;
-  // getters tiện dụng
-
   sidebarSize: number;
-  // tab ops
   newTab: (title?: string) => void;
   setActiveTab: (id: string) => void;
   renameTab: (id: string, title: string) => void;
   closeTab: (id: string) => void;
 
-  // setSidebarSize: (pct: number) => void;
-  // getActive: () => TabState | null;
-  // session
   serialize: () => any;
   loadFromSession: (data: any) => void;
 
   getActive: () => TabState | null;
-  getActiveSafe: () => TabState;         // [step21-safe] THÊM
-  hasActive: () => boolean;              // [step21-safe] THÊM
-  // actions UI
+  getActiveSafe: () => TabState;
+  hasActive: () => boolean;
+
   setSidebarSize: (v: number) => void;
   setLeftSplit: (v: number) => void;
   toggleLinkAll: () => void;
-  // cycleLayout: () => void;        // đổi layout lần lượt 1→2→3→4
-  // setLayout: (l: Layout) => void; // ép layout
+
   focusNext: () => void;
   focusPrev: () => void;
-  // setPaneCount: (n: 1 | 2 | 3 | 4) => void; // đổi số pane nhanh để test
-  // setFileForPane: (pane: PaneId, path?: string) => void;
-  nextEmptyPaneId: () => PaneId | null; // để Open khi chưa có pane nào
+
+  nextEmptyPaneId: () => PaneId | null;
   
   setFileForPane: (pane: PaneId, path?: string, nameOverride?: string) => void;
   setDataURLForPane: (pane: PaneId, dataURL?: string, name?: string) => void;
   
-  // view & meta
   setImageMeta: (pane: PaneId, w: number, h: number) => void;
   setView: (pane: PaneId, patch: Partial<View>) => void;
   fitView: (pane: PaneId, cw: number, ch: number) => void;
-  // resetView: (pane: PaneId) => void;
   applyPan: (pane: PaneId, dx: number, dy: number) => void;
   // applyZoom: (pane: PaneId, factor: number, around?: { cx: number; cy: number; cw: number; ch: number }) => void;
   
   setPaneSize: (pane: PaneId, cw: number, ch: number) => void;
-  resetView: (pane: PaneId) => void;  // (sẽ áp cho ALL khi linkAll)
+  resetView: (pane: PaneId) => void;
   applyZoom: (pane: PaneId, factor: number, around:
     | { type: 'abs', cx: number, cy: number, cw: number, ch: number }
     | { type: 'norm', u: number, v: number }
   ) => void;
   
   toggleGrid: () => void;
-  setGridSize: (px: number) => void;      // theo pixel ảnh (chưa nhân zoom)
-  setGridOpacity: (v: number) => void;    // 0..1
+  setGridSize: (px: number) => void;
+  setGridOpacity: (v: number) => void;
   setExif: (pane: PaneId, exif?: Exif) => void;
   toggleDetails: (pane: PaneId) => void;
   
@@ -123,11 +113,12 @@ type AppState = {
   setLoupeSize: (px: number) => void;
   // setLoupeZoom: (z: number) => void;
   setPointerNorm: (pane: PaneId, u: number, v: number) => void;
-  setPointerNormAll: (u: number, v: number) => void;   // <— NEW
+  setPointerNormAll: (u: number, v: number) => void;
 
   helpOn: boolean;
   toggleHelp: () => void;
   clearPane: (pane: PaneId) => void;
+  clearAllPanes: () => void,
   setFocusIndex: (i: number) => void;
   hydrated: boolean;
   markHydrated: (v: boolean) => void;
@@ -162,7 +153,6 @@ function makeEmptyTab(name = "Untitled"): TabState {
 }
 function panesFromSources(files: Record<PaneId, string | undefined>, dataURL: Record<PaneId, string|undefined>): PaneId[] {
   const used = ORDER.filter(id => !!files[id] || !!dataURL[id]);
-  // log tiện debug
   console.log("[store] panesFromFiles ->", used);
   return used;
 }
@@ -172,31 +162,6 @@ function usedPanes(
 ): PaneId[] {
   return (["A","B","C","D"] as PaneId[]).filter(id => !!files[id] || !!dataURL[id]);
 }
-
-// const initial: TabState = {
-//   id: "tab-1",
-//   name: "Untitled",
-//   layout: "auto",
-//   linkAll: true,
-//   sizes: { sidebar: 26, leftSplit: 70 },
-//   panes: [],
-//   focusIndex: 0,
-//   files:   { A: undefined, B: undefined, C: undefined, D: undefined },
-//   dataURL: { A: undefined, B: undefined, C: undefined, D: undefined },
-//   names:   { A: undefined, B: undefined, C: undefined, D: undefined },
-//   view: {
-//     A: { scale: 1, offsetX: 0, offsetY: 0 },
-//     B: { scale: 1, offsetX: 0, offsetY: 0 },
-//     C: { scale: 1, offsetX: 0, offsetY: 0 },
-//     D: { scale: 1, offsetX: 0, offsetY: 0 },
-//   },
-//   paneSize: { A:{cw:1,ch:1}, B:{cw:1,ch:1}, C:{cw:1,ch:1}, D:{cw:1,ch:1} }, // tránh chia 0
-//   grid: { on: false, size: 32, opacity: 0.35 },
-//   exif: { A: undefined, B: undefined, C: undefined, D: undefined },
-//   showDetails: { A: false, B: false, C: false, D: false },
-//   loupe: { on: false, size: 160, zoom: 2, shape: 'circle' },
-//   pointerNorm: { A:{u:0.5,v:0.5}, B:{u:0.5,v:0.5}, C:{u:0.5,v:0.5}, D:{u:0.5,v:0.5} },
-// };
 
 export const useApp = create<AppState>((set, get) => ({
   tabs: [],
@@ -217,7 +182,6 @@ export const useApp = create<AppState>((set, get) => ({
   //   set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, sizes: { ...t.sizes, sidebar: v } } : t) });
   // },
 
-    // [step21] tab ops
   newTab: (title) => set(state => {
     const t = makeEmptyTab(title ?? `Tab ${state.tabs.length + 1}`);
     return { ...state, tabs: [...state.tabs, t], activeTabId: t.id };
@@ -241,7 +205,6 @@ export const useApp = create<AppState>((set, get) => ({
     return { ...state, tabs, activeTabId };
   }),
 
-  // [step21] layout
   setSidebarSize: (pct) => set(state => {
     const t = state.tabs.find(x => x.id === state.activeTabId);
     if (!t) return { ...state, sidebarSize: pct };
@@ -252,13 +215,11 @@ export const useApp = create<AppState>((set, get) => ({
     return { ...state, tabs, sidebarSize: pct };
   }),
 
-  // [step21] helpers
   getActive: () => {
     const s = get();
     return s.tabs.find(t => t.id === s.activeTabId) || null;
   },
 
-  // [step21] session
   serialize: () => {
     const s = get();
     return {
@@ -312,7 +273,7 @@ export const useApp = create<AppState>((set, get) => ({
         if (t.id !== activeTabId) return t;
         // cập nhật files
         const files =   { ...t.files,   [pane]: path };
-        const dataURL = { ...t.dataURL, [pane]: undefined }; // path có thì bỏ dataURL cũ
+        const dataURL = { ...t.dataURL, [pane]: undefined };
         const names   = { ...t.names,   [pane]: nameOverride ?? t.names[pane] };
         // suy ra panes mới
         const panes = panesFromSources(files, dataURL).slice(0, 4);
@@ -342,7 +303,7 @@ export const useApp = create<AppState>((set, get) => ({
       tabs: tabs.map(t => {
         if (t.id !== activeTabId) return t;
         const dataURL = { ...t.dataURL, [pane]: data };
-        const files   = { ...t.files,   [pane]: undefined }; // ưu tiên dataURL
+        const files   = { ...t.files,   [pane]: undefined };
         const names   = { ...t.names,   [pane]: name ?? t.names[pane] };
         const panes   = panesFromSources(files, dataURL).slice(0, 4);
         const view    = { ...t.view, [pane]: { scale: 1, offsetX: 0, offsetY: 0 } };
@@ -379,7 +340,7 @@ export const useApp = create<AppState>((set, get) => ({
     const v = t.view[pane]; const iw = v.imgW ?? 1, ih = v.imgH ?? 1;
     const fit = Math.min(cw / iw, ch / ih);
     console.log("[store] fitView", pane, {cw, ch, iw, ih, fit});
-    get().setView(pane, { scale: 1, offsetX: 0, offsetY: 0 }); // scale tương đối (1=fit)
+    get().setView(pane, { scale: 1, offsetX: 0, offsetY: 0 });
   },
 
   resetView: (pane) => {
@@ -410,7 +371,6 @@ export const useApp = create<AppState>((set, get) => ({
     const t = get().getActive();
     const ids = t.linkAll ? t.panes : [pane];
 
-    // Nếu nhận ABS từ pane focus, chuyển về NORM để áp cho pane khác
     let norm: {u:number,v:number} | null = null;
     if ('type' in around && around.type === 'abs') {
       const { cx, cy, cw, ch } = around;
@@ -423,7 +383,6 @@ export const useApp = create<AppState>((set, get) => ({
     ids.forEach(id => {
       const v = t.view[id];
       const { cw, ch } = t.paneSize[id] || { cw: 1, ch: 1 };
-      // zoom quanh tâm khi linkAll để đồng bộ (đơn giản & mượt)
       const iw = v.imgW ?? 1, ih = v.imgH ?? 1;
 
       const fit = Math.min(cw / iw, ch / ih);
@@ -456,8 +415,9 @@ export const useApp = create<AppState>((set, get) => ({
   for (const id of ORDER) {
     if (!t.files[id] && !t.dataURL[id]) return id;
   }
-  return null; // đã đủ 4 ảnh
+  return null;
   },
+
   toggleGrid: () => {
     const { tabs, activeTabId } = get();
     console.log("[store] toggleGrid");
@@ -465,6 +425,7 @@ export const useApp = create<AppState>((set, get) => ({
       tabs: tabs.map(t => t.id === activeTabId ? { ...t, grid: { ...t.grid, on: !t.grid.on } } : t)
     });
   },
+
   setGridSize: (px) => {
     const { tabs, activeTabId } = get();
     console.log("[store] setGridSize", px);
@@ -472,6 +433,7 @@ export const useApp = create<AppState>((set, get) => ({
       tabs: tabs.map(t => t.id === activeTabId ? { ...t, grid: { ...t.grid, size: Math.max(4, Math.min(512, Math.round(px))) } } : t)
     });
   },
+
   setGridOpacity: (v) => {
     const { tabs, activeTabId } = get();
     console.log("[store] setGridOpacity", v);
@@ -479,6 +441,7 @@ export const useApp = create<AppState>((set, get) => ({
       tabs: tabs.map(t => t.id === activeTabId ? { ...t, grid: { ...t.grid, opacity: Math.max(0, Math.min(1, v)) } } : t)
     });
   },
+
   setExif: (pane, exif) => {
     console.log("[store] setExif", pane, exif);
     const { tabs, activeTabId } = get();
@@ -489,6 +452,7 @@ export const useApp = create<AppState>((set, get) => ({
       )
     });
   },
+
   toggleDetails: (pane) => {
     const { tabs, activeTabId } = get();
     set({
@@ -503,31 +467,33 @@ export const useApp = create<AppState>((set, get) => ({
   toggleLoupe: () => {
   const { tabs, activeTabId, getActive } = get();
   const tab = getActive();
-  const next = !tab.loupe.on;
+  const next = !tab?.loupe.on;
   console.log("[store] toggleLoupe ->", next);
   set({
     tabs: tabs.map(t => {
       if (t.id !== activeTabId) return t;
       return {
         ...t,
-        loupe: { ...t.loupe, on: next, zoom: next ? 2 : t.loupe.zoom } // <-- ép 2x khi bật
+        loupe: { ...t.loupe, on: next, zoom: next ? 2 : t.loupe.zoom }
       };
     })
   });
-  if (next && tab.linkAll && tab.panes.length) {
+  if (next && tab?.linkAll && tab.panes.length) {
     const focus = tab.panes[tab.focusIndex] || tab.panes[0];
     const p = tab.pointerNorm[focus] || { u: 0.5, v: 0.5 };
     get().setPointerNormAll(p.u, p.v);
   }
 },
+
   setLoupeSize: (px) => {
     const { tabs, activeTabId } = get();
-    const size = Math.max(150, Math.min(500, Math.round(px))); // <— clamp mới
+    const size = Math.max(150, Math.min(500, Math.round(px)));
     console.log("[store] setLoupeSize", size);
     set({
       tabs: tabs.map(t => t.id === activeTabId ? { ...t, loupe: { ...t.loupe, size } } : t)
     });
   },
+
   setPointerNorm: (pane, u, v) => {
     const { tabs, activeTabId } = get();
     const clamp = (x:number)=> Math.max(0, Math.min(1, x));
@@ -539,7 +505,8 @@ export const useApp = create<AppState>((set, get) => ({
       )
     });
   },
-  setPointerNormAll: (u, v) => { // <— NEW
+
+  setPointerNormAll: (u, v) => {
     const { tabs, activeTabId } = get();
     const clamp = (x:number)=> Math.max(0, Math.min(1, x));
     const val = { u: clamp(u), v: clamp(v) };
@@ -552,6 +519,7 @@ export const useApp = create<AppState>((set, get) => ({
       })
     });
   },
+
   clearPane: (pane) => {
     const { tabs, activeTabId } = get();
     set({
@@ -570,12 +538,46 @@ export const useApp = create<AppState>((set, get) => ({
       })
     });
   },
+
+  clearAllPanes: () => {
+    const { tabs, activeTabId } = get();
+    set({
+      tabs: tabs.map(t => {
+        if (t.id !== activeTabId) return t;
+
+        // reset toàn bộ slot A–D về rỗng
+        const empty = { A: undefined, B: undefined, C: undefined, D: undefined } as Record<PaneId, undefined>;
+        const freshView = {
+          A: { scale: 1, offsetX: 0, offsetY: 0 },
+          B: { scale: 1, offsetX: 0, offsetY: 0 },
+          C: { scale: 1, offsetX: 0, offsetY: 0 },
+          D: { scale: 1, offsetX: 0, offsetY: 0 },
+        } as Record<PaneId, View>;
+        const showDetails = { A:false, B:false, C:false, D:false } as Record<PaneId, boolean>;
+
+        return {
+          ...t,
+          files:   { ...empty },
+          dataURL: { ...empty },
+          names:   { ...empty },
+          exif:    { ...empty },
+          panes:   [],
+          focusIndex: 0,
+          view: freshView,
+          showDetails,
+        };
+      }),
+    });
+    try { (get() as any).saveLastSession?.() } catch {}
+  },
+
   setFocusIndex: (i: number) => set(state => {
-    const t = state.getActive?.() as any; // tùy bạn định nghĩa getActive
+    const t = state.getActive?.() as any;
     if (!t) return state;
     const tabs = state.tabs.map(tab => tab.id === state.activeTabId ? { ...tab, focusIndex: i } : tab);
     return { ...state, tabs };
   }),
+
   getActiveSafe: () => {
     const s = get();
     return s.tabs.find(t => t.id === s.activeTabId) ?? SAFE_EMPTY_TAB;
@@ -585,7 +587,7 @@ export const useApp = create<AppState>((set, get) => ({
     const s = get();
     return !!s.tabs.find(t => t.id === s.activeTabId);
   },
-  // store.ts – thêm action tối thiểu, không đổi state cũ
+
   reorderTabs: (fromIndex: number, toIndex: number) => {
     const s = get();
     const n = s.tabs.length;

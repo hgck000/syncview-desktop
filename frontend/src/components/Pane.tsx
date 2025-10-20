@@ -3,7 +3,7 @@ import { basename } from "../app/path";
 import { useImageCanvas } from "../app/useImageCanvas";
 import { useRef, useState, useEffect } from "react";
 import { readExifFromPath, readExifFromDataURL } from "../app/bridge";
-import { X, ChevronDown, ChevronUp, Camera, Calendar, MapPin, HardDrive, Aperture, Timer, SunMedium } from "lucide-react";
+import { X, ChevronDown, ChevronUp, Camera, Calendar, MapPin, HardDrive, Aperture, Timer, SunMedium, CircleX  } from "lucide-react";
 
 
 type Props = { id: "A" | "B" | "C" | "D" };
@@ -272,10 +272,10 @@ export default function Pane({ id }: Props) {
     // <div className={`relative min-h-0 bg-neutral-900 border rounded ${focused ? "border-blue-600" : "border-neutral-800"}`}>
     <div
       ref={wrapRef}
-      className={`relative min-h-0 bg-neutral-900 border rounded overflow-hidden ${focused ? "border-blue-600" : "border-neutral-800"}`}
+      className={`relative min-h-0 bg-neutral-900 border rounded overflow-hidden ${focused ? "border-neutral-400" : "border-neutral-800"}`}
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
-      onMouseMove={onMouseMove}
+      onMouseMove={onMouseMove} 
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseLeave}
       onWheel={onWheel}
@@ -283,7 +283,7 @@ export default function Pane({ id }: Props) {
     >
       {/* [step19] TOP BAR + DELETE */}
       {/* === HEADER + DETAILS: liền mạch === */}
-      <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
+      <div className="absolute top-1 left-0 right-0 z-20 pointer-events-none">
         <div className="flex items-start justify-center mt-1">
           <div className="pointer-events-auto w-[300px] sm:w-[320px]">
             {/* Header */}
@@ -305,13 +305,19 @@ export default function Pane({ id }: Props) {
                     {device} • {sizeLabel} 
                   </div>
                 </div>
-                <button
+                <div
                   onClick={() => toggleDetails(id)}
-                  className="ml-1 p-1 rounded hover:bg-neutral-800 text-neutral-800"
-                  title={showDetails ? "Ẩn thông tin" : "Hiện thông tin"}
+                  className="ml-1 w-6 h-6 rounded-full flex items-center justify-center
+                            bg-transparent text-white cursor-pointer
+                            hover:bg-white/10 active:bg-white/20 active:scale-95 transition"
+                  title={showDetails ? 'Ẩn thông tin' : 'Hiện thông tin'}
                 >
-                  {showDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
+                  {showDetails ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -341,16 +347,19 @@ export default function Pane({ id }: Props) {
         {/* Nút X nhỏ, tròn – đã làm ở lần trước, giữ nguyên */}
         {(t.files[id] || t.dataURL[id]) && (
           <div className="absolute top-1.5 right-1.5 pointer-events-auto">
-            <button
-              onClick={() => { console.log(`[pane:${id}] delete via X`); clearPane(id); }}
-              className="w-6 h-6 rounded-full bg-neutral-900/90 border border-neutral-700/70
-                        flex items-center justify-center
-                        hover:bg-red-600/90 hover:border-red-500
-                        text-neutral-800 hover:text-white transition-colors"
+            <div
+              onClick={() => {
+                console.log(`[pane:${id}] delete via CircleX`);
+                clearPane(id);
+              }}
+              className="w-5 h-5 rounded-full flex items-center justify-center
+                        bg-white text-neutral-800/80
+                        hover:text-neutral-800
+                        active:scale-95 cursor-pointer transition"
               title="Remove image"
-            >x
-              <X className="w-3.5 h-3.5" />
-            </button>
+            >
+              <CircleX className="w-5 h-5" strokeWidth={2.2} />
+            </div>
           </div>
         )}
       </div>

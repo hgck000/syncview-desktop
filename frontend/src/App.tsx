@@ -64,7 +64,7 @@ export default function App() {
   }, [tabs, activeTabId]);
 
   // [step21] Fallback size khi chưa có tab để PanelGroup vẫn hiện bình thường
-  const sidebarSize = (active as any)?.sizes?.sidebar ?? 24;
+  const sidebarSize = (active as any)?.sizes?.sidebar ?? 15;
 
 return (
   <><AppEventDebug />
@@ -73,7 +73,7 @@ return (
     {active && <Hotkeys />}
 
     <PanelGroup direction="horizontal" onLayout={([left]) => setSidebarSize(left)}>
-      <Panel defaultSize={sidebarSize} minSize={16} maxSize={45}>
+      <Panel defaultSize={sidebarSize} minSize={12} maxSize={20}>
         <Sidebar />
       </Panel>
       <PanelResizeHandle className="w-1 bg-neutral-700/50 hover:bg-neutral-600 cursor-col-resize" />

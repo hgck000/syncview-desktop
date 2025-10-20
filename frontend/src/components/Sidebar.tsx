@@ -1,7 +1,7 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useApp } from "../app/store";
 import { basename } from "../app/path";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, ImageUp , X, SquarePlus  } from "lucide-react";
 import React, { useState } from "react";
 import {
   DndContext,
@@ -123,18 +123,14 @@ function SortableTabRow({
 
 export default function Sidebar() {
   const { tabs, activeTabId, setLeftSplit } = useApp();
-  // const tab = tabs.find(t => t.id === activeTabId) || null;
   const tab = useApp(s => s.getActiveSafe());
   const has = useApp(s => s.hasActive());
   const leftSplit = tab?.sizes?.leftSplit ?? 60;
   const paneIds = tab?.panes ?? [];
-  // const tabs = useApp(s => s.tabs);
   const activeId = useApp(s => s.activeTabId);
   const setActive = useApp(s => s.setActiveTab);
-  // const newTab = useApp(s => s.newTab);
   const renameTab = useApp(s => s.renameTab);
   const closeTab = useApp(s => s.closeTab);
-  // const setFocusIndex = useApp(s => s.setFocusIndex); // ✅ action từ store (đã thêm ở bước 1)
   const [editing, setEditing] = useState<string|null>(null);
   const [buf, setBuf] = useState("");
 
@@ -155,10 +151,15 @@ export default function Sidebar() {
     <div className="h-full bg-neutral-900 border-r border-neutral-800">
       <div className="h-10 flex items-center px-3 text-sm border-b border-neutral-800">
         <span className="font-medium text-neutral-400">Workspace</span>
-        <button onClick={() => useApp.getState().newTab()}
-          className="ml-auto text-neutral-400 hover:text-neutral-800">
-          <Plus className="h-4 w-4"/>
-        </button>
+        <div
+          onClick={() => useApp.getState().newTab()}
+          className="ml-auto flex items-center justify-center w-6 h-6 rounded-md
+                    text-neutral-400 hover:text-white hover:bg-white/10
+                    active:scale-95 cursor-pointer transition"
+          title="New Tab"
+        >
+  <SquarePlus className="h-4 w-4" strokeWidth={2.2} />
+</div>
       </div>
       <PanelGroup
         direction="vertical"
@@ -167,11 +168,6 @@ export default function Sidebar() {
         {/* Khu TAB dọc + workspace controls */}
         <Panel defaultSize={leftSplit} minSize={30}>
           {(() => {
-            // const items = tabs.map((tt) => String(tt.id));
-            // const mouse = useSensor(MouseSensor, { activationConstraint: { distance: 2 } });
-            // const touch = useSensor(TouchSensor, { activationConstraint: { delay: 60, tolerance: 6 } });
-            // const sensors = useSensors(mouse, touch);
-
             const onDragStart = (_e: DragStartEvent) => {
               setDragging(true);
               // có thể mở log dev nếu cần
@@ -237,7 +233,7 @@ export default function Sidebar() {
               </div>
             )}
             {tab && paneIds.length === 0 && (
-              <div className="p-3 rounded border border-neutral-800 bg-neutral-900/50 text-neutral-500 text-sm">
+              <div className="p-3 rounded border border-neutral-800 bg-neutral-900/50 text-neutral-300 text-sm">
                 Chưa có ảnh nào trong tab này.
               </div>
             )}
@@ -256,19 +252,22 @@ export default function Sidebar() {
                           ? "(dropped image)"
                           : `${pid}: Empty`);
                     return (
-                      <button
+                      <div
                         key={`${tb.id}-${pid}`}
                         onClick={() => useApp.getState().setFocusIndex(i)}
-                        className={`w-full px-2 py-1 rounded border text-left text-xs
-                          ${hasFile || hasData
-                            ? "border-neutral-700 bg-neutral-800/60 hover:bg-neutral-800"
-                            : "border-dashed border-neutral-700 text-neutral-500"}`}
                         title={name}
+                        className={`w-full px-2 py-1 rounded border text-left text-xs select-none cursor-pointer transition
+                          ${hasFile || hasData
+                            ? "border-neutral-700 bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300"
+                            : "border-dashed border-neutral-700 text-neutral-500 hover:bg-neutral-800/30"}`}
                       >
-                        <span className="truncate max-w-[180px] inline-block align-middle text-sm">
-                          {name}
-                        </span>
-                      </button>
+                        <div className="flex items-center gap-2">
+                          <ImageUp className="h-4 w-4 opacity-80 shrink-0" />
+                          <span className="truncate max-w-[180px] inline-block align-middle text-sm">
+                            {name}
+                          </span>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

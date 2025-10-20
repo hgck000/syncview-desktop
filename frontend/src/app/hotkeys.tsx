@@ -71,7 +71,8 @@ export default function Hotkeys() {
   const toggleGrid  = useApp(s => s.toggleGrid);
   const toggleLoupe = useApp(s => s.toggleLoupe);
   const toggleHelp = useApp(s => s.toggleHelp);
-
+  const resetView = useApp(s => s.resetView);
+  
   const tabs            = useApp(s => s.tabs);
 
   useEffect(() => {
@@ -81,24 +82,25 @@ export default function Hotkeys() {
       "arrowleft":  (e) => { if (isEditableTarget(e)) return; e.preventDefault(); focusPrev(); },
       "tab":        (e) => { if (isEditableTarget(e)) return; e.preventDefault(); focusNext(); },
       "shift+tab":  (e) => { if (isEditableTarget(e)) return; e.preventDefault(); focusPrev(); },
-      "R": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); if (t.panes.length) toggleDetails(t.panes[t.focusIndex]); },
-      "T": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleGrid(); },  // Shift+3 trên US layout
+      "R": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); if (t?.panes.length) toggleDetails(t.panes[t.focusIndex]); },
+      // "T": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleGrid(); },
       "F": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleLoupe(); },
-      "H": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleHelp(); },  // Shift+/
-      "ctrl+o": async (e) => {
-        if (isEditableTarget(e)) return; 
-        e.preventDefault();
-        const pane = t.panes[t.focusIndex];
-        const path = await openFileDialog(pane);
-        if (path) setFileForPane(pane, path);
-      },
-      "meta+o": async (e) => { // macOS Cmd+O
-        if (isEditableTarget(e)) return; 
-        e.preventDefault();
-        const pane = t.panes[t.focusIndex];
-        const path = await openFileDialog(pane);
-        if (path) setFileForPane(pane, path);
-      },
+      "H": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleHelp(); },
+      "D": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); if (t?.panes?.length) resetView(t.panes[t.focusIndex]); },
+      // "ctrl+o": async (e) => {
+      //   if (isEditableTarget(e)) return; 
+      //   e.preventDefault();
+      //   const pane = t.panes[t.focusIndex];
+      //   const path = await openFileDialog(pane);
+      //   if (path) setFileForPane(pane, path);
+      // },
+      // "meta+o": async (e) => { // macOS Cmd+O
+      //   if (isEditableTarget(e)) return; 
+      //   e.preventDefault();
+      //   const pane = t.panes[t.focusIndex];
+      //   const path = await openFileDialog(pane);
+      //   if (path) setFileForPane(pane, path);
+      // },
     });
     
  // 2) FALLBACK CHO TỔ HỢP (modifier) — fix WebView “không ăn combo”
@@ -113,17 +115,17 @@ export default function Hotkeys() {
           focusPrev();
           return;
 
-        case "ctrl+o":
-        case "meta+o":
-          e.preventDefault(); e.stopPropagation();
-          console.debug("[HK] fallback", id);
-          if (!t?.panes?.length) return;
-          {
-            const pane = t.panes[t.focusIndex];
-            const path = await openFileDialog(pane);
-            if (path) setFileForPane(pane, path);
-          }
-          return;
+        // case "ctrl+o":
+        // case "meta+o":
+        //   e.preventDefault(); e.stopPropagation();
+        //   console.debug("[HK] fallback", id);
+        //   if (!t?.panes?.length) return;
+        //   {
+        //     const pane = t.panes[t.focusIndex];
+        //     const path = await openFileDialog(pane);
+        //     if (path) setFileForPane(pane, path);
+        //   }
+        //   return;
 
         // Ctrl+1..9 → nhảy tab 1..9 (1-based)
         case "ctrl+1":
@@ -158,7 +160,7 @@ export default function Hotkeys() {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
     };
   // thêm deps tabs để cập nhật số tab
-  }, [t, tabs, toggleLinkAll, focusNext, focusPrev, setFileForPane, toggleGrid, toggleLoupe, toggleDetails, toggleHelp]);
+  }, [t, tabs, toggleLinkAll, focusNext, focusPrev, setFileForPane, toggleGrid, toggleLoupe, toggleDetails, toggleHelp, resetView]);
 
   return null;
 }

@@ -13,7 +13,8 @@ export default function ViewerGrid() {
     return (
       <DropZone>
         <div className="h-full flex items-center justify-center text-neutral-500">
-          Kéo-thả 1–4 ảnh vào đây hoặc bấm <span className="mx-1 px-1.5 py-0.5 bg-neutral-800 rounded">Open</span>
+          Kéo-thả 1–4 ảnh vào đây
+          <span className="mx-1 px-1.5 py-0.5 bg-neutral-900 rounded text-size:xs text-neutral-300">Tạo tab mới trước</span>
         </div>
       </DropZone>
     );
