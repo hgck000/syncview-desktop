@@ -12,16 +12,13 @@ jobs:
     name: Build Windows x64
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -42,8 +39,7 @@ jobs:
 
       - name: PyInstaller .exe
         shell: pwsh
-        env:
-          PYTHONWARNINGS: ignore
+        env: { PYTHONWARNINGS: ignore }
         run: |
           .\.venv\Scripts\pyinstaller `
             --windowed `
@@ -54,32 +50,17 @@ jobs:
             --collect-submodules uvicorn `
             --collect-submodules anyio `
             backend\run_prod.py
-          # Kết quả: dist\SyncView\SyncView.exe
-
-      # (Tùy chọn) Build Inno Setup nếu có file .iss
-      - name: Install Inno Setup (via Chocolatey)
-        if: ${{ hashFiles('installer/**.iss') != '' }}
-        shell: pwsh
-        run: |
-          choco install innosetup --no-progress -y
-
-      - name: Build Inno Setup installer
-        if: ${{ hashFiles('installer/**.iss') != '' }}
-        shell: pwsh
-        run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Qp installer\SyncView.iss
-          # Ví dụ output: installer\Output\SyncView-Setup.exe
+          # Output: dist\SyncView\SyncView.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: SyncView-Windows-x64
           path: |
-            dist\SyncView\SyncView.exe
-            installer\Output\SyncView-Setup.exe
+            dist\**\SyncView.exe
+            installer\Output\**\*.exe
           if-no-files-found: warn
 
-  # (Tùy chọn) Tạo/ cập nhật Release và đính kèm file Windows
   release:
     needs: build-windows
     if: startsWith(github.ref, 'refs/tags/')
@@ -95,5 +76,5 @@ jobs:
         with:
           files: |
             artifacts/SyncView-Windows-x64/SyncView.exe
-            artifacts/SyncView-Windows-x64/SyncView-Setup.exe
+            artifacts/SyncView-Windows-x64/*.exe
           generate_release_notes: true
