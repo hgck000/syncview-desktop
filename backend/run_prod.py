@@ -1,8 +1,10 @@
 from __future__ import annotations
-import os, sys, threading, time, socket, traceback
+import os, sys, threading, time, socket, traceback, uvicorn, webview
 from pathlib import Path
-import uvicorn, webview
 from app.bridge import Bridge
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
 
 # ------------- CONFIG -------------
 API_HOST = "127.0.0.1"
@@ -11,6 +13,12 @@ APP_DATA_DIR = Path.home() / ".syncview"
 APP_DATA_DIR.mkdir(exist_ok=True)
 LOG_FILE = APP_DATA_DIR / "syncview.log"
 # ----------------------------------
+
+def dist_dir() -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    return base / "frontend" / "dist"
+app = FastAPI()
+app.mount("/", StaticFiles(directory=str(dist_dir()), html=True), name="static")
 
 def log_exc(prefix: str, e: Exception):
     try:
