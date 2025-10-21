@@ -1,0 +1,99 @@
+name: Windows .exe build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    name: Build Windows x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FE deps & build
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npm ci
+          npm run build
+
+      - name: Create venv & install BE deps
+        shell: pwsh
+        run: |
+          py -m venv .venv
+          .\.venv\Scripts\python -m pip install --upgrade pip wheel setuptools
+          .\.venv\Scripts\pip install -r backend/requirements.txt
+          .\.venv\Scripts\pip install pyinstaller
+
+      - name: PyInstaller .exe
+        shell: pwsh
+        env:
+          PYTHONWARNINGS: ignore
+        run: |
+          .\.venv\Scripts\pyinstaller `
+            --windowed `
+            --noconsole `
+            --name SyncView `
+            --add-data "frontend\dist;frontend/dist" `
+            --hidden-import h11 `
+            --collect-submodules uvicorn `
+            --collect-submodules anyio `
+            backend\run_prod.py
+          # Kết quả: dist\SyncView\SyncView.exe
+
+      # (Tùy chọn) Build Inno Setup nếu có file .iss
+      - name: Install Inno Setup (via Chocolatey)
+        if: ${{ hashFiles('installer/**.iss') != '' }}
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build Inno Setup installer
+        if: ${{ hashFiles('installer/**.iss') != '' }}
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Qp installer\SyncView.iss
+          # Ví dụ output: installer\Output\SyncView-Setup.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SyncView-Windows-x64
+          path: |
+            dist\SyncView\SyncView.exe
+            installer\Output\SyncView-Setup.exe
+          if-no-files-found: warn
+
+  # (Tùy chọn) Tạo/ cập nhật Release và đính kèm file Windows
+  release:
+    needs: build-windows
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create/Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/SyncView-Windows-x64/SyncView.exe
+            artifacts/SyncView-Windows-x64/SyncView-Setup.exe
+          generate_release_notes: true

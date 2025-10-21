@@ -1,5 +1,8 @@
 name: macOS .dmg build
 
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -84,15 +87,21 @@ jobs:
   release:
     needs: build-mac
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
-      - name: Create release
+
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # dùng token mặc định
         with:
           files: |
             artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
             artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
+          fail_on_unmatched_files: false
