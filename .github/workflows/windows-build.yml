@@ -6,25 +6,24 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write   # QUAN TRỌNG: cho phép cập nhật Release
+
 jobs:
   build-windows:
     runs-on: windows-latest
-    name: Build Windows x64
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+        with: { node-version: "22" }
 
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+        with: { python-version: "3.11" }
 
       - name: Install FE deps & build
-        working-directory: frontend
         shell: pwsh
+        working-directory: frontend
         run: |
           npm ci
           npm run build
@@ -52,29 +51,16 @@ jobs:
             backend\run_prod.py
           # Output: dist\SyncView\SyncView.exe
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SyncView-Windows-x64
-          path: |
-            dist\**\SyncView.exe
-            installer\Output\**\*.exe
-          if-no-files-found: warn
+      # (tuỳ chọn) build Inno Setup vào installer\Output\SyncView-Setup.exe
 
-  release:
-    needs: build-windows
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Create/Update GitHub Release
+      - name: Attach to GitHub Release (append)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/SyncView-Windows-x64/SyncView.exe
-            artifacts/SyncView-Windows-x64/*.exe
-          generate_release_notes: true
+            dist/SyncView/SyncView.exe
+            installer/Output/**/*.exe
+          append_body: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
