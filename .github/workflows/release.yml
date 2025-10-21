@@ -1,0 +1,111 @@
+name: Release (macOS + Windows)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-13
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: FE build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: BE deps
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip wheel setuptools
+          pip install -r backend/requirements.txt
+          pip install pyinstaller pyobjc-core pyobjc-framework-Cocoa
+      - name: PyInstaller .app
+        run: |
+          source .venv/bin/activate
+          pyinstaller --windowed --onedir --name SyncView \
+            --add-data "frontend/dist:frontend/dist" \
+            --hidden-import uvicorn --collect-submodules uvicorn \
+            --collect-submodules anyio backend/run_prod.py
+          mv dist/SyncView "dist/SyncView-${{ matrix.arch }}"
+      - name: Make DMG & upload artifact
+        run: |
+          cd dist
+          hdiutil create -volname "SyncView" \
+            -srcfolder "SyncView-${{ matrix.arch }}" \
+            -ov -format UDZO "SyncView-mac-${{ matrix.arch }}.dmg"
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SyncView-mac-${{ matrix.arch }}
+          path: dist/SyncView-mac-${{ matrix.arch }}.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: FE build
+        shell: pwsh
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: BE deps
+        shell: pwsh
+        run: |
+          py -m venv .venv
+          .\.venv\Scripts\python -m pip install --upgrade pip wheel setuptools
+          .\.venv\Scripts\pip install -r backend/requirements.txt
+          .\.venv\Scripts\pip install pyinstaller
+      - name: PyInstaller exe
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\pyinstaller `
+            --windowed --noconsole --name SyncView `
+            --add-data "frontend\dist;frontend/dist" `
+            --hidden-import h11 `
+            --collect-submodules uvicorn `
+            --collect-submodules anyio `
+            backend\run_prod.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SyncView-Windows-x64
+          path: |
+            dist\**\SyncView.exe
+            installer\Output\**\*.exe
+          if-no-files-found: warn
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-mac, build-windows]
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: ./artifacts }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
+            artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
+            artifacts/SyncView-Windows-x64/**/SyncView.exe
+            artifacts/SyncView-Windows-x64/**/*.exe
+          generate_release_notes: true
