@@ -1,12 +1,36 @@
 ﻿# Node
 node_modules/
-dist/
 
 # Python
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Build artifacts
+dist/
+build/
 
 # OS
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+backend/app/*.log
+
+# App data (session)
+.syncview/
+.syncview/**
+*.sqlite
+*.db
+
+# Coverage/temp
+coverage/
+tmp/
+.cache/
