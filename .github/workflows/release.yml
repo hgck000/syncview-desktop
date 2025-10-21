@@ -148,7 +148,7 @@ jobs:
           files: |
             artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
             artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
-            artifacts/SyncView-Windows-x64/SyncView.exe
+            artifacts/SyncView-Windows-x64/**/SyncView.exe
             artifacts/SyncView-Windows-x64/**/*.exe
           generate_release_notes: true
           fail_on_unmatched_files: true
