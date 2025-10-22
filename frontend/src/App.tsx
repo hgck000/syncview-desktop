@@ -10,6 +10,7 @@ import { useEffect, useRef } from "react";
 import { readLastSession, writeLastSession } from "./app/bridge";
 import AppEventDebug from "./dev/AppEventDebug";
 // import DndProbe from "./dev/DndProbe";
+import { HotkeyHint } from "./components/HotkeyHint";
 
 
 export default function App() {
@@ -87,6 +88,7 @@ return (
       </Panel>
     </PanelGroup>
     <HelpOverlay />
+    <HotkeyHint />
   </div></>
   );
 }
