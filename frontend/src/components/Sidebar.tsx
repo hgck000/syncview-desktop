@@ -2,7 +2,7 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useApp } from "../app/store";
 import { basename } from "../app/path";
-import { Pencil, ImageUp , X, Plus  } from "lucide-react";
+import { Pencil, ImageUp, X, Plus } from "lucide-react";
 import React, { useState } from "react";
 import {
   DndContext,
@@ -20,6 +20,8 @@ import {
   verticalListSortingStrategy, // dùng list dọc
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { TabPreview } from "./TabPreview"; // Import the new component
+import * as Accordion from "@radix-ui/react-accordion"; // Import Accordion components
 
 function SortableTabRow({
   t,
@@ -69,6 +71,7 @@ function SortableTabRow({
         ${active ? "bg-neutral-800 border border-neutral-700" : "hover:bg-neutral-800/60"}`}
       onClick={onActivate}
     >
+      <TabPreview tabId={t.id} />
       {isEditing ? (
         <input
           autoFocus
@@ -101,7 +104,7 @@ function SortableTabRow({
               className="p-1 rounded hover:bg-neutral-700"
               title="Rename"
             >
-              <Pencil className="w-3.5 h-3.5 text-black" />
+              <Pencil className="w-3.5 h-3.5 text-white" />
             </button>
             <button
               onPointerDown={(e) => e.stopPropagation()}
@@ -113,7 +116,7 @@ function SortableTabRow({
               className="p-1 rounded hover:bg-neutral-700"
               title="Close"
             >
-              <X className="w-3.5 h-3.5 text-black" />
+              <X className="w-3.5 h-3.5 text-white" />
             </button>
           </div>
         </>
@@ -168,57 +171,65 @@ export default function Sidebar() {
       >
         {/* Khu TAB dọc + workspace controls */}
         <Panel defaultSize={leftSplit} minSize={30}>
-          {(() => {
-            const onDragStart = (_e: DragStartEvent) => {
-              void _e;
-              setDragging(true);
-            };
-            const onDragEnd = (e: DragEndEvent) => {
-              setDragging(false);
-              const { active, over } = e;
-              if (!over || active.id === over.id) return;
-              const from = items.indexOf(String(active.id));
-              const to = items.indexOf(String(over.id));
-              if (from < 0 || to < 0) return;
-              // dùng action reorderTabs trong store (đã thêm ở bước trước)
-              useApp.getState().reorderTabs(from, to);
-              // autosave của bạn (Step 21) sẽ tự chạy theo pipeline hiện có
-            };
-            return (
-              <DndContext sensors={sensors} collisionDetection={closestCenter}
-                          onDragStart={onDragStart} onDragEnd={onDragEnd}>
-                <SortableContext items={items} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-1 mb-4 text-white">
-                    {tabs.map((t) => {
-                      const active = t.id === activeId;
-                      return (
-                        <SortableTabRow
-                          key={t.id}
-                          t={t}
-                          active={active}
-                          onActivate={() => setActive(t.id)}
-                          onRenameStart={() => {
-                            setEditing(t.id);
-                            setBuf(t.name);
-                          }}
-                          onRenameCommit={(next) => {
-                            renameTab(t.id, next);
-                            setEditing(null);
-                          }}
-                          onRenameCancel={() => setEditing(null)}
-                          onClose={() => closeTab(t.id)}
-                          editingId={editing}
-                          buf={buf}
-                          setBuf={setBuf}
-                          dragging={dragging}
-                        />
-                      );
-                    })}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            );
-          })()}
+          <Accordion.Root type="single" defaultValue="item-1" collapsible className="w-full">
+            <Accordion.Item value="item-1">
+              <Accordion.Trigger className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-colors">
+                <span>Tabs</span>
+                <Plus className="h-4 w-4" strokeWidth={2.2} />
+              </Accordion.Trigger>
+              <Accordion.Content>
+                {(() => {
+                  const onDragStart = (_e: DragStartEvent) => {
+                    void _e;
+                    setDragging(true);
+                  };
+                  const onDragEnd = (e: DragEndEvent) => {
+                    setDragging(false);
+                    const { active, over } = e;
+                    if (!over || active.id === over.id) return;
+                    const from = items.indexOf(String(active.id));
+                    const to = items.indexOf(String(over.id));
+                    if (from < 0 || to < 0) return;
+                    useApp.getState().reorderTabs(from, to);
+                  };
+                  return (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter}
+                                onDragStart={onDragStart} onDragEnd={onDragEnd}>
+                      <SortableContext items={items} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-1 mb-4 text-white p-2">
+                          {tabs.map((t) => {
+                            const active = t.id === activeId;
+                            return (
+                              <SortableTabRow
+                                key={t.id}
+                                t={t}
+                                active={active}
+                                onActivate={() => setActive(t.id)}
+                                onRenameStart={() => {
+                                  setEditing(t.id);
+                                  setBuf(t.name);
+                                }}
+                                onRenameCommit={(next) => {
+                                  renameTab(t.id, next);
+                                  setEditing(null);
+                                }}
+                                onRenameCancel={() => setEditing(null)}
+                                onClose={() => closeTab(t.id)}
+                                editingId={editing}
+                                buf={buf}
+                                setBuf={setBuf}
+                                dragging={dragging}
+                              />
+                            );
+                          })}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  );
+                })()}
+              </Accordion.Content>
+            </Accordion.Item>
+          </Accordion.Root>
         </Panel>
         <PanelResizeHandle className="h-1 bg-neutral-700/50 hover:bg-neutral-600 cursor-row-resize" />
         {/* IMAGE PANEL CONTROL BOX */}

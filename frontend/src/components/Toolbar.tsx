@@ -1,32 +1,23 @@
-import { Link2, Maximize, Search, Trash2 } from "lucide-react";
+import { Link2, Maximize, Search, Trash2, ImageIcon } from "lucide-react";
 import { useApp } from "../app/store";
-// import { openFileDialog } from "../app/bridge";
-// import { useRef, useState  } from "react";
+import { openFileDialog } from "../app/bridge";
 
 export default function Toolbar() {
-  // const t = useApp(s => s.getActive());
   const t = useApp(s => s.getActiveSafe());
-  // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
-  // const toggleGrid   = useApp(s => s.toggleGrid);
-  // const setGridSize  = useApp(s => s.setGridSize);
+  const setFileForPane = useApp(s => s.setFileForPane);
+  const nextEmpty = useApp(s => s.nextEmptyPaneId);
   const toggleLinkAll = useApp(s => s.toggleLinkAll);
-  // const setFileForPane= useApp(s => s.setFileForPane);
-  // const nextEmpty     = useApp(s => s.nextEmptyPaneId);
-  const resetView     = useApp(s => s.resetView);
-  // const applyZoom     = useApp(s => s.applyZoom);
+  const resetView = useApp(s => s.resetView);
   const toggleLoupe = useApp(s => s.toggleLoupe);
-  // const setLoupeSize = useApp(s => s.setLoupeSize);
   const clearAllPanes = useApp(s => s.clearAllPanes);
   const hasAny = !!(t?.panes?.length);
-  // const setLoupeZoom = useApp(s => s.setLoupeZoom);
 
-  // async function onOpen() {
-  //   // nếu chưa có pane nào, chọn slot trống đầu tiên (A/B/C/D)
-  //   const target = t.panes.length ? t.panes[t.focusIndex] : (nextEmpty() ?? "D");
-  //   console.log("[UI] Open -> target pane =", target);
-  //   const path = await openFileDialog(target);
-  //   if (path) setFileForPane(target, path);
-  // }
+  async function onOpen() {
+    const target = t.panes.length ? t.panes[t.focusIndex] : (nextEmpty() ?? "D");
+    console.log("[UI] Open -> target pane =", target);
+    const path = await openFileDialog(target);
+    if (path) setFileForPane(target, path);
+  }
 
   function activePane() { return t.panes[t.focusIndex]; }
 
@@ -34,19 +25,15 @@ export default function Toolbar() {
     const id = activePane(); if (!id) return;
     resetView(id);
   }
-  // function on100() {
-  //   const id = activePane(); if (!id) return;
-  //   applyZoom(id, 2, { type: 'norm', u: 0.5, v: 0.5 });
-  // }
-
 
   return (
-    // <div className="h-10 flex items-center px-3 text-sm border-b border-neutral-800"></div>
     <div className="h-10 flex items-center gap-2 px-3 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
-      {/* <button onClick={onOpen} title="Open (Ctrl/Cmd+O)"
-        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1">
+      <div onClick={onOpen} title="Open (O)"
+        className="px-2 py-1 rounded flex items-center gap-1
+                  bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+                  cursor-pointer select-none transition">
         <ImageIcon size={16}/> Open
-      </button> */}
+      </div>
 
       {/* Link All */}
       <div

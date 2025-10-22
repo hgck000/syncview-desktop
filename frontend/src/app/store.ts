@@ -99,6 +99,7 @@ type AppState = {
   
   setPaneSize: (pane: PaneId, cw: number, ch: number) => void;
   resetView: (pane: PaneId) => void;
+  resetAllViews: () => void;
   applyZoom: (pane: PaneId, factor: number, around:
     | { type: 'abs', cx: number, cy: number, cw: number, ch: number }
     | { type: 'norm', u: number, v: number }
@@ -340,27 +341,34 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   resetView: (pane) => {
-    const t = get().getActive()!;
-    const ids = t.linkAll ? t.panes : [pane];
-    console.log("[store] resetView", ids);
     const { tabs, activeTabId } = get();
-    set({
-      tabs: tabs.map(tab => {
-        if (tab.id !== activeTabId) return tab;
-        const view = { ...tab.view };
-        ids.forEach(id => { view[id] = { ...view[id], scale: 1, offsetX: 0, offsetY: 0 }; });
-        return { ...tab, view };
-      })
-    });
+    const tab = tabs.find(t => t.id === activeTabId);
+    if (!tab) return;
+    const { imgW, imgH } = tab.view[pane];
+    if (!imgW || !imgH) return;
+    const { cw, ch } = tab.paneSize[pane];
+    const scale = Math.min(cw / imgW, ch / imgH);
+    const offsetX = (cw - imgW * scale) / 2;
+    const offsetY = (ch - imgH * scale) / 2;
+    const newView = { ...tab.view, [pane]: { ...tab.view[pane], scale, offsetX, offsetY } };
+    set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, view: newView } : t) });
   },
 
-  applyPan: (pane, dx, dy) => {
-    const t = get().getActive()!;
-    const ids = t.linkAll ? t.panes : [pane];
-    ids.forEach(id => {
-      const v = t.view[id];
-      get().setView(id, { offsetX: v.offsetX + dx, offsetY: v.offsetY + dy });
-    });
+  resetAllViews: () => {
+    const { tabs, activeTabId } = get();
+    const tab = tabs.find(t => t.id === activeTabId);
+    if (!tab) return;
+    let newView = { ...tab.view };
+    for (const pane of tab.panes) {
+      const { imgW, imgH } = tab.view[pane];
+      if (!imgW || !imgH) continue;
+      const { cw, ch } = tab.paneSize[pane];
+      const scale = Math.min(cw / imgW, ch / imgH);
+      const offsetX = (cw - imgW * scale) / 2;
+      const offsetY = (ch - imgH * scale) / 2;
+      newView = { ...newView, [pane]: { ...newView[pane], scale, offsetX, offsetY } };
+    }
+    set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, view: newView } : t) });
   },
 
   applyZoom: (pane, factor, around) => {
