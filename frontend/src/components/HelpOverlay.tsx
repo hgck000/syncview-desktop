@@ -63,6 +63,31 @@ export default function HelpOverlay() {
         <div className="mt-3 text-xs text-neutral-400">
           Nhấn <b>H</b> lần nữa để đóng • Các thao tác chuột áp dụng cho cả Windows & macOS.
         </div>
+        <div className="flex-col text-center text-2xl font-bold">
+          KEYMAP
+        </div>
+        <div className="flex-col">
+          <table className="w-full">
+            <tbody>
+              <tr>
+                <td className="w-1/2 text-right font-bold">Open file</td>
+                <td className="w-1/2 pl-4">O</td>
+              </tr>
+              <tr>
+                <td className="w-1/2 text-right font-bold">Reset view</td>
+                <td className="w-1/2 pl-4">D</td>
+              </tr>
+              <tr>
+                <td className="w-1/2 text-right font-bold">Link all</td>
+                <td className="w-1/2 pl-4">L</td>
+              </tr>
+              <tr>
+                <td className="w-1/2 text-right font-bold">Focus pane</td>
+                <td className="w-1/2 pl-4">1, 2, 3, 4</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
