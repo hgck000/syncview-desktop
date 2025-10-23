@@ -366,9 +366,10 @@ export const useApp = create<AppState>((set, get) => ({
       const scale = Math.min(cw / imgW, ch / imgH);
       const offsetX = (cw - imgW * scale) / 2;
       const offsetY = (ch - imgH * scale) / 2;
-      newView = { ...newView, [pane]: { ...newView[pane], scale, offsetX, offsetY } };
+      newView = { ...newView, [pane]: { ...newView[pane], scale: 1, offsetX: 0, offsetY: 0 } };
     }
     set({ tabs: tabs.map(t => t.id === activeTabId ? { ...t, view: newView } : t) });
+    console.log('[reset-view] done');
   },
 
   applyZoom: (pane, factor, around) => {
