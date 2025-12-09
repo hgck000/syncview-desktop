@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import webview
 from PIL import Image, ExifTags
 import io, base64, json, os, sys
@@ -74,32 +74,32 @@ class Bridge:
         items.insert(0, path)
         self.recent[pane] = items[:10]
         
-    def _exif_to_dict(self, img: Image.Image) -> Dict:
-        """Chuyển EXIF của Pillow sang dict khoẻ mạnh (keys human-readable)"""
-        out = {}
-        try:
-            raw = img.getexif() or {}
-        except Exception:
-            raw = {}
-        tagmap = {v: k for k, v in ExifTags.TAGS.items()}
-        def get(tag):
-            key = tagmap.get(tag)
-            return raw.get(key) if key is not None else None
+    # def _exif_to_dict(self, img: Image.Image) -> Dict:
+    #     """Chuyển EXIF của Pillow sang dict khoẻ mạnh (keys human-readable)"""
+    #     out = {}
+    #     try:
+    #         raw = img.getexif() or {}
+    #     except Exception:
+    #         raw = {}
+    #     tagmap = {v: k for k, v in ExifTags.TAGS.items()}
+    #     def get(tag):
+    #         key = tagmap.get(tag)
+    #         return raw.get(key) if key is not None else None
 
-        out["Make"] = get("Make")
-        out["Model"] = get("Model")
-        out["DateTimeOriginal"] = get("DateTimeOriginal") or get("DateTime")
-        out["FNumber"] = self._ratio_to_float(get("FNumber"))
-        out["ExposureTime"] = self._ratio_to_float(get("ExposureTime"))
-        out["ISOSpeedRatings"] = get("ISOSpeedRatings") or get("PhotographicSensitivity")
-        out["FocalLength"] = self._ratio_to_float(get("FocalLength"))
-        out["LensModel"] = get("LensModel")
-        out["Orientation"] = get("Orientation")
-        try:
-            out["ImageWidth"], out["ImageHeight"] = img.size
-        except Exception:
-            pass
-        return out
+    #     out["Make"] = get("Make")
+    #     out["Model"] = get("Model")
+    #     out["DateTimeOriginal"] = get("DateTimeOriginal") or get("DateTime")
+    #     out["FNumber"] = self._ratio_to_float(get("FNumber"))
+    #     out["ExposureTime"] = self._ratio_to_float(get("ExposureTime"))
+    #     out["ISOSpeedRatings"] = get("ISOSpeedRatings") or get("PhotographicSensitivity")
+    #     out["FocalLength"] = self._ratio_to_float(get("FocalLength"))
+    #     out["LensModel"] = get("LensModel")
+    #     out["Orientation"] = get("Orientation")
+    #     try:
+    #         out["ImageWidth"], out["ImageHeight"] = img.size
+    #     except Exception:
+    #         pass
+    #     return out
 
     def _ratio_to_float(self, v):
         try:
@@ -111,19 +111,19 @@ class Bridge:
         except Exception:
             return None
 
-    def read_exif_from_path(self, path: str) -> Optional[Dict]:
-        try:
-            p = Path(path)
-            if not p.exists():
-                print(f"[Bridge][EXIF] not found: {path}")
-                return None
-            with Image.open(p) as im:
-                info = self._exif_to_dict(im)
-            print(f"[Bridge][EXIF] path OK: {path}")
-            return info
-        except Exception as e:
-            print(f"[Bridge][EXIF][ERROR] path: {e}")
-            return None
+    # def read_exif_from_path(self, path: str) -> Optional[Dict]:
+    #     try:
+    #         p = Path(path)
+    #         if not p.exists():
+    #             print(f"[Bridge][EXIF] not found: {path}")
+    #             return None
+    #         with Image.open(p) as im:
+    #             info = self._exif_to_dict(im)
+    #         print(f"[Bridge][EXIF] path OK: {path}")
+    #         return info
+    #     except Exception as e:
+    #         print(f"[Bridge][EXIF][ERROR] path: {e}")
+    #         return None
 
     def read_exif_from_dataurl(self, dataurl: str) -> Optional[Dict]:
         try:
@@ -162,3 +162,199 @@ class Bridge:
         except Exception as e:
             print(f"[Bridge][ERROR] write_last_session: {e}")
             return False
+        
+    def _json_safe(self, v):
+        # helper nhỏ: convert mọi thứ sang kiểu ghi JSON được
+        try:
+            if isinstance(v, bytes):
+                try:
+                    return v.decode("utf-8", "replace").strip("\x00")
+                except Exception:
+                    return v.hex()
+            if isinstance(v, (int, float, str)) or v is None:
+                return v
+            if isinstance(v, (list, tuple)):
+                return [self._json_safe(x) for x in v]
+            # IFDRational, Fraction, v.v. → float nếu có numerator/denominator
+            if hasattr(v, "numerator") and hasattr(v, "denominator"):
+                # d = float(v.numerator) / float(v.denominator) if v.denominator else 0.0
+                # return d
+                den = float(v.denominator) if v.denominator else 1.0
+                return float(v.numerator) / den
+        except Exception:
+            return None
+        # fallback
+        return str(v)
+
+    def _exif_to_dict(self, img: Image.Image) -> Dict[str, Any]:
+        """
+        Chuyển EXIF của Pillow sang dict phẳng, JSON-safe.
+        Đọc cả main IFD, Exif IFD (Exposure/ISO/Aperture...) và GPS IFD.
+        """
+        out: Dict[str, Any] = {}
+
+        try:
+            exif = img.getexif() or {}
+        except Exception:
+            exif = {}
+
+        if not exif:
+            # vẫn cố set kích thước ảnh
+            try:
+                w, h = img.size
+                out["ImageWidth"] = w
+                out["ImageHeight"] = h
+            except Exception:
+                pass
+            return out
+
+        tagmap = ExifTags.TAGS
+        flat: Dict[str, Any] = {}
+
+        # --- 1) Main IFD ---
+        for tag_id, value in exif.items():
+            name = tagmap.get(tag_id, f"Tag_{tag_id}")
+            flat[name] = self._json_safe(value)
+
+        # --- 2) Exif IFD (chứa ExposureTime, FNumber, ISO...) ---
+        try:
+            from PIL.ExifTags import IFD
+            exif_ifd = exif.get_ifd(IFD.Exif)
+        except Exception:
+            exif_ifd = None
+
+        if exif_ifd:
+            for tag_id, value in exif_ifd.items():
+                name = tagmap.get(tag_id, f"Exif_{tag_id}")
+                # nếu TAGS có tên thân thiện thì dùng luôn
+                if tag_id in tagmap:
+                    name = tagmap[tag_id]
+                if name not in flat:
+                    flat[name] = self._json_safe(value)
+
+        # --- 3) GPS IFD (chứa GPSLatitude/GPSLongitude...) ---
+        gps_ifd = None
+        try:
+            from PIL.ExifTags import IFD
+            gps_ifd = exif.get_ifd(IFD.GPSInfo)
+        except Exception:
+            # fallback: dùng GPSInfo tag ID tìm bằng tagmap
+            gps_info_tag = None
+            for tid, tname in tagmap.items():
+                if tname == "GPSInfo":
+                    gps_info_tag = tid
+                    break
+            if gps_info_tag is not None:
+                try:
+                    gps_ifd = exif.get_ifd(gps_info_tag)
+                except Exception:
+                    gps_ifd = None
+
+        if gps_ifd:
+            for gid, gval in gps_ifd.items():
+                gname = ExifTags.GPSTAGS.get(gid, f"GPS_{gid}")
+                flat[gname] = self._json_safe(gval)
+
+        # Debug (tạm): xem tất cả flat tags sau khi merge IFD
+        # print("[Bridge][EXIF][FLAT TAGS]:", flat)
+
+        # --- Copy flat vào out ---
+        out.update(flat)
+
+        # --- Một số alias cho Pane dễ đọc ---
+
+        # Date/Time
+        dt_orig = flat.get("DateTimeOriginal")
+        dt      = flat.get("DateTime")
+        if dt_orig:
+            out["DateTimeOriginal"] = dt_orig
+            out.setdefault("CreateDate", dt_orig)
+        elif dt:
+            out["DateTimeOriginal"] = dt
+            out.setdefault("CreateDate", dt)
+        if dt:
+            out["DateTime"] = dt
+
+        # Make/Model
+        if "Make" in flat:
+            out["Make"] = flat["Make"]
+        if "Model" in flat:
+            out["Model"] = flat["Model"]
+
+        # Khẩu
+        fnum = flat.get("FNumber") or flat.get("ApertureValue") or flat.get("Aperture")
+        if fnum is not None:
+            out["FNumber"] = fnum
+            out.setdefault("Aperture", fnum)
+
+        # Shutter
+        et = flat.get("ExposureTime") or flat.get("ShutterSpeedValue") or flat.get("ShutterSpeed")
+        if et is not None:
+            out["ExposureTime"] = et
+            out.setdefault("ShutterSpeed", et)
+
+        # ISO
+        iso = (
+            flat.get("ISO")
+            or flat.get("ISOSpeedRatings")
+            or flat.get("PhotographicSensitivity")
+        )
+        if iso is not None:
+            out["ISOSpeedRatings"] = iso
+            out.setdefault("ISO", iso)
+
+        # Kích thước ảnh
+        try:
+            w, h = img.size
+            out.setdefault("ImageWidth", w)
+            out.setdefault("ImageHeight", h)
+        except Exception:
+            pass
+
+        return out
+
+
+    
+    # def read_exif_from_path(self, path: str) -> Optional[Dict]:
+    #     try:
+    #         p = Path(path)
+    #         if not p.exists():
+    #             print(f"[Bridge][EXIF] not found: {path}")
+    #             return None
+
+    #         with Image.open(p) as im:
+    #             info = self._exif_to_dict(im)
+    #         try:
+    #             info.setdefault("FileSize", p.stat().st_size)
+    #         except Exception as e:
+    #             print(f"[Bridge][EXIF][WARN] stat error for {path}: {e}")
+
+    #         print(f"[Bridge][EXIF] path OK: {path}")
+    #         return info
+
+    #     except Exception as e:
+    #         print(f"[Bridge][EXIF][ERROR] path: {e}")
+    #         return None
+        
+    def read_exif_from_path(self, path: str) -> Optional[Dict[str, Any]]:
+        try:
+            p = Path(path)
+            if not p.exists():
+                print(f"[Bridge][EXIF] not found: {path}")
+                return None
+
+            with Image.open(p) as im:
+                info = self._exif_to_dict(im)
+
+            # Bổ sung FileSize bằng stat
+            try:
+                info.setdefault("FileSize", p.stat().st_size)
+            except Exception as e:
+                print(f"[Bridge][EXIF][WARN] stat error for {path}: {e}")
+
+            print(f"[Bridge][EXIF] path OK: {path}")
+            return info
+        except Exception as e:
+            print(f"[Bridge][EXIF][ERROR] path: {e}")
+            return None
+
