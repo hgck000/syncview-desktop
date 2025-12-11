@@ -10,7 +10,12 @@ def default_app_data() -> Path:
     if sys.platform.startswith("win"):
         root = os.getenv("LOCALAPPDATA") or Path.home()
         return Path(root) / "SyncView"
-    # Linux: ~/.local/share/SyncView
+
+    # macOS: ~/Library/Application Support/SyncView
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "SyncView"
+
+    # Linux: ~/.local/share/SyncView (hoặc XDG_DATA_HOME)
     xdg = os.getenv("XDG_DATA_HOME")
     if xdg:
         return Path(xdg) / "SyncView"

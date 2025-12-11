@@ -83,13 +83,15 @@ export default function Toolbar() {
   return (
     // <div className="h-10 flex items-center px-3 text-sm border-b border-neutral-800"></div>
     <div className="h-10 flex items-center gap-2 px-3 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
-      <button
+      <div
         onClick={onOpen}
         title="Open (Ctrl/Cmd+O)"
-        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1"
+        className="px-2 py-1 rounded flex items-center gap-1
+                  bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+                  cursor-pointer select-none transition"
       >
         <ImageIcon size={16} /> Open
-      </button>
+      </div>
 
       {/* Link All */}
       <div
