@@ -7,7 +7,12 @@ function isEditableTarget(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
   if (!el) return false;
   const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || (el as any).isContentEditable || el.getAttribute?.("role")==="textbox";
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    (el as any).isContentEditable ||
+    el.getAttribute?.("role") === "textbox"
+  );
 }
 
 function comboKeyId(e: KeyboardEvent) {
@@ -18,7 +23,7 @@ function comboKeyId(e: KeyboardEvent) {
   if (e.shiftKey) parts.push("shift");
   let k = e.key.toLowerCase();
   if (k === "arrowright") k = "arrowright";
-  if (k === "arrowleft")  k = "arrowleft";
+  if (k === "arrowleft") k = "arrowleft";
   return parts.length ? parts.join("+") + "+" + k : k;
 }
 
@@ -57,55 +62,92 @@ function callSaveSession() {
 }
 
 export default function Hotkeys() {
-  const t             = useApp(s => s.getActive());
-  const toggleDetails = useApp(s => s.toggleDetails);
-  const toggleLinkAll = useApp(s => s.toggleLinkAll);
-  const focusNext     = useApp(s => s.focusNext);
-  const focusPrev     = useApp(s => s.focusPrev);
-  const setFileForPane= useApp(s => s.setFileForPane);
-  const toggleGrid  = useApp(s => s.toggleGrid);
-  const toggleLoupe = useApp(s => s.toggleLoupe);
-  const toggleHelp = useApp(s => s.toggleHelp);
-  const resetView = useApp(s => s.resetView);
-  
-  const tabs            = useApp(s => s.tabs);
+  const t = useApp((s) => s.getActive());
+  const toggleDetails = useApp((s) => s.toggleDetails);
+  const toggleLinkAll = useApp((s) => s.toggleLinkAll);
+  const focusNext = useApp((s) => s.focusNext);
+  const focusPrev = useApp((s) => s.focusPrev);
+  const setFileForPane = useApp((s) => s.setFileForPane);
+  const toggleGrid = useApp((s) => s.toggleGrid);
+  const toggleLoupe = useApp((s) => s.toggleLoupe);
+  const toggleHelp = useApp((s) => s.toggleHelp);
+  const resetView = useApp((s) => s.resetView);
+
+  const tabs = useApp((s) => s.tabs);
 
   useEffect(() => {
     const unsubscribe = tinykeys(window, {
-      "E": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleLinkAll(); },
-      "arrowright": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); focusNext(); },
-      "arrowleft":  (e) => { if (isEditableTarget(e)) return; e.preventDefault(); focusPrev(); },
-      "tab":        (e) => { if (isEditableTarget(e)) return; e.preventDefault(); focusNext(); },
-      "shift+tab":  (e) => { if (isEditableTarget(e)) return; e.preventDefault(); focusPrev(); },
-      "R": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); if (t?.panes.length) toggleDetails(t.panes[t.focusIndex]); },
+      E: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        toggleLinkAll();
+      },
+      arrowright: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        focusNext();
+      },
+      arrowleft: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        focusPrev();
+      },
+      tab: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        focusNext();
+      },
+      "shift+tab": (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        focusPrev();
+      },
+      R: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        if (t?.panes.length) toggleDetails(t.panes[t.focusIndex]);
+      },
       // "T": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleGrid(); },
-      "F": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleLoupe(); },
-      "H": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleHelp(); },
-      "D": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); if (t?.panes?.length) resetView(t.panes[t.focusIndex]); },
+      F: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        toggleLoupe();
+      },
+      H: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        toggleHelp();
+      },
+      D: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        if (t?.panes?.length) resetView(t.panes[t.focusIndex]);
+      },
       // "ctrl+o": async (e) => {
-      //   if (isEditableTarget(e)) return; 
+      //   if (isEditableTarget(e)) return;
       //   e.preventDefault();
       //   const pane = t.panes[t.focusIndex];
       //   const path = await openFileDialog(pane);
       //   if (path) setFileForPane(pane, path);
       // },
       // "meta+o": async (e) => { // macOS Cmd+O
-      //   if (isEditableTarget(e)) return; 
+      //   if (isEditableTarget(e)) return;
       //   e.preventDefault();
       //   const pane = t.panes[t.focusIndex];
       //   const path = await openFileDialog(pane);
       //   if (path) setFileForPane(pane, path);
       // },
     });
-    
- // 2) FALLBACK CHO TỔ HỢP (modifier) — fix WebView “không ăn combo”
+
+    // 2) FALLBACK CHO TỔ HỢP (modifier) — fix WebView “không ăn combo”
     const onKeyDown = async (e: KeyboardEvent) => {
       if (isEditableTarget(e)) return;
 
       const id = comboKeyId(e);
       switch (id) {
         case "shift+tab":
-          e.preventDefault(); e.stopPropagation();
+          e.preventDefault();
+          e.stopPropagation();
           console.debug("[HK] fallback shift+tab");
           focusPrev();
           return;
@@ -123,28 +165,58 @@ export default function Hotkeys() {
         //   return;
 
         // Ctrl+1..9 → nhảy tab 1..9 (1-based)
+        // Ctrl/Cmd + 1..9 → nhảy tab 1..9 (1-based)
         case "ctrl+1":
+        case "meta+1":
         case "ctrl+2":
+        case "meta+2":
         case "ctrl+3":
+        case "meta+3":
         case "ctrl+4":
+        case "meta+4":
         case "ctrl+5":
+        case "meta+5":
         case "ctrl+6":
+        case "meta+6":
         case "ctrl+7":
+        case "meta+7":
         case "ctrl+8":
-        case "ctrl+9": {
-          e.preventDefault(); e.stopPropagation();
-          const n = parseInt(id.slice(-1), 10);
-          const idx = n - 1;
-          if (idx >= 0 && idx < (tabs?.length ?? 0)) {
-            const target = tabs[idx];
-            const ok = callSetActiveById(target.id);
-            callSaveSession();
-            console.debug("[Tabs] ctrl+number →", { n, idx, id: target.id, ok });
+        case "meta+8":
+        case "ctrl+9":
+        case "meta+9": {
+          e.preventDefault();
+          e.stopPropagation();
+
+          // id dạng "ctrl+3" hoặc "meta+3" → tách phần cuối để lấy số
+          const parts = id.split("+");
+          const last = parts[parts.length - 1];
+          const n = parseInt(last, 10);
+          if (!Number.isNaN(n)) {
+            const idx = n - 1;
+            if (idx >= 0 && idx < (tabs?.length ?? 0)) {
+              const target = tabs[idx];
+              const ok = callSetActiveById(target.id);
+              callSaveSession();
+              console.debug("[Tabs] mod+number →", {
+                id,
+                n,
+                idx,
+                tabId: target.id,
+                ok,
+              });
+            } else {
+              console.debug("[Tabs] mod+number out of range", {
+                id,
+                n,
+                idx,
+                tabs: tabs?.length,
+              });
+            }
+          } else {
+            console.debug("[Tabs] mod+number parse fail", { id });
           }
           return;
         }
-        default:
-          return;
       }
     };
 
@@ -153,7 +225,19 @@ export default function Hotkeys() {
       unsubscribe?.();
       window.removeEventListener("keydown", onKeyDown, { capture: true });
     };
-  }, [t, tabs, toggleLinkAll, focusNext, focusPrev, setFileForPane, toggleGrid, toggleLoupe, toggleDetails, toggleHelp, resetView]);
+  }, [
+    t,
+    tabs,
+    toggleLinkAll,
+    focusNext,
+    focusPrev,
+    setFileForPane,
+    toggleGrid,
+    toggleLoupe,
+    toggleDetails,
+    toggleHelp,
+    resetView,
+  ]);
 
   return null;
 }

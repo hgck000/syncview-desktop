@@ -72,7 +72,14 @@ if __name__ == "__main__":
         log_exc("startup", RuntimeError("Backend did not start within timeout"))
 
     # 3) tạo window sau khi backend sẵn sàng
-    window = webview.create_window("SyncView", f"http://{API_HOST}:{API_PORT}")
+    # window = webview.create_window("SyncView", f"http://{API_HOST}:{API_PORT}")
+    window = webview.create_window(
+        "SyncView",
+        f"http://{API_HOST}:{API_PORT}",
+        maximized=True,      # 👉 mở app ra là full luôn
+        resizable=True,      # tuỳ, nhưng thường bạn vẫn muốn cho resize
+    )
+
 
     # 4) expose API pywebview v5 (nếu cần)
     try:

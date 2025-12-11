@@ -19,9 +19,7 @@ if __name__ == "__main__":
     t.start()
     time.sleep(0.8)
     
-    window = webview.create_window("SyncView — Dev", FRONTEND_DEV_URL, width=1280,
-    height=800,
-    resizable=True )
+    window = webview.create_window("SyncView — Dev", FRONTEND_DEV_URL, width=1280, height=800, resizable=True, maximized=True)
     api = Bridge(APP_DATA_DIR, window)
     window.expose(
         # api.open_dialog,
@@ -32,5 +30,5 @@ if __name__ == "__main__":
 
     print("[Dev] Starting webview…")
     
-    window.events.shown += on_shown
+    # window.events.shown += on_shown
     webview.start()
