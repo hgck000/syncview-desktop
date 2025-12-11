@@ -1,18 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules
-
-hiddenimports = ['h11']
-hiddenimports += collect_submodules('uvicorn')
-hiddenimports += collect_submodules('anyio')
-hiddenimports += collect_submodules('starlette')
 
 
 a = Analysis(
     ['backend\\run_prod.py'],
-    pathex=['backend'],
+    pathex=[],
     binaries=[],
-    datas=[('frontend\\dist', 'frontend/dist')],
-    hiddenimports=hiddenimports,
+    datas=[('frontend/dist', 'frontend/dist')],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
