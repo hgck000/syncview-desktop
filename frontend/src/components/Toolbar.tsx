@@ -1,37 +1,78 @@
-import { Link2, Maximize, Search, Trash2 } from "lucide-react";
+import { Link2, Maximize, Search, Trash2, ImageIcon } from "lucide-react";
 import { useApp } from "../app/store";
-// import { openFileDialog } from "../app/bridge";
+import { openFileDialog } from "../app/bridge";
 // import { useRef, useState  } from "react";
 
 export default function Toolbar() {
   // const t = useApp(s => s.getActive());
-  const t = useApp(s => s.getActiveSafe());
+  const t = useApp((s) => s.getActiveSafe());
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
   // const toggleGrid   = useApp(s => s.toggleGrid);
   // const setGridSize  = useApp(s => s.setGridSize);
-  const toggleLinkAll = useApp(s => s.toggleLinkAll);
-  // const setFileForPane= useApp(s => s.setFileForPane);
-  // const nextEmpty     = useApp(s => s.nextEmptyPaneId);
-  const resetView     = useApp(s => s.resetView);
+  const toggleLinkAll = useApp((s) => s.toggleLinkAll);
+  const setFileForPane = useApp((s) => s.setFileForPane);
+  const nextEmpty = useApp((s) => s.nextEmptyPaneId);
+  const resetView = useApp((s) => s.resetView);
   // const applyZoom     = useApp(s => s.applyZoom);
-  const toggleLoupe = useApp(s => s.toggleLoupe);
+  const toggleLoupe = useApp((s) => s.toggleLoupe);
   // const setLoupeSize = useApp(s => s.setLoupeSize);
-  const clearAllPanes = useApp(s => s.clearAllPanes);
-  const hasAny = !!(t?.panes?.length);
+  const clearAllPanes = useApp((s) => s.clearAllPanes);
+  const hasAny = !!t?.panes?.length;
   // const setLoupeZoom = useApp(s => s.setLoupeZoom);
+
+  // const handleOpen = async () => {
+  //   const paneId = focusedPaneId; // lấy từ store/hook
+  //   const paths = await openFileDialog(paneId);
+  //   if (!paths) return;
+  //   useApp.getState().addFilesToActiveTabFromDialog(paths, paneId);
+  // };
 
   // async function onOpen() {
   //   // nếu chưa có pane nào, chọn slot trống đầu tiên (A/B/C/D)
-  //   const target = t.panes.length ? t.panes[t.focusIndex] : (nextEmpty() ?? "D");
+  //   const target = t.panes.length ? t.panes[t.focusIndex] : nextEmpty() ?? "D";
   //   console.log("[UI] Open -> target pane =", target);
   //   const path = await openFileDialog(target);
   //   if (path) setFileForPane(target, path);
+  //   if (!path) return;
   // }
 
-  function activePane() { return t.panes[t.focusIndex]; }
+  async function onOpen() {
+    // pane gốc để gửi xuống BE (dùng như hiện tại của bạn)
+    const baseTarget = t.panes.length
+      ? t.panes[t.focusIndex]
+      : nextEmpty() ?? "D";
+
+    console.log("[UI] Open -> base target pane =", baseTarget);
+
+    const paths = await openFileDialog(baseTarget);
+    if (!paths || paths.length === 0) return;
+
+    // Helper: lấy lại tab mới nhất mỗi lần, tránh dùng t cũ nếu state đã đổi
+    const state = useApp.getState();
+    const getActive = state.getActiveSafe;
+
+    for (const path of paths) {
+      const s = getActive();
+      const panes = s.panes;
+      const focusedPaneId = panes.length ? panes[s.focusIndex] : baseTarget;
+
+      // tìm pane trống (A/B/C/D) – dùng nextEmpty của bạn
+      const empty = nextEmpty(); // hàm này nên đọc từ store hiện tại
+
+      const targetPane = empty ?? focusedPaneId;
+      console.log("[UI] Open assign", path, "->", targetPane);
+
+      setFileForPane(targetPane, path);
+    }
+  }
+
+  function activePane() {
+    return t.panes[t.focusIndex];
+  }
 
   function onFit() {
-    const id = activePane(); if (!id) return;
+    const id = activePane();
+    if (!id) return;
     resetView(id);
   }
   // function on100() {
@@ -39,23 +80,27 @@ export default function Toolbar() {
   //   applyZoom(id, 2, { type: 'norm', u: 0.5, v: 0.5 });
   // }
 
-
   return (
     // <div className="h-10 flex items-center px-3 text-sm border-b border-neutral-800"></div>
     <div className="h-10 flex items-center gap-2 px-3 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
-      {/* <button onClick={onOpen} title="Open (Ctrl/Cmd+O)"
-        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1">
-        <ImageIcon size={16}/> Open
-      </button> */}
+      <button
+        onClick={onOpen}
+        title="Open (Ctrl/Cmd+O)"
+        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1"
+      >
+        <ImageIcon size={16} /> Open
+      </button>
 
       {/* Link All */}
       <div
         onClick={toggleLinkAll}
         title="Link (E)"
         className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition
-                    ${t.linkAll
-                      ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-                      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"}`}
+                    ${
+                      t.linkAll
+                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
+                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    }`}
       >
         <Link2 size={16} />
         {t.linkAll ? "Linked" : "Link"}
@@ -78,9 +123,11 @@ export default function Toolbar() {
         onClick={toggleLoupe}
         title="Loupe (F)"
         className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition
-                    ${t.loupe.on
-                      ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-                      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"}`}
+                    ${
+                      t.loupe.on
+                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
+                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    }`}
       >
         <Search size={16} />
         Loupe
@@ -91,9 +138,11 @@ export default function Toolbar() {
         onClick={() => hasAny && clearAllPanes()}
         title="Clear all"
         className={`px-2 py-1 rounded flex items-center gap-1 border select-none transition
-                    ${hasAny
-                      ? "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer"
-                      : "bg-neutral-800/60 border-neutral-800 text-neutral-700 cursor-not-allowed"}`}
+                    ${
+                      hasAny
+                        ? "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer"
+                        : "bg-neutral-800/60 border-neutral-800 text-neutral-700 cursor-not-allowed"
+                    }`}
       >
         <Trash2 size={16} />
         Clear
@@ -111,7 +160,6 @@ export default function Toolbar() {
         className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs">
         {t.grid.size}px
       </button> */}
-      
 
       {/* <button
         onClick={() => setLoupeSize(t.loupe.size >= 240 ? 160 : t.loupe.size + 40)}
@@ -120,8 +168,7 @@ export default function Toolbar() {
         {t.loupe.size}px
       </button> */}
 
-
-    {/* </div> */}
+      {/* </div> */}
       {/* <div className="ml-auto" />
       <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1"><Camera size={16}/> Snapshot</button>
       <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700"><Sun size={16}/></button> */}

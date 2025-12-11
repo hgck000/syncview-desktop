@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import tinykeys from "../lib/tinykeys-compat";
 import { useApp } from "./store";
+import { openFileDialog } from "./bridge";
+
 function isEditableTarget(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
   if (!el) return false;
@@ -72,6 +74,8 @@ export default function Hotkeys() {
   const toggleLoupe = useApp((s) => s.toggleLoupe);
   const toggleHelp = useApp((s) => s.toggleHelp);
   const resetView = useApp((s) => s.resetView);
+
+  const nextEmptyPaneId = useApp((s) => s.nextEmptyPaneId);
 
   const tabs = useApp((s) => s.tabs);
 
@@ -152,17 +156,30 @@ export default function Hotkeys() {
           focusPrev();
           return;
 
-        // case "ctrl+o":
-        // case "meta+o":
-        //   e.preventDefault(); e.stopPropagation();
-        //   console.debug("[HK] fallback", id);
-        //   if (!t?.panes?.length) return;
-        //   {
-        //     const pane = t.panes[t.focusIndex];
-        //     const path = await openFileDialog(pane);
-        //     if (path) setFileForPane(pane, path);
-        //   }
-        //   return;
+        case "ctrl+o":
+        case "meta+o": {
+          e.preventDefault();
+          e.stopPropagation();
+          console.debug("[HK] fallback", id, "→ open dialog");
+          if (!t) return;
+          const baseTarget = t.panes.length
+            ? t.panes[t.focusIndex]
+            : nextEmptyPaneId() ?? "D";
+
+          const paths = await openFileDialog(baseTarget);
+          if (!paths || !paths.length) return;
+
+          // phân bổ paths: ưu tiên pane trống, hết trống thì replace pane đang focus
+          for (const path of paths) {
+            const empty = nextEmptyPaneId();
+            const focused = t.panes.length ? t.panes[t.focusIndex] : baseTarget;
+            const targetPane = empty ?? focused;
+
+            console.debug("[HK] open assign", path, "->", targetPane);
+            setFileForPane(targetPane, path);
+          }
+          return;
+        }
 
         // Ctrl+1..9 → nhảy tab 1..9 (1-based)
         // Ctrl/Cmd + 1..9 → nhảy tab 1..9 (1-based)
@@ -186,37 +203,18 @@ export default function Hotkeys() {
         case "meta+9": {
           e.preventDefault();
           e.stopPropagation();
-
-          // id dạng "ctrl+3" hoặc "meta+3" → tách phần cuối để lấy số
-          const parts = id.split("+");
-          const last = parts[parts.length - 1];
-          const n = parseInt(last, 10);
-          if (!Number.isNaN(n)) {
-            const idx = n - 1;
-            if (idx >= 0 && idx < (tabs?.length ?? 0)) {
-              const target = tabs[idx];
-              const ok = callSetActiveById(target.id);
-              callSaveSession();
-              console.debug("[Tabs] mod+number →", {
-                id,
-                n,
-                idx,
-                tabId: target.id,
-                ok,
-              });
-            } else {
-              console.debug("[Tabs] mod+number out of range", {
-                id,
-                n,
-                idx,
-                tabs: tabs?.length,
-              });
-            }
-          } else {
-            console.debug("[Tabs] mod+number parse fail", { id });
+          const n = parseInt(id.slice(-1), 10);
+          const idx = n - 1;
+          if (idx >= 0 && idx < (tabs?.length ?? 0)) {
+            const target = tabs[idx];
+            const ok = callSetActiveById(target.id);
+            callSaveSession();
+            console.debug("[Tabs]", id, "→", { n, idx, id: target.id, ok });
           }
           return;
         }
+        default:
+          return;
       }
     };
 
@@ -237,6 +235,7 @@ export default function Hotkeys() {
     toggleDetails,
     toggleHelp,
     resetView,
+    nextEmptyPaneId,
   ]);
 
   return null;

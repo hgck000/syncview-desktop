@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 import webview
 from PIL import Image, ExifTags
-import io, base64, json, os, sys
+import io, base64, json, os, sys, mimetypes
 
 def default_app_data() -> Path:
     # Windows: %LOCALAPPDATA%\SyncView
@@ -32,7 +32,7 @@ class Bridge:
             result = self.window.create_file_dialog(
                 webview.OPEN_DIALOG,
                 directory=str(Path.home()),
-                allow_multiple=False,
+                allow_multiple=True,
                 file_types=('Images (*.jpg;*.jpeg;*.png;*.webp;*.heic)',)
             )
             print(f"[Bridge] dialog result={result}")
@@ -53,15 +53,25 @@ class Bridge:
             if not p.exists():
                 print(f"[Bridge][ERROR] not found: {path}")
                 return None
-            im = Image.open(p).convert("RGBA")
-            buf = io.BytesIO()
-            im.save(buf, format="PNG")
-            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-            dataurl = f"data:image/png;base64,{b64}"
-            print(f"[Bridge] read_image_dataurl OK w={im.width} h={im.height} path={path}")
-            return dataurl
+            
+            ext = p.suffix.lower()
+            if ext in {".jpg", ".jpeg", ".png", ".webp"}:
+                mime = mimetypes.guess_type(p.name)[0] or "image/jpeg"
+                with p.open("rb") as f:
+                    raw = f.read()
+                b64 = base64.b64encode(raw).decode("ascii")
+                return f"data:{mime};base64,{b64}"
+            
+            from PIL import Image
+            with Image.open(p) as im:
+                im = im.convert("RGBA")
+                from io import BytesIO
+                buf = BytesIO()
+                im.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                return "data:image/png;base64," + b64
         except Exception as e:
-            print(f"[Bridge][ERROR] read_image_dataurl: {e}")
+            print(f"[Bridge][IMG][ERROR] {path}: {e}")
             return None
 
     def recent_files(self) -> Dict[str, List[str]]:

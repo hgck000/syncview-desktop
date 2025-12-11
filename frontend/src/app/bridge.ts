@@ -57,7 +57,20 @@ export async function readExifFromDataURL(dataurl: string) {
     : null;
 }
 
-export async function openFileDialog(pane: string) {
+// export async function openFileDialog(pane: string): Promise<string[] | null> {
+//   console.log("[FE] openFileDialog ->", pane);
+//   if (!window.pywebview?.api?.open_dialog) {
+//     console.warn("[FE] pywebview api not available");
+//     alert("Hãy chạy bằng backend/run_dev.py để dùng file dialog hệ thống.");
+//     return null;
+//   }
+//   const res = await window.pywebview.api.open_dialog(pane);
+//   console.log("[FE] openFileDialog <-", res);
+//   if (!res || !Array.isArray(res) || res.length === 0) return null;
+//   return res as string[];
+// }
+
+export async function openFileDialog(pane: string): Promise<string[] | null> {
   console.log("[FE] openFileDialog ->", pane);
   if (!window.pywebview?.api?.open_dialog) {
     console.warn("[FE] pywebview api not available");
@@ -66,7 +79,9 @@ export async function openFileDialog(pane: string) {
   }
   const res = await window.pywebview.api.open_dialog(pane);
   console.log("[FE] openFileDialog <-", res);
-  return res ?? null;
+  if (!res) return null;
+  // backend nên trả về [] hoặc ["path1", "path2", ...]
+  return Array.isArray(res) ? (res as string[]) : [String(res)];
 }
 
 export async function readImageDataURL(path: string) {

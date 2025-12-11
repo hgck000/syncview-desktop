@@ -2,8 +2,13 @@ import { useEffect, useRef } from "react";
 import { readImageDataURL } from "./bridge";
 
 type GridOpt = { on: boolean; size: number; opacity: number };
-type LoupeOpt = { on: boolean; size: number; zoom: number; shape?: 'circle'|'square' };
-type Pointer = { u:number; v:number };
+type LoupeOpt = {
+  on: boolean;
+  size: number;
+  zoom: number;
+  shape?: "circle" | "square";
+};
+type Pointer = { u: number; v: number };
 
 type Opts = {
   path?: string;
@@ -26,22 +31,25 @@ export function useImageCanvas(opts: Opts) {
     if (!canvas || !img) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const cwCss = canvas.clientWidth, chCss = canvas.clientHeight;
+    const cwCss = canvas.clientWidth,
+      chCss = canvas.clientHeight;
     canvas.width = Math.max(1, Math.floor(cwCss * dpr));
     canvas.height = Math.max(1, Math.floor(chCss * dpr));
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
 
-    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const iw = img.naturalWidth,
+      ih = img.naturalHeight;
     const fit = Math.min(cwCss / iw, chCss / ih);
     const total = fit * view.scale;
 
-    const w = iw * total, h = ih * total;
-    const x = (cwCss - w)/2 + view.offsetX;
-    const y = (chCss - h)/2 + view.offsetY;
+    const w = iw * total,
+      h = ih * total;
+    const x = (cwCss - w) / 2 + view.offsetX;
+    const y = (chCss - h) / 2 + view.offsetY;
 
     ctx.clearRect(0, 0, cwCss, chCss);
     ctx.imageSmoothingEnabled = true;
@@ -74,11 +82,11 @@ export function useImageCanvas(opts: Opts) {
 
       ctx.restore();
     }
-      // === LOUPE (tĩnh theo viewer; phóng vùng ảnh tại (u,v)) ===
+    // === LOUPE (tĩnh theo viewer; phóng vùng ảnh tại (u,v)) ===
     if (loupe.on) {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
-      const size = loupe.size;       // đường kính nếu circle
+      const size = loupe.size; // đường kính nếu circle
       const half = size / 2;
       const zoom = loupe.zoom ?? 2;
 
@@ -87,13 +95,15 @@ export function useImageCanvas(opts: Opts) {
       // Tạo viewport phóng đại bằng cách vẽ lại ảnh với scale = total*zoom,
       // và dịch sao cho điểm (cx,cy) vẫn là tâm lúp.
       // const dpr = window.devicePixelRatio || 1;
-      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const iw = img.naturalWidth,
+        ih = img.naturalHeight;
       const fit = Math.min(cwCss / iw, chCss / ih);
       const total = fit * view.scale;
 
-      const w = iw * total, h = ih * total;
-      const x = (cwCss - w)/2 + view.offsetX;
-      const y = (chCss - h)/2 + view.offsetY;
+      const w = iw * total,
+        h = ih * total;
+      const x = (cwCss - w) / 2 + view.offsetX;
+      const y = (chCss - h) / 2 + view.offsetY;
 
       // Vị trí điểm ảnh (px,py) trên ảnh sau khi vẽ
       // px = (cx - x) / total ; py = (cy - y) / total  (về toạ độ ảnh gốc)
@@ -102,7 +112,8 @@ export function useImageCanvas(opts: Opts) {
 
       // Khi vẽ phóng đại: w2 = iw*total*zoom; x2 sao cho px nằm ở cx
       const total2 = total * zoom;
-      const w2 = iw * total2, h2 = ih * total2;
+      const w2 = iw * total2,
+        h2 = ih * total2;
       const x2 = cx - px * total2;
       const y2 = cy - py * total2;
 
@@ -110,7 +121,7 @@ export function useImageCanvas(opts: Opts) {
       ctx.save();
 
       // Clip vùng lúp
-      if (loupe.shape !== 'square') {
+      if (loupe.shape !== "square") {
         ctx.beginPath();
         ctx.arc(cx, cy, half, 0, Math.PI * 2);
         ctx.clip();
@@ -130,7 +141,7 @@ export function useImageCanvas(opts: Opts) {
       ctx.save();
       ctx.lineWidth = 2;
       ctx.strokeStyle = "rgba(255,255,255,0.9)";
-      if (loupe.shape !== 'square') {
+      if (loupe.shape !== "square") {
         ctx.beginPath();
         ctx.arc(cx, cy, half, 0, Math.PI * 2);
         ctx.stroke();
@@ -143,10 +154,10 @@ export function useImageCanvas(opts: Opts) {
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
-      const canvas = canvasRef.current;
-      if (!canvas || (!path && !dataURL)) return;
+    const canvas = canvasRef.current;
+    if (!canvas || (!path && !dataURL)) return;
 
+    const load = async () => {
       let url = dataURL;
       if (!url && path) url = (await readImageDataURL(path)) ?? undefined;
       if (cancelled || !url) return;
@@ -163,15 +174,33 @@ export function useImageCanvas(opts: Opts) {
     };
 
     load();
+
     const ro = new ResizeObserver(() => draw());
     if (canvasRef.current) ro.observe(canvasRef.current);
-    return () => { cancelled = true; ro.disconnect(); };
-  // re-run vẽ khi view đổi
-  }, [path, dataURL, view.scale, view.offsetX, view.offsetY,
-      grid.on, grid.size, grid.opacity,
-      loupe.on, loupe.size, loupe.zoom, pointer.u, pointer.v,
-      // onImageMeta,
-      // draw
+
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+    };
+  }, [path, dataURL]);
+
+  useEffect(() => {
+    if (!canvasRef.current || !imgRef.current) return;
+    draw();
+  }, [
+    view.scale,
+    view.offsetX,
+    view.offsetY,
+    grid.on,
+    grid.size,
+    grid.opacity,
+    loupe.on,
+    loupe.size,
+    loupe.zoom,
+    pointer.u,
+    pointer.v,
+    // onImageMeta,
+    // draw
   ]);
   return canvasRef;
 }
