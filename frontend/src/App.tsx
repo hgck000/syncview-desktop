@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
@@ -11,10 +12,22 @@ import { readLastSession, writeLastSession } from "./app/bridge";
 import AppEventDebug from "./dev/AppEventDebug";
 // import DndProbe from "./dev/DndProbe";
 
+function isEditableTarget(e: Event): boolean {
+  const el = e.target as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    (el as any).isContentEditable ||
+    el.getAttribute?.("role") === "textbox"
+  );
+}
+
 export default function App() {
   // const { tabs, activeTabId, setSidebarSize } = useApp();
   // const tab = tabs.find(t => t.id === activeTabId)!;
-
+  const addImageFromDataURL = useApp((s) => s.addImageFromDataURL);
   const tabs = useApp((s) => s.tabs);
   const active = useApp((s) => s.getActive());
   const activeTabId = useApp((s) => s.activeTabId);
@@ -75,6 +88,52 @@ export default function App() {
     }, 400);
     return () => clearTimeout(t);
   }, [hydrated, tabs, activeTabId]);
+
+  useEffect(() => {
+    function blobToDataURL(blob: Blob): Promise<string> {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(typeof reader.result === "string" ? reader.result : "");
+        };
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function onPaste(ev: ClipboardEvent) {
+      if (isEditableTarget(ev)) return;
+
+      const cd = ev.clipboardData;
+      if (!cd) return;
+
+      const items = cd.items;
+      if (!items || !items.length) return;
+
+      const blobs: Blob[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) blobs.push(file);
+        }
+      }
+
+      if (!blobs.length) return;
+
+      // mình xử lý paste image → chặn dán text vào đâu đó linh tinh
+      ev.preventDefault();
+
+      for (const blob of blobs) {
+        const dataURL = await blobToDataURL(blob);
+        if (dataURL) {
+          addImageFromDataURL(dataURL);
+        }
+      }
+    }
+
+    window.addEventListener("paste", onPaste as any);
+    return () => window.removeEventListener("paste", onPaste as any);
+  }, [addImageFromDataURL]);
 
   // [step21] Fallback size khi chưa có tab để PanelGroup vẫn hiện bình thường
   const sidebarSize = (active as any)?.sizes?.sidebar ?? 15;

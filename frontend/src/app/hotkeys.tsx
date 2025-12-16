@@ -17,6 +17,15 @@ function isEditableTarget(e: KeyboardEvent) {
   );
 }
 
+// function isEditableTarget(ev: Event): boolean {
+//   const target = ev.target as HTMLElement | null;
+//   if (!target) return false;
+//   const tag = target.tagName;
+//   if (tag === "INPUT" || tag === "TEXTAREA") return true;
+//   if ((target as HTMLElement).isContentEditable) return true;
+//   return false;
+// }
+
 function comboKeyId(e: KeyboardEvent) {
   const parts: string[] = [];
   if (e.ctrlKey) parts.push("ctrl");
@@ -213,6 +222,11 @@ export default function Hotkeys() {
           }
           return;
         }
+        case "ctrl+v":
+        case "meta+v":
+          console.debug("[HK] paste combo detected");
+          // KHÔNG cần preventDefault ở đây, để browser/WebView vẫn trigger sự kiện paste
+          return;
         default:
           return;
       }

@@ -148,6 +148,8 @@ type AppState = {
   reorderTabs: (fromIndex: number, toIndex: number) => void;
   keymap: Keymap;
   setKeymap: (km: Keymap) => void;
+
+  addImageFromDataURL: (dataURL: string) => void;
 };
 
 type SavedSession = {
@@ -266,21 +268,13 @@ export const useApp = create<AppState>((set, get) => ({
     return s.tabs.find((t) => t.id === s.activeTabId) || null;
   },
 
-  // serialize: () => {
-  //   const s = get();
-
-  //   return {
-  //     version: 1,
-  //     activeTabId: s.activeTabId,
-  //     tabs: s.tabs,
-  //   };
-  // },
   serialize: () => {
     const s = get();
 
     const tabsForSave = s.tabs.map((t) => {
-      // Bỏ EXIF khỏi session
-      const { exif, ...restTab } = t;
+      // copy toàn bộ tab rồi bỏ trường exif
+      const restTab = { ...t } as any;
+      delete restTab.exif;
 
       // dataURL mới: chỉ giữ những ảnh không có path (drop image)
       const filteredDataURL: typeof t.dataURL = {} as any;
@@ -304,19 +298,6 @@ export const useApp = create<AppState>((set, get) => ({
       activeTabId: s.activeTabId,
     };
   },
-
-  // loadFromSession: (data: any) =>
-  //   set((state) => {
-  //     if (!data || !Array.isArray(data.tabs)) return state;
-  //     // đảm bảo tab nào cũng có id
-  //     const tabs: TabState[] = data.tabs.map((t: any) => ({
-  //       ...t,
-  //       id: t.id || genId(),
-  //     }));
-  //     const activeTabId =
-  //       tabs.find((x) => x.id === data.activeTabId)?.id || (tabs[0]?.id ?? "");
-  //     return { ...state, tabs, activeTabId };
-  //   }),
 
   loadFromSession: (data: SavedSession) =>
     set((state) => {
@@ -667,19 +648,31 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
-  toggleDetails: (pane) => {
-    const { tabs, activeTabId } = get();
-    set({
-      tabs: tabs.map((t) =>
-        t.id === activeTabId
-          ? {
-              ...t,
-              showDetails: { ...t.showDetails, [pane]: !t.showDetails[pane] },
-            }
-          : t
-      ),
-    });
-  },
+  toggleDetails: (paneId: PaneId) =>
+    set((state) => {
+      const tab = state.getActiveSafe();
+      if (!tab) return state;
+
+      const showDetails = { ...tab.showDetails };
+
+      // nếu đang sync (linkAll = true) thì bật/tắt cho TẤT CẢ pane
+      if (tab.linkAll) {
+        const current = !!showDetails[paneId];
+        const next = !current;
+        for (const pid of tab.panes) {
+          showDetails[pid] = next;
+        }
+      } else {
+        // chưa sync thì chỉ toggle đúng pane được click / focus
+        showDetails[paneId] = !showDetails[paneId];
+      }
+
+      const tabs = state.tabs.map((t) =>
+        t.id === tab.id ? { ...t, showDetails } : t
+      );
+
+      return { ...state, tabs };
+    }),
 
   // LOUPE && SYNC LOUPE
   toggleLoupe: () => {
@@ -859,4 +852,57 @@ export const useApp = create<AppState>((set, get) => ({
     tabs.splice(toIndex, 0, moved);
     set({ tabs });
   },
+  addImageFromDataURL: (dataURL) =>
+    set((state) => {
+      const tab = state.getActiveSafe();
+      if (!tab) return state;
+
+      const panes: PaneId[] = [...tab.panes];
+      const files: Record<PaneId, string | undefined> = { ...tab.files };
+      const dataURLMap: Record<PaneId, string | undefined> = {
+        ...tab.dataURL,
+      };
+
+      // 1) pane đã tồn tại nhưng đang TRỐNG (không path, không dataURL)
+      const emptyExisting: PaneId | undefined = panes.find(
+        (pid) => !files[pid] && !dataURLMap[pid]
+      );
+
+      let targetPaneId: PaneId | undefined = emptyExisting;
+
+      // 2) Nếu chưa có pane trống, thử tạo pane mới
+      if (!targetPaneId) {
+        const newId = state.nextEmptyPaneId?.() as PaneId | null;
+        if (newId) {
+          targetPaneId = newId;
+          if (!panes.includes(newId)) {
+            panes.push(newId);
+          }
+        } else {
+          // 3) Full 4 rồi → đè pane đang focus
+          const focused = (panes[tab.focusIndex] ?? panes[0] ?? "A") as PaneId;
+          targetPaneId = focused;
+        }
+      }
+
+      if (!targetPaneId) return state;
+
+      // 4) Gán dataURL vào pane target
+      //    Vì là ảnh clipboard, không có path → xoá path cũ
+      delete files[targetPaneId];
+      dataURLMap[targetPaneId] = dataURL;
+
+      const newTab: TabState = {
+        ...tab,
+        panes,
+        files,
+        dataURL: dataURLMap,
+        // reset EXIF chỉ cho pane được paste, các pane khác giữ nguyên
+        exif: { ...tab.exif, [targetPaneId]: undefined },
+      };
+
+      const newTabs = state.tabs.map((t) => (t.id === tab.id ? newTab : t));
+
+      return { ...state, tabs: newTabs };
+    }),
 }));
