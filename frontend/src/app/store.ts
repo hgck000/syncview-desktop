@@ -234,9 +234,11 @@ export const useApp = create<AppState>((set, get) => ({
   renameTab: (id, title) =>
     set((state) => ({
       ...state,
-      tabs: state.tabs.map((t) =>
-        t.id === id ? { ...t, title: title || t.name } : t
-      ),
+      tabs: state.tabs.map((t) => {
+        if (t.id !== id) return t;
+        const nextName = (title ?? "").trim();
+        return { ...t, name: nextName.length ? nextName : t.name };
+      }),
     })),
 
   closeTab: (id) =>
