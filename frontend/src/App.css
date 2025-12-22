@@ -18,6 +18,14 @@
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
+/* Smooth panel resize (react-resizable-panels thường đổi flex-grow/flex) */
+/* .sv-shell [data-panel] {
+  transition: flex-grow 600ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    flex-basis 600ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: flex-grow, flex-basis, width;
+} */
+
 @keyframes logo-spin {
   from {
     transform: rotate(0deg);

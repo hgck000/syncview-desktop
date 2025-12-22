@@ -9,13 +9,50 @@
 @tailwind utilities;
 
 /* Emergency: tắt kéo cửa sổ ở toàn bộ app (nếu đang frameless) */
-#root, #root * { -webkit-app-region: no-drag; }
+#root,
+#root * {
+  -webkit-app-region: no-drag;
+}
 
 /* Tabs: cho phép nhận sự kiện và tránh select/drag ảnh/text */
-.tabs-bar, .tab, .tab .title {
+.tabs-bar,
+.tab,
+.tab .title {
   pointer-events: auto !important;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+/* .sv-shell [data-panel-group-direction="horizontal"] > [data-panel]:first-child {
+  transition: flex-basis 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: flex-basis;
+} */
+/* Smooth sidebar width when resizing/collapsing */
+/* Smooth panel resize (react-resizable-panels thường đổi flex-grow/flex) */
+.sv-shell [data-panel] {
+  transition: flex-grow 600ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    flex-basis 600ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: flex-grow, flex-basis, width;
+}
+
+/* Fade for sidebar content */
+.sv-fade {
+  transition: opacity 180ms ease, transform 180ms ease;
+  will-change: opacity, transform;
+}
+.sv-fade-in {
+  opacity: 1;
+  transform: translateX(0);
+}
+.sv-fade-out {
+  opacity: 0;
+  transform: translateX(-4px);
+  pointer-events: none;
+}
+
+.custom-icon {
+  color: #8c9095 !important;
 }
 
 canvas {

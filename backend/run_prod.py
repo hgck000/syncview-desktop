@@ -8,11 +8,29 @@ from fastapi.staticfiles import StaticFiles
 
 # ------------- CONFIG -------------
 API_HOST = "127.0.0.1"
-API_PORT = 5174
+API_PORT = int(os.getenv("SYNCVIEW_API_PORT", "5174"))
 APP_DATA_DIR = Path.home() / ".syncview"
 APP_DATA_DIR.mkdir(exist_ok=True)
 LOG_FILE = APP_DATA_DIR / "syncview.log"
 # ----------------------------------
+
+def is_port_free(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.2)
+        try:
+            s.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+def find_free_port(host: str, start: int) -> int:
+    p = start
+    while not is_port_free(host, p):
+        p += 1
+    return p
+
+API_PORT = find_free_port(API_HOST, API_PORT)
+print("[Dev] API_PORT =", API_PORT)
 
 def dist_dir() -> Path:
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))

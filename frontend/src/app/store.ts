@@ -150,6 +150,13 @@ type AppState = {
   setKeymap: (km: Keymap) => void;
 
   addImageFromDataURL: (dataURL: string) => void;
+
+  sidebarCollapsed: boolean;
+  sidebarPeek: boolean;
+  sidebarExpandedSize: number;
+  setSidebarCollapsed: (v: boolean) => void;
+  setSidebarPeek: (v: boolean) => void;
+  setSidebarExpandedSize: (v: number) => void;
 };
 
 type SavedSession = {
@@ -231,15 +238,32 @@ export const useApp = create<AppState>((set, get) => ({
 
   setActiveTab: (id) => set((state) => ({ ...state, activeTabId: id })),
 
+  sidebarCollapsed: false,
+  sidebarPeek: false,
+  sidebarExpandedSize: 15,
+
+  setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+  setSidebarPeek: (v) => set({ sidebarPeek: v }),
+  setSidebarExpandedSize: (v) =>
+    set({ sidebarExpandedSize: Math.max(4, Math.min(20, v)) }),
+
   renameTab: (id, title) =>
     set((state) => ({
       ...state,
-      tabs: state.tabs.map((t) => {
-        if (t.id !== id) return t;
-        const nextName = (title ?? "").trim();
-        return { ...t, name: nextName.length ? nextName : t.name };
-      }),
+      tabs: state.tabs.map((t) =>
+        t.id === id ? { ...t, name: title || t.name } : t
+      ),
     })),
+
+  // renameTab: (id, title) =>
+  //   set((state) => ({
+  //     ...state,
+  //     tabs: state.tabs.map((t) => {
+  //       if (t.id !== id) return t;
+  //       const nextName = (title ?? "").trim();
+  //       return { ...t, name: nextName.length ? nextName : t.name };
+  //     }),
+  //   })),
 
   closeTab: (id) =>
     set((state) => {

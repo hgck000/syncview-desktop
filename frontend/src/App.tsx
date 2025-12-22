@@ -1,16 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+  type ImperativePanelHandle,
+} from "react-resizable-panels";
 import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import ViewerGrid from "./components/ViewerGrid";
 import HelpOverlay from "./components/HelpOverlay";
 import { useApp } from "./app/store";
 import Hotkeys from "./app/hotkeys";
-// [step21] imports
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { readLastSession, writeLastSession } from "./app/bridge";
 import AppEventDebug from "./dev/AppEventDebug";
-// import DndProbe from "./dev/DndProbe";
 
 function isEditableTarget(e: Event): boolean {
   const el = e.target as HTMLElement | null;
@@ -25,8 +28,6 @@ function isEditableTarget(e: Event): boolean {
 }
 
 export default function App() {
-  // const { tabs, activeTabId, setSidebarSize } = useApp();
-  // const tab = tabs.find(t => t.id === activeTabId)!;
   const addImageFromDataURL = useApp((s) => s.addImageFromDataURL);
   const tabs = useApp((s) => s.tabs);
   const active = useApp((s) => s.getActive());
@@ -35,21 +36,70 @@ export default function App() {
   const loadFromSession = useApp((s) => s.loadFromSession);
   const markHydrated = useApp((s) => s.markHydrated);
   const hydrated = useApp((s) => s.hydrated);
-  // const tRef = useRef<number|null>(null);
 
-  // [step21] load last session 1 lần khi khởi động
-  // useEffect(() => {
-  //   (async () => {
-  //     const data = await readLastSession();
-  //     if (data && Array.isArray(data.tabs)) {
-  //       loadFromSession(data);
-  //       console.log("[last-session] loaded");
-  //     } else {
-  //       console.log("[last-session] none/invalid -> empty start");
-  //     }
-  //     markHydrated(true);
-  //   })();
-  // }, [loadFromSession, markHydrated]);
+  const sidebarCollapsed = useApp((s) => s.sidebarCollapsed);
+  const sidebarPeek = useApp((s) => s.sidebarPeek);
+  const sidebarExpandedSize = useApp((s) => s.sidebarExpandedSize);
+  const setSidebarCollapsed = useApp((s) => s.setSidebarCollapsed);
+  const setSidebarPeek = useApp((s) => s.setSidebarPeek);
+  const setSidebarExpandedSize = useApp((s) => s.setSidebarExpandedSize);
+
+  const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
+  const leaveTimerRef = useRef<number | null>(null);
+
+  const sidebarSize = (active as any)?.sizes?.sidebar ?? 15;
+
+  const compact = sidebarCollapsed && !sidebarPeek;
+
+  const expandToSaved = () => {
+    const size = sidebarExpandedSize || sidebarSize || 15;
+    sidebarPanelRef.current?.resize(size);
+  };
+
+  const enterTimerRef = useRef<number | null>(null);
+
+  const [renderFull, setRenderFull] = useState(false);
+
+  const showFull = renderFull;
+  const fadeIn = !sidebarCollapsed || sidebarPeek;
+
+  const onSidebarEnter = () => {
+    const s = useApp.getState();
+    if (!s.sidebarCollapsed) return;
+
+    if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
+    if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+
+    enterTimerRef.current = window.setTimeout(() => {
+      setSidebarPeek(true);
+      expandToSaved();
+    }, 220);
+  };
+
+  const onSidebarLeave = () => {
+    const s = useApp.getState();
+    if (!s.sidebarCollapsed) return;
+
+    if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+    if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
+
+    leaveTimerRef.current = window.setTimeout(() => {
+      setSidebarPeek(false);
+      sidebarPanelRef.current?.collapse();
+    }, 240);
+  };
+
+  const pinOpen = () => {
+    setSidebarPeek(false);
+    setSidebarCollapsed(false);
+    sidebarPanelRef.current?.resize(sidebarExpandedSize || sidebarSize || 15);
+  };
+
+  const collapsePinned = () => {
+    setSidebarPeek(false);
+    setSidebarCollapsed(true);
+    sidebarPanelRef.current?.collapse();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -135,24 +185,62 @@ export default function App() {
     return () => window.removeEventListener("paste", onPaste as any);
   }, [addImageFromDataURL]);
 
-  // [step21] Fallback size khi chưa có tab để PanelGroup vẫn hiện bình thường
-  const sidebarSize = (active as any)?.sizes?.sidebar ?? 15;
+  useEffect(() => {
+    // Khi peek hoặc pinned → render full ngay
+    if (!sidebarCollapsed || sidebarPeek) {
+      setRenderFull(true);
+      return;
+    }
+
+    // Khi collapsed và không peek → delay 180ms rồi mới unmount full
+    const t = window.setTimeout(() => setRenderFull(false), 180);
+    return () => window.clearTimeout(t);
+  }, [sidebarCollapsed, sidebarPeek]);
 
   return (
     <>
       <AppEventDebug />
-      {/* <DndProbe /> */}
-      <div className="h-screen w-screen bg-neutral-950 text-neutral-800">
+      <div className="sv-shell h-screen w-screen bg-neutral-950 text-neutral-800">
         {active && <Hotkeys />}
 
         <PanelGroup
           direction="horizontal"
-          onLayout={([left]) => setSidebarSize(left)}
+          // onLayout={([left]) => setSidebarSize(left)}
+          onLayout={([left]) => {
+            const s = useApp.getState();
+            if (!s.sidebarCollapsed || s.sidebarPeek) {
+              setSidebarSize(left);
+              setSidebarExpandedSize(left);
+            }
+          }}
         >
-          <Panel defaultSize={sidebarSize} minSize={12} maxSize={20}>
-            <Sidebar />
+          <Panel
+            ref={sidebarPanelRef}
+            collapsible
+            collapsedSize={2.5}
+            minSize={2.5}
+            maxSize={20}
+            defaultSize={sidebarSize}
+          >
+            <div
+              className="h-full"
+              onMouseEnter={onSidebarEnter}
+              onMouseLeave={onSidebarLeave}
+            >
+              <Sidebar
+                compact={compact}
+                showFull={showFull}
+                fullFadeIn={fadeIn}
+                isPeek={sidebarCollapsed && sidebarPeek}
+                isPinned={!sidebarCollapsed}
+                onPinOpen={pinOpen}
+                onCollapsePinned={collapsePinned}
+              />
+            </div>
           </Panel>
+
           <PanelResizeHandle className="w-1 bg-neutral-700/50 hover:bg-neutral-600 cursor-col-resize" />
+
           <Panel minSize={40}>
             <div className="flex flex-col h-full">
               <Toolbar />
