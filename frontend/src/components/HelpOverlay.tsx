@@ -2,11 +2,11 @@ import { useApp } from "../app/store";
 import { X } from "lucide-react";
 
 export default function HelpOverlay() {
-  const helpOn = useApp(s => s.helpOn);
-  const toggleHelp = useApp(s => s.toggleHelp);
+  const helpOn = useApp((s) => s.helpOn);
+  const toggleHelp = useApp((s) => s.toggleHelp);
   if (!helpOn) return null;
 
-  const Row = ({k, d}:{k:string; d:string}) => (
+  const Row = ({ k, d }: { k: string; d: string }) => (
     <div className="flex items-center justify-between py-1">
       <div className="text-neutral-300">{d}</div>
       <kbd className="px-2 py-0.5 rounded bg-neutral-300 text-black">{k}</kbd>
@@ -14,11 +14,17 @@ export default function HelpOverlay() {
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={toggleHelp}>
-      <div className="bg-black border border-neutral-700 rounded-xl p-5 w-[720px] max-w-[95%]" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={toggleHelp}
+    >
+      <div
+        className="bg-black border border-neutral-700 rounded-xl p-5 w-[720px] max-w-[95%]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-neutral-100 font-semibold">Keybind Guide</h2>
-          
+
           <div
             onClick={toggleHelp}
             title="Close"
@@ -34,7 +40,7 @@ export default function HelpOverlay() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="bg-neutral-800/50 rounded p-3">
             <div className="font-medium mb-2 text-neutral-100">File & Link</div>
-            <Row k="Drag/Drop" d="Open file" />
+            <Row k="Ctrl+V/Cmd+V" d="Open file" />
             <Row k="Wheel" d="Zoom in/out" />
             <Row k="Double-click" d="Fit ↔ Zoom x2" />
           </div>
@@ -47,7 +53,9 @@ export default function HelpOverlay() {
           </div>
 
           <div className="bg-neutral-800/50 rounded p-3">
-            <div className="font-medium mb-2 text-neutral-100">Loupe & Grid</div>
+            <div className="font-medium mb-2 text-neutral-100">
+              Loupe & Grid
+            </div>
             <Row k="T" d="Bật/tắt lưới tĩnh theo viewer" />
             <Row k="F" d="Bật/tắt kính lúp" />
             <Row k="Drag (chuột phải)" d="Đổi kích thước lúp" />
@@ -61,7 +69,8 @@ export default function HelpOverlay() {
         </div>
 
         <div className="mt-3 text-xs text-neutral-400">
-          Nhấn <b>H</b> lần nữa để đóng • Các thao tác chuột áp dụng cho cả Windows & macOS.
+          Nhấn <b>H</b> lần nữa để đóng • Các thao tác chuột áp dụng cho cả
+          Windows & macOS.
         </div>
       </div>
     </div>

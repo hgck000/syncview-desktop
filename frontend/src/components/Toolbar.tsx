@@ -88,7 +88,7 @@ export default function Toolbar() {
         title="Open (Ctrl/Cmd+O)"
         className="px-2 py-1 rounded flex items-center gap-1
                   bg-neutral-800 hover:bg-neutral-700 text-neutral-300
-                  cursor-pointer select-none transition"
+                  cursor-pointer select-none transition btn-width justify-center"
       >
         <ImageIcon size={16} /> Open
       </div>
@@ -97,7 +97,7 @@ export default function Toolbar() {
       <div
         onClick={toggleLinkAll}
         title="Link (E)"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition
+        className={`px-2 py-1 rounded flex items-center justify-center gap-1 select-none cursor-pointer btn-width transition
                     ${
                       t.linkAll
                         ? "bg-blue-600/60 hover:bg-blue-600 text-white"
@@ -114,7 +114,7 @@ export default function Toolbar() {
         title="Fit (D)"
         className="px-2 py-1 rounded flex items-center gap-1
                   bg-neutral-800 hover:bg-neutral-700 text-neutral-300
-                  cursor-pointer select-none transition"
+                  cursor-pointer select-none transition btn-width justify-center"
       >
         <Maximize size={16} />
         Fit
@@ -124,7 +124,7 @@ export default function Toolbar() {
       <div
         onClick={toggleLoupe}
         title="Loupe (F)"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer btn-width justify-center transition
                     ${
                       t.loupe.on
                         ? "bg-blue-600/60 hover:bg-blue-600 text-white"
@@ -139,11 +139,11 @@ export default function Toolbar() {
       <div
         onClick={() => hasAny && clearAllPanes()}
         title="Clear all"
-        className={`px-2 py-1 rounded flex items-center gap-1 border select-none transition
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center transition
                     ${
                       hasAny
-                        ? "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer"
-                        : "bg-neutral-800/60 border-neutral-800 text-neutral-700 cursor-not-allowed"
+                        ? "bg-neutral-800 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer"
+                        : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
                     }`}
       >
         <Trash2 size={16} />
