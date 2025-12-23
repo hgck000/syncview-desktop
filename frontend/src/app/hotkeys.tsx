@@ -83,6 +83,8 @@ export default function Hotkeys() {
   const toggleLoupe = useApp((s) => s.toggleLoupe);
   const toggleHelp = useApp((s) => s.toggleHelp);
   const resetView = useApp((s) => s.resetView);
+  const toggleDraw = useApp((s) => s.toggleDraw);
+  const toggleErase = useApp((s) => s.toggleErase);
 
   const nextEmptyPaneId = useApp((s) => s.nextEmptyPaneId);
 
@@ -121,7 +123,7 @@ export default function Hotkeys() {
         if (t?.panes.length) toggleDetails(t.panes[t.focusIndex]);
       },
       // "T": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleGrid(); },
-      F: (e) => {
+      V: (e) => {
         if (isEditableTarget(e)) return;
         e.preventDefault();
         toggleLoupe();
@@ -135,6 +137,16 @@ export default function Hotkeys() {
         if (isEditableTarget(e)) return;
         e.preventDefault();
         if (t?.panes?.length) resetView(t.panes[t.focusIndex]);
+      },
+      F: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        toggleDraw();
+      },
+      G: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        toggleErase();
       },
       // "ctrl+o": async (e) => {
       //   if (isEditableTarget(e)) return;
@@ -250,6 +262,8 @@ export default function Hotkeys() {
     toggleHelp,
     resetView,
     nextEmptyPaneId,
+    toggleDraw,
+    toggleErase,
   ]);
 
   return null;

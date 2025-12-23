@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useApp } from "../app/store";
+import { useAnnotCanvas } from "../app/useAnnotCanvas";
 import { basename } from "../app/path";
 import { useImageCanvas } from "../app/useImageCanvas";
 import { useRef, useState, useEffect } from "react";
@@ -20,7 +21,30 @@ import {
 type Props = { id: "A" | "B" | "C" | "D" };
 
 export default function Pane({ id }: Props) {
-  const t = useApp((s) => s.getActive())!;
+  // const t = useApp((s) => s.getActive())!;
+  const t = useApp((s) => s.getActiveSafe());
+  const panes = useApp((s) => s.getActiveSafe().panes);
+  const files = useApp((s) => s.getActiveSafe().files);
+  const dataURL = useApp((s) => s.getActiveSafe().dataURL);
+  const view = useApp((s) => s.getActiveSafe().view[id]);
+  const grid = useApp((s) => s.getActiveSafe().grid);
+  const loupe = useApp((s) => s.getActiveSafe().loupe);
+  const pointer = useApp((s) => s.getActiveSafe().pointerNorm[id]);
+  const linkAll = useApp((s) => s.getActiveSafe().linkAll);
+  const annotate = useApp((s) => s.getActiveSafe().annotate);
+
+  const startStroke = useApp((s) => s.startStroke);
+  const appendStrokePoint = useApp((s) => s.appendStrokePoint);
+  const setEraserSize = useApp((s) => s.setEraserSize);
+  const setBrushSize = useApp((s) => s.setBrushSize);
+
+  const drawRef = useRef<null | {
+    panes: ("A" | "B" | "C" | "D")[];
+    strokeId: string;
+    last?: { u: number; v: number };
+    raf: number | null;
+    pending?: { u: number; v: number };
+  }>(null);
 
   const idx = t.panes.indexOf(id);
   const focused = idx === t.focusIndex;
@@ -28,7 +52,7 @@ export default function Pane({ id }: Props) {
   const path = t.files[id];
   const data = t.dataURL[id];
   // const label = t.names[id] ?? basename(path) ?? `${id}: Empty`;
-  const view = t.view[id];
+  // const view = t.view[id];
 
   const setMeta = useApp((s) => s.setImageMeta);
   const setSize = useApp((s) => s.setPaneSize); // <— NEW
@@ -42,10 +66,10 @@ export default function Pane({ id }: Props) {
   // lưu vị trí con trỏ đã biết (chuẩn hoá) để dblclick dùng đúng chỗ đó
   const lastNormRef = useRef<{ u: number; v: number }>({ u: 0.5, v: 0.5 });
 
-  const grid = t.grid;
-  const loupe = t.loupe;
+  // const grid = t.grid;
+  // const loupe = t.loupe;
 
-  const pointer = t.pointerNorm[id];
+  // const pointer = t.pointerNorm[id];
   const canvasRef = useImageCanvas({
     path,
     dataURL: data,
@@ -55,11 +79,20 @@ export default function Pane({ id }: Props) {
     pointer,
     onImageMeta: (w, h) => setMeta(id, w, h),
   });
-  const exif = t.exif[id];
-  // const shutter = extractShutter(exif);
-  // const aperture = extractAperture(exif);
-  // const iso = extractISO(exif);
-  // const location = extractLocation(exif);
+  const annotCanvasRef = useAnnotCanvas({
+    paneId: id,
+    view,
+    loupe,
+    pointer,
+    annotate: {
+      mode: annotate.mode,
+      color: annotate.color,
+      size: annotate.size,
+      eraserSize: annotate.eraserSize,
+    },
+  });
+
+  const exif = t.exif?.[id];
 
   const showDetails = t.showDetails[id];
   const setExif = useApp((s) => s.setExif);
@@ -69,10 +102,11 @@ export default function Pane({ id }: Props) {
   const setPointerNormAll = useApp((s) => s.setPointerNormAll);
   const setLoupeSize = useApp((s) => s.setLoupeSize);
 
-  const [rdrag, setRdrag] = useState<{
+  const [rdrag, setRdrag] = useState<null | {
     startX: number;
     startSize: number;
-  } | null>(null);
+    kind: "loupe" | "eraser" | "brush";
+  }>(null);
 
   const clearPane = useApp((s) => s.clearPane);
   const displayName =
@@ -174,26 +208,24 @@ export default function Pane({ id }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        if (!path && !data) return;
-        // tránh nạp lại nếu exif đã có & nguồn không đổi
-        if (t.exif?.[id] && (t.files[id] === path || t.dataURL[id] === data))
-          return;
 
-        console.log(`[pane:${id}] read exif...`, path ? "path" : "dataURL");
-        const meta = path
-          ? await readExifFromPath(path)
-          : await readExifFromDataURL(data!);
-        if (!cancelled && meta) setExif(id, meta);
-      } catch (e) {
-        console.warn(`[pane:${id}] exif error`, e);
-      }
+    (async () => {
+      if (!path && !data) return;
+      if (exif) return; // đã có exif cho pane này rồi
+
+      const res = path
+        ? await readExifFromPath(path)
+        : data
+        ? await readExifFromDataURL(data)
+        : undefined;
+
+      if (!cancelled) setExif(id, res);
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [id, path, data, setExif, t.exif, t.files, t.dataURL]);
+  }, [id, path, data, exif, setExif]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -392,49 +424,49 @@ export default function Pane({ id }: Props) {
     return `${f(latNum)}, ${f(lonNum)}`;
   }
 
-  function onContextMenu(e: React.MouseEvent) {
-    if (loupe.on) e.preventDefault();
-  }
-  function onMouseDown(e: React.MouseEvent) {
-    if (!path && !data) return;
-    // LMB pan như cũ
-    if (e.button === 0) setDrag({ x: e.clientX, y: e.clientY });
-    // RMB bắt đầu resize loupe
-    if (e.button === 2 && loupe.on) {
-      setRdrag({ startX: e.clientX, startSize: loupe.size });
-    }
-  }
-  function onMouseMove(e: React.MouseEvent) {
-    const rect = wrapRef.current?.getBoundingClientRect();
-    if (rect) {
-      const uN = (e.clientX - rect.left) / rect.width;
-      const vN = (e.clientY - rect.top) / rect.height;
-      lastNormRef.current = { u: uN, v: vN };
-      if (t.linkAll) setPointerNormAll(uN, vN);
-      else setPointerNorm(id, uN, vN);
-    }
+  // function onContextMenu(e: React.MouseEvent) {
+  //   if (loupe.on) e.preventDefault();
+  // }
+  // function onMouseDown(e: React.MouseEvent) {
+  //   if (!path && !data) return;
+  //   // LMB pan như cũ
+  //   if (e.button === 0) setDrag({ x: e.clientX, y: e.clientY });
+  //   // RMB bắt đầu resize loupe
+  //   if (e.button === 2 && loupe.on) {
+  //     setRdrag({ startX: e.clientX, startSize: loupe.size });
+  //   }
+  // }
+  // function onMouseMove(e: React.MouseEvent) {
+  //   const rect = wrapRef.current?.getBoundingClientRect();
+  //   if (rect) {
+  //     const uN = (e.clientX - rect.left) / rect.width;
+  //     const vN = (e.clientY - rect.top) / rect.height;
+  //     lastNormRef.current = { u: uN, v: vN };
+  //     if (t.linkAll) setPointerNormAll(uN, vN);
+  //     else setPointerNorm(id, uN, vN);
+  //   }
 
-    if (rdrag && loupe.on) {
-      const dx = e.clientX - rdrag.startX;
-      const next = rdrag.startSize + Math.round(dx / 4) * 10;
-      setLoupeSize(next);
-    }
+  //   if (rdrag && loupe.on) {
+  //     const dx = e.clientX - rdrag.startX;
+  //     const next = rdrag.startSize + Math.round(dx / 4) * 10;
+  //     setLoupeSize(next);
+  //   }
 
-    if (!drag) return;
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    setDrag({ x: e.clientX, y: e.clientY });
-    applyPan(id, dx, dy);
-  }
+  //   if (!drag) return;
+  //   const dx = e.clientX - drag.x;
+  //   const dy = e.clientY - drag.y;
+  //   setDrag({ x: e.clientX, y: e.clientY });
+  //   applyPan(id, dx, dy);
+  // }
 
-  function onMouseUp() {
-    setDrag(null);
-    setRdrag(null);
-  }
-  function onMouseLeave() {
-    setDrag(null);
-    setRdrag(null);
-  }
+  // function onMouseUp() {
+  //   setDrag(null);
+  //   setRdrag(null);
+  // }
+  // function onMouseLeave() {
+  //   setDrag(null);
+  //   setRdrag(null);
+  // }
 
   function onWheel(e: React.WheelEvent) {
     if (!path && !data) return;
@@ -466,6 +498,165 @@ export default function Pane({ id }: Props) {
     }
   }
 
+  function clamp01(x: number) {
+    return Math.max(0, Math.min(1, x));
+  }
+
+  function mouseToImageUV(e: React.MouseEvent) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    if (!view.imgW || !view.imgH) return null;
+
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const cwCss = rect.width,
+      chCss = rect.height;
+
+    const iw = view.imgW,
+      ih = view.imgH;
+    const fit = Math.min(cwCss / iw, chCss / ih);
+    const total = fit * view.scale;
+    const w = iw * total,
+      h = ih * total;
+    const x = (cwCss - w) / 2 + view.offsetX;
+    const y = (chCss - h) / 2 + view.offsetY;
+
+    const u = clamp01((mx - x) / w);
+    const v = clamp01((my - y) / h);
+    return { u, v };
+  }
+
+  function onContextMenu(e: React.MouseEvent) {
+    if (loupe.on || annotate.mode === "none") e.preventDefault();
+  }
+
+  function onMouseDown(e: React.MouseEvent) {
+    const path = files[id];
+    const data = dataURL[id];
+    if (!path && !data) return;
+
+    // LMB: nếu đang chọn tool vẽ/xóa thì vẽ, không pan
+    if (e.button === 0 && annotate.mode !== "none") {
+      const p0 = mouseToImageUV(e);
+      if (!p0) return;
+
+      const targets = linkAll ? panes : [id];
+      const strokeId = startStroke(
+        targets as any,
+        annotate.mode === "erase" ? "erase" : "draw",
+        p0
+      );
+
+      drawRef.current = {
+        panes: targets as any,
+        strokeId,
+        last: p0,
+        raf: null,
+      };
+      return;
+    }
+
+    // LMB pan như cũ
+    if (e.button === 0) setDrag({ x: e.clientX, y: e.clientY });
+
+    // RMB: nếu erase đang bật → resize eraser; else nếu loupe.on → resize loupe
+    if (e.button === 2) {
+      if (annotate.mode === "erase") {
+        setRdrag({
+          startX: e.clientX,
+          startSize: annotate.eraserSize,
+          kind: "eraser",
+        });
+        return;
+      }
+      if (annotate.mode === "draw") {
+        setRdrag({
+          startX: e.clientX,
+          startSize: annotate.size,
+          kind: "brush",
+        });
+        return;
+      }
+      if (loupe.on) {
+        setRdrag({ startX: e.clientX, startSize: loupe.size, kind: "loupe" });
+        return;
+      }
+    }
+  }
+
+  function onMouseMove(e: React.MouseEvent) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (rect) {
+      const uN = (e.clientX - rect.left) / rect.width;
+      const vN = (e.clientY - rect.top) / rect.height;
+      lastNormRef.current = { u: uN, v: vN };
+      if (linkAll) setPointerNormAll(uN, vN);
+      else setPointerNorm(id, uN, vN);
+    }
+
+    // nếu đang vẽ → append point (throttle rAF)
+    if (drawRef.current) {
+      const p = mouseToImageUV(e);
+      if (p) {
+        drawRef.current.pending = p;
+        if (drawRef.current.raf == null) {
+          drawRef.current.raf = requestAnimationFrame(() => {
+            const cur = drawRef.current;
+            if (!cur?.pending) return;
+            const next = cur.pending;
+            cur.pending = undefined;
+            cur.raf = null;
+
+            // bỏ điểm quá dày để giảm nặng
+            const last = cur.last;
+            if (
+              !last ||
+              Math.hypot(next.u - last.u, next.v - last.v) > 0.0015
+            ) {
+              appendStrokePoint(cur.panes as any, cur.strokeId, next);
+              cur.last = next;
+            }
+          });
+        }
+      }
+      return;
+    }
+
+    // RMB resize eraser giống loupe
+    if (rdrag) {
+      const dx = e.clientX - rdrag.startX;
+
+      // loupe/eraser bước 10px như cũ; brush bước 1px cho mịn
+      const step = rdrag.kind === "brush" ? 1 : 10;
+      const next = rdrag.startSize + Math.round(dx / 4) * step;
+
+      if (rdrag.kind === "brush") setBrushSize(next);
+      else if (rdrag.kind === "eraser") setEraserSize(next);
+      else setLoupeSize(next);
+
+      return;
+    }
+
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    setDrag({ x: e.clientX, y: e.clientY });
+    applyPan(id, dx, dy);
+  }
+
+  function onMouseUp() {
+    if (drawRef.current?.raf) cancelAnimationFrame(drawRef.current.raf);
+    drawRef.current = null;
+    setDrag(null);
+    setRdrag(null);
+  }
+  function onMouseLeave() {
+    if (drawRef.current?.raf) cancelAnimationFrame(drawRef.current.raf);
+    drawRef.current = null;
+    setDrag(null);
+    setRdrag(null);
+  }
+
   return (
     <div
       ref={wrapRef}
@@ -480,12 +671,9 @@ export default function Pane({ id }: Props) {
       onWheel={onWheel}
       onDoubleClick={onDoubleClick}
     >
-      {/* [step19] TOP BAR + DELETE */}
-      {/* === HEADER + DETAILS: liền mạch === */}
       <div className="absolute top-1 left-0 right-0 z-20 pointer-events-none">
         <div className="flex items-start justify-center mt-1">
           <div className="pointer-events-auto w-[300px] sm:w-[320px]">
-            {/* Header */}
             <div
               className={
                 "px-3 py-2 bg-black border border-neutral-700/70 shadow-sm " +
@@ -523,15 +711,11 @@ export default function Pane({ id }: Props) {
               </div>
             </div>
 
-            {/* Details – gắn liền khung, không khe hở */}
             {showDetails && (t.files[id] || t.dataURL[id]) && (
               <div
                 className="bg-black border border-neutral-700/70 border-t-0
                           rounded-b-xl shadow-sm p-3"
               >
-                {/* subtitle */}
-
-                {/* rows */}
                 <div className="flex flex-col divide-y divide-neutral-800/80 text-[12px]">
                   <Row
                     icon={<HardDrive className="w-4 h-4" />}
@@ -586,7 +770,6 @@ export default function Pane({ id }: Props) {
           </div>
         </div>
 
-        {/* Nút X nhỏ, tròn – đã làm ở lần trước, giữ nguyên */}
         {(t.files[id] || t.dataURL[id]) && (
           <div className="absolute top-1.5 right-1.5 pointer-events-auto">
             <div
@@ -608,7 +791,29 @@ export default function Pane({ id }: Props) {
 
       <div className="h-full min-h-[180px]">
         {path || data ? (
-          <canvas ref={canvasRef} className="w-full h-full block bg-black" />
+          <div
+            ref={wrapRef}
+            className="relative w-full h-full bg-black"
+            onContextMenu={onContextMenu}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseLeave}
+            onWheel={onWheel}
+            onDoubleClick={onDoubleClick}
+          >
+            {/* canvas ảnh */}
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full h-full"
+            />
+
+            {/* canvas annotation vẽ đè */}
+            <canvas
+              ref={annotCanvasRef}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+            />
+          </div>
         ) : (
           <div className="h-full flex items-center justify-center text-neutral-500 select-none">
             Empty • {id}

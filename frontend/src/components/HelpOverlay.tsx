@@ -39,26 +39,27 @@ export default function HelpOverlay() {
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="bg-neutral-800/50 rounded p-3">
-            <div className="font-medium mb-2 text-neutral-100">File & Link</div>
-            <Row k="Ctrl+V/Cmd+V" d="Open file" />
-            <Row k="Wheel" d="Zoom in/out" />
+            <div className="font-medium mb-2 text-neutral-100">File</div>
+            <Row k="Ctrl+O/Cmd+O" d="Open file" />
+            <Row k="Ctrl+V/Cmd+V" d="Enter picture" />
             <Row k="Double-click" d="Fit ↔ Zoom x2" />
+            <Row k="Wheel" d="Zoom in/out" />
           </div>
 
           <div className="bg-neutral-800/50 rounded p-3">
-            <div className="font-medium mb-2 text-neutral-100">Viewer</div>
+            <div className="font-medium mb-2 text-neutral-100">View</div>
             <Row k="R" d="Hiển thị thông số" />
             <Row k="E" d="Đồng bộ các ảnh" />
             <Row k="D" d="Reset view" />
+            <Row k="Ctl+num/Cmd+num" d="Đổi tab" />
           </div>
 
           <div className="bg-neutral-800/50 rounded p-3">
-            <div className="font-medium mb-2 text-neutral-100">
-              Loupe & Grid
-            </div>
-            <Row k="T" d="Bật/tắt lưới tĩnh theo viewer" />
-            <Row k="F" d="Bật/tắt kính lúp" />
-            <Row k="Drag (chuột phải)" d="Đổi kích thước lúp" />
+            <div className="font-medium mb-2 text-neutral-100">Tools</div>
+            <Row k="F" d="Bật/tắt bút vẽ" />
+            <Row k="G" d="Bật/tắt tẩy xóa" />
+            <Row k="V" d="Bật/tắt kính lúp" />
+            <Row k="Kéo chuột phải" d="Phóng to công cụ" />
           </div>
 
           <div className="bg-neutral-800/50 rounded p-3">

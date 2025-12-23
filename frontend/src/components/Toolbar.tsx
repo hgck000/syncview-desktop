@@ -1,6 +1,15 @@
-import { Link2, Maximize, Search, Trash2, ImageIcon } from "lucide-react";
+import {
+  Link2,
+  Maximize,
+  Search,
+  Trash2,
+  ImageIcon,
+  Pencil,
+  Eraser,
+} from "lucide-react";
 import { useApp } from "../app/store";
 import { openFileDialog } from "../app/bridge";
+import { useRef } from "react";
 // import { useRef, useState  } from "react";
 
 export default function Toolbar() {
@@ -35,6 +44,11 @@ export default function Toolbar() {
   //   if (path) setFileForPane(target, path);
   //   if (!path) return;
   // }
+  const annotate = useApp((s) => s.getActiveSafe().annotate);
+  const toggleDraw = useApp((s) => s.toggleDraw);
+  const toggleErase = useApp((s) => s.toggleErase);
+  const setBrushColor = useApp((s) => s.setBrushColor);
+  const colorRef = useRef<HTMLInputElement>(null);
 
   async function onOpen() {
     // pane gốc để gửi xuống BE (dùng như hiện tại của bạn)
@@ -82,7 +96,110 @@ export default function Toolbar() {
 
   return (
     // <div className="h-10 flex items-center px-3 text-sm border-b border-neutral-800"></div>
-    <div className="h-10 flex items-center gap-2 px-3 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
+    <div className="h-10 flex items-center gap-2 px-2 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
+      {/* Fit */}
+      <div
+        onClick={onFit}
+        title="Fit (D)"
+        className="px-2 py-1 rounded flex items-center gap-1
+                  bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+                  cursor-pointer select-none transition btn-width justify-center"
+      >
+        <Maximize size={16} />
+        Fit
+      </div>
+
+      {/* Loupe */}
+      <div
+        onClick={toggleLoupe}
+        title="Loupe (V)"
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer btn-width justify-center transition
+                    ${
+                      t.loupe.on
+                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
+                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    }`}
+      >
+        <Search size={16} />
+        Loupe
+      </div>
+
+      {/* Draw */}
+      <div
+        onClick={toggleDraw}
+        title="Draw (F)"
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition btn-width justify-center
+    ${
+      annotate.mode === "draw"
+        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
+        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+    }`}
+      >
+        <Pencil size={16} />
+        Draw
+        {/* input color ẩn */}
+        <input
+          ref={colorRef}
+          type="color"
+          value={annotate.color}
+          onChange={(e) => setBrushColor(e.target.value)}
+          className="hidden"
+        />
+      </div>
+
+      {/* Erase */}
+      <div
+        onClick={toggleErase}
+        title="Erase (G)"
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition btn-width justify-center
+    ${
+      annotate.mode === "erase"
+        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
+        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+    }`}
+      >
+        <Eraser size={16} /> Erase
+      </div>
+
+      {/* controls */}
+      {annotate.mode === "draw" && (
+        <div className="relative group">
+          <input
+            type="color"
+            value={annotate.color}
+            onChange={(e) => setBrushColor(e.target.value)}
+            className="absolute inset-0 opacity-0 cursor-pointer"
+            title="Brush color"
+          />
+
+          <div
+            className="
+        w-5 h-5 rounded-full
+        border border-white/30
+        shadow-inner shadow-black/40
+        ring-1 ring-black/40
+        group-hover:ring-2 group-hover:ring-blue-400/60
+        transition
+      "
+            style={{ backgroundColor: annotate.color }}
+          />
+        </div>
+      )}
+
+      {/* {annotate.mode === "erase" && (
+        <div
+          onClick={() =>
+            setEraserSize(
+              annotate.eraserSize >= 60 ? 12 : annotate.eraserSize + 12
+            )
+          }
+          title={`Eraser: ${annotate.eraserSize}px (RMB drag in pane)`}
+          className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer select-none ml-2"
+        >
+          {annotate.eraserSize}px
+        </div>
+      )} */}
+      <div className="ml-auto" />
       <div
         onClick={onOpen}
         title="Open (Ctrl/Cmd+O)"
@@ -104,37 +221,8 @@ export default function Toolbar() {
                         : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
                     }`}
       >
-        <Link2 size={16} />
-        {t.linkAll ? "Linked" : "Link"}
+        <Link2 size={16} /> Link
       </div>
-
-      {/* Fit */}
-      <div
-        onClick={onFit}
-        title="Fit (D)"
-        className="px-2 py-1 rounded flex items-center gap-1
-                  bg-neutral-800 hover:bg-neutral-700 text-neutral-300
-                  cursor-pointer select-none transition btn-width justify-center"
-      >
-        <Maximize size={16} />
-        Fit
-      </div>
-
-      {/* Loupe */}
-      <div
-        onClick={toggleLoupe}
-        title="Loupe (F)"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer btn-width justify-center transition
-                    ${
-                      t.loupe.on
-                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                    }`}
-      >
-        <Search size={16} />
-        Loupe
-      </div>
-
       {/* Clear All */}
       <div
         onClick={() => hasAny && clearAllPanes()}

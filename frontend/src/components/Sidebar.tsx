@@ -113,7 +113,7 @@ function SortableTabRow({
                 : "opacity-0 group-hover:opacity-100"
             }`}
           >
-            <button
+            <div
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -123,9 +123,9 @@ function SortableTabRow({
               className="p-1 rounded hover:bg-neutral-700"
               title="Rename"
             >
-              <Pencil className="w-3.5 h-3.5 text-black" />
-            </button>
-            <button
+              <Pencil className="w-3.5 h-3.5 text-white" />
+            </div>
+            <div
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -135,8 +135,8 @@ function SortableTabRow({
               className="p-1 rounded hover:bg-neutral-700"
               title="Close"
             >
-              <X className="w-3.5 h-3.5 text-black" />
-            </button>
+              <X className="w-4 h-4 text-white" />
+            </div>
           </div>
         </>
       )}

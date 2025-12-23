@@ -218,8 +218,8 @@ export default function App() {
             ref={sidebarPanelRef}
             collapsible
             collapsedSize={2.5}
-            minSize={2.5}
-            maxSize={20}
+            minSize={12}
+            maxSize={12}
             defaultSize={sidebarSize}
           >
             <div
