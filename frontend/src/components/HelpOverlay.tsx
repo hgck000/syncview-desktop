@@ -9,7 +9,9 @@ export default function HelpOverlay() {
   const Row = ({ k, d }: { k: string; d: string }) => (
     <div className="flex items-center justify-between py-1">
       <div className="text-neutral-300">{d}</div>
-      <kbd className="px-2 py-0.5 rounded bg-neutral-300 text-black">{k}</kbd>
+      {k.trim() ? (
+        <kbd className="px-2 py-0.5 rounded bg-neutral-300 text-black">{k}</kbd>
+      ) : null}
     </div>
   );
 
@@ -48,30 +50,43 @@ export default function HelpOverlay() {
 
           <div className="bg-neutral-800/50 rounded p-3">
             <div className="font-medium mb-2 text-neutral-100">View</div>
-            <Row k="R" d="Hiển thị thông số" />
-            <Row k="E" d="Đồng bộ các ảnh" />
+            <Row k="R" d="Show EXIF" />
+            <Row k="E" d="Link pictures" />
             <Row k="D" d="Reset view" />
-            <Row k="Ctl+num/Cmd+num" d="Đổi tab" />
+            <Row k="Ctl+num/Cmd+num" d="Switch tab" />
           </div>
 
           <div className="bg-neutral-800/50 rounded p-3">
             <div className="font-medium mb-2 text-neutral-100">Tools</div>
-            <Row k="F" d="Bật/tắt bút vẽ" />
-            <Row k="G" d="Bật/tắt tẩy xóa" />
-            <Row k="V" d="Bật/tắt kính lúp" />
-            <Row k="Kéo chuột phải" d="Phóng to công cụ" />
+            <Row k="F" d="on/off brush" />
+            <Row k="G" d="on/off erase" />
+            <Row k="V" d="on/off loup" />
+            <Row k="Drag right mouse" d="adjust tool size" />
           </div>
 
-          <div className="bg-neutral-800/50 rounded p-3">
-            <div className="font-medium mb-2 text-neutral-100">Author</div>
-            <Row k="Author" d="Nguyễn Quang Minh" />
-            <Row k="Github" d="github.com/hgck000" />
+          <div className="bg-neutral-800/50 rounded p-3 flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-medium mb-2 text-neutral-100">Author</div>
+              <Row k="" d="Nguyễn Quang Minh" />
+              <Row k="" d="github.com/hgck000" />
+            </div>
+
+            <div className="shrink-0">
+              <div className="font-medium mb-2 text-neutral-100 flex justify-center">
+                Buy me a coffee
+              </div>
+              <img
+                src="/syncview-qr.png"
+                alt="SyncView QR"
+                draggable={false}
+                className="w-35 h-35 rounded bg-white p-1"
+              />
+            </div>
           </div>
         </div>
 
         <div className="mt-3 text-xs text-neutral-400">
-          Nhấn <b>H</b> lần nữa để đóng • Các thao tác chuột áp dụng cho cả
-          Windows & macOS.
+          Press <b>H</b> again to close
         </div>
       </div>
     </div>
