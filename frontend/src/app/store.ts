@@ -768,6 +768,7 @@ export const useApp = create<AppState>()(
           return {
             ...t,
             loupe: { ...t.loupe, on: next, zoom: next ? 2 : t.loupe.zoom },
+            annotate: { ...t.annotate, mode: next ? "none" : t.annotate.mode },
           };
         }),
       });
@@ -1002,6 +1003,7 @@ export const useApp = create<AppState>()(
               ? x
               : {
                   ...x,
+                  loupe: { ...x.loupe, on: false },
                   annotate: { ...x.annotate, mode: nextMode },
                 }
           ),
@@ -1017,6 +1019,7 @@ export const useApp = create<AppState>()(
               ? x
               : {
                   ...x,
+                  loupe: { ...x.loupe, on: false },
                   annotate: { ...x.annotate, mode: nextMode },
                 }
           ),
