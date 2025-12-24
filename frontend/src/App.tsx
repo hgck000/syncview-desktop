@@ -49,12 +49,7 @@ export default function App() {
 
   const sidebarSize = (active as any)?.sizes?.sidebar ?? 15;
 
-  const compact = sidebarCollapsed && !sidebarPeek;
-
-  const expandToSaved = () => {
-    const size = sidebarExpandedSize || sidebarSize || 15;
-    sidebarPanelRef.current?.resize(size);
-  };
+  const compact = sidebarCollapsed;
 
   const enterTimerRef = useRef<number | null>(null);
 
@@ -72,7 +67,6 @@ export default function App() {
 
     enterTimerRef.current = window.setTimeout(() => {
       setSidebarPeek(true);
-      expandToSaved();
     }, 220);
   };
 
@@ -85,7 +79,6 @@ export default function App() {
 
     leaveTimerRef.current = window.setTimeout(() => {
       setSidebarPeek(false);
-      sidebarPanelRef.current?.collapse();
     }, 240);
   };
 
@@ -236,6 +229,7 @@ export default function App() {
         >
           <Panel
             ref={sidebarPanelRef}
+            className="relative z-50 overflow-visible"
             collapsible
             collapsedSize={2.5}
             minSize={10}
@@ -243,7 +237,7 @@ export default function App() {
             defaultSize={sidebarSize}
           >
             <div
-              className="h-full"
+              className="h-full relative overflow-visible"
               onMouseEnter={onSidebarEnter}
               onMouseLeave={onSidebarLeave}
             >

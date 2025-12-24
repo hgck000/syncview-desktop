@@ -407,7 +407,7 @@ export default function Sidebar({
     </div>
   );
   return (
-    <div className="h-full relative">
+    <div className="h-full relative overflow-visible">
       {/* Compact luôn nằm dưới (chỉ render khi compact=true) */}
       {compact && compactUI}
 
@@ -415,7 +415,11 @@ export default function Sidebar({
       {showFull && (
         <div
           className={[
-            "absolute inset-0 sv-fade",
+            "absolute top-0 left-0 h-full sv-fade",
+            // collapsed -> overlay rộng cố định và đè lên viewer
+            compact
+              ? "w-[280px] shadow-2xl border-r border-neutral-800"
+              : "right-0",
             fullFadeIn ? "sv-fade-in" : "sv-fade-out",
           ].join(" ")}
         >
