@@ -205,21 +205,41 @@ export default function App() {
 
         <PanelGroup
           direction="horizontal"
-          // onLayout={([left]) => setSidebarSize(left)}
           onLayout={([left]) => {
             const s = useApp.getState();
-            if (!s.sidebarCollapsed || s.sidebarPeek) {
-              setSidebarSize(left);
-              setSidebarExpandedSize(left);
+
+            const COLLAPSED_SIZE = 2.5;
+            const EPS = 0.2; // chống sai số float (%)
+
+            const collapsedBySize = left <= COLLAPSED_SIZE + EPS;
+
+            // 1) Nếu panel thực sự đang collapsed theo size -> ép state về collapsed + tắt peek
+            //    và tuyệt đối KHÔNG lưu 2.5 vào expandedSize.
+            if (collapsedBySize) {
+              if (!s.sidebarCollapsed || s.sidebarPeek) {
+                setSidebarPeek(false);
+                setSidebarCollapsed(true);
+              }
+              return;
             }
+
+            // 2) Panel đang mở theo size
+            //    - Nếu đang "collapsed nhưng không peek" => user vừa kéo mở -> coi như pinned open
+            if (s.sidebarCollapsed && !s.sidebarPeek) {
+              setSidebarCollapsed(false);
+            }
+
+            // 3) Lưu size khi đang mở (hoặc đang peek)
+            setSidebarSize(left);
+            setSidebarExpandedSize(left);
           }}
         >
           <Panel
             ref={sidebarPanelRef}
             collapsible
             collapsedSize={2.5}
-            minSize={12}
-            maxSize={12}
+            minSize={10}
+            maxSize={20}
             defaultSize={sidebarSize}
           >
             <div
