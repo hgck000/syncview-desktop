@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import Pane from "./Pane";
 import { useApp } from "../app/store";
@@ -12,7 +13,7 @@ function Keycap({ children }: { children: React.ReactNode }) {
 }
 
 // Chỉ bật overlay khi đang kéo FILE và con trỏ đang nằm trong vùng ViewerGrid
-function useFileDragOver(ref: React.RefObject<HTMLElement>) {
+function useFileDragOver(ref: React.RefObject<HTMLElement | null>) {
   const [over, setOver] = useState(false);
   const depth = useRef(0);
 
@@ -20,19 +21,30 @@ function useFileDragOver(ref: React.RefObject<HTMLElement>) {
     const isFile = (e: DragEvent) =>
       Array.from(e.dataTransfer?.types ?? []).includes("Files");
 
-    const within = (e: DragEvent) => {
+    const isInsideByPoint = (e: DragEvent) => {
       const el = ref.current;
-      return !!el && e.target instanceof Node && el.contains(e.target);
+      if (!el) return false;
+      // clientX/Y có trên DragEvent trong browser
+      const x = (e as any).clientX ?? 0;
+      const y = (e as any).clientY ?? 0;
+      const top = document.elementFromPoint(x, y);
+      return !!top && el.contains(top);
     };
 
     const onDragEnter = (e: DragEvent) => {
-      if (!isFile(e) || !within(e)) return;
+      if (!isFile(e)) return;
+      // chỉ tăng depth khi đang nằm trong vùng
+      if (!isInsideByPoint(e)) return;
       depth.current += 1;
       setOver(true);
     };
 
     const onDragLeave = (e: DragEvent) => {
-      if (!isFile(e) || !within(e)) return;
+      if (!isFile(e)) return;
+
+      // nếu con trỏ vẫn nằm trong vùng thì bỏ qua (tránh flicker)
+      if (isInsideByPoint(e)) return;
+
       depth.current = Math.max(0, depth.current - 1);
       if (depth.current === 0) setOver(false);
     };
@@ -73,12 +85,14 @@ function DragOverlay({ show, needsTab }: { show: boolean; needsTab: boolean }) {
   return (
     <div
       className={[
-        "pointer-events-none absolute inset-2 rounded-xl",
-        "border border-dashed border-neutral-500/40",
+        "pointer-events-none absolute inset-0 z-40",
+        "border border-neutral-500/40",
         "bg-neutral-950/55 backdrop-blur-sm",
         "flex items-center justify-center",
-        "transition-all duration-200 ease-out",
-        show ? "opacity-100 scale-100" : "opacity-0 scale-[0.99]",
+        "transition-opacity",
+        show
+          ? "opacity-100 duration-400 ease-out"
+          : "opacity-0 duration-400 ease-in",
       ].join(" ")}
     >
       <div className="text-center px-4">
