@@ -107,6 +107,48 @@ export default function Pane({ id }: Props) {
     startSize: number;
     kind: "loupe" | "eraser" | "brush";
   }>(null);
+  // RMB resize: dùng pointer lock để cursor không “bay” khỏi pane
+
+  useEffect(() => {
+    if (!rdrag) return;
+
+    // show cursor + feedback
+    const prevCursor = document.body.style.cursor;
+    document.body.style.cursor = "ew-resize";
+
+    const onMove = (ev: MouseEvent) => {
+      // dx theo clientX (cursor vẫn chạy bình thường)
+      const dx = ev.clientX - rdrag.startX;
+
+      const step = rdrag.kind === "brush" ? 1 : 10;
+      const next = rdrag.startSize + Math.round(dx / 4) * step;
+
+      if (rdrag.kind === "brush") setBrushSize(next);
+      else if (rdrag.kind === "eraser") setEraserSize(next);
+      else setLoupeSize(next);
+    };
+
+    const stop = () => {
+      document.body.style.cursor = prevCursor;
+      setRdrag(null);
+    };
+
+    const onUp = () => stop();
+
+    // chặn context menu trong lúc RMB resize
+    const onCtx = (ev: MouseEvent) => ev.preventDefault();
+
+    window.addEventListener("mousemove", onMove, true);
+    window.addEventListener("mouseup", onUp, true);
+    window.addEventListener("contextmenu", onCtx, true);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove, true);
+      window.removeEventListener("mouseup", onUp, true);
+      window.removeEventListener("contextmenu", onCtx, true);
+      document.body.style.cursor = prevCursor;
+    };
+  }, [rdrag, setBrushSize, setEraserSize, setLoupeSize]);
 
   const clearPane = useApp((s) => s.clearPane);
   const displayName =
@@ -262,9 +304,9 @@ export default function Pane({ id }: Props) {
     value?: string;
   }) {
     return (
-      <div className="flex items-center gap-2 py-1.5">
+      <div className="flex items-center gap-1.5 py-1">
         <div className="text-neutral-300">{icon}</div>
-        <div className="text-neutral-400 w-20 shrink-0 text-[12px] font-semibold">
+        <div className="text-neutral-400 w-16 shrink-0 text-[11px] font-medium">
           {label}
         </div>
         <div className="text-neutral-100 truncate" title={value}>
@@ -424,50 +466,6 @@ export default function Pane({ id }: Props) {
     return `${f(latNum)}, ${f(lonNum)}`;
   }
 
-  // function onContextMenu(e: React.MouseEvent) {
-  //   if (loupe.on) e.preventDefault();
-  // }
-  // function onMouseDown(e: React.MouseEvent) {
-  //   if (!path && !data) return;
-  //   // LMB pan như cũ
-  //   if (e.button === 0) setDrag({ x: e.clientX, y: e.clientY });
-  //   // RMB bắt đầu resize loupe
-  //   if (e.button === 2 && loupe.on) {
-  //     setRdrag({ startX: e.clientX, startSize: loupe.size });
-  //   }
-  // }
-  // function onMouseMove(e: React.MouseEvent) {
-  //   const rect = wrapRef.current?.getBoundingClientRect();
-  //   if (rect) {
-  //     const uN = (e.clientX - rect.left) / rect.width;
-  //     const vN = (e.clientY - rect.top) / rect.height;
-  //     lastNormRef.current = { u: uN, v: vN };
-  //     if (t.linkAll) setPointerNormAll(uN, vN);
-  //     else setPointerNorm(id, uN, vN);
-  //   }
-
-  //   if (rdrag && loupe.on) {
-  //     const dx = e.clientX - rdrag.startX;
-  //     const next = rdrag.startSize + Math.round(dx / 4) * 10;
-  //     setLoupeSize(next);
-  //   }
-
-  //   if (!drag) return;
-  //   const dx = e.clientX - drag.x;
-  //   const dy = e.clientY - drag.y;
-  //   setDrag({ x: e.clientX, y: e.clientY });
-  //   applyPan(id, dx, dy);
-  // }
-
-  // function onMouseUp() {
-  //   setDrag(null);
-  //   setRdrag(null);
-  // }
-  // function onMouseLeave() {
-  //   setDrag(null);
-  //   setRdrag(null);
-  // }
-
   function onWheel(e: React.WheelEvent) {
     if (!path && !data) return;
     e.preventDefault();
@@ -561,6 +559,10 @@ export default function Pane({ id }: Props) {
 
     // RMB: nếu erase đang bật → resize eraser; else nếu loupe.on → resize loupe
     if (e.button === 2) {
+      // RMB resize: chặn menu chuột phải và tránh bubble
+      e.preventDefault();
+      e.stopPropagation();
+
       if (annotate.mode === "erase") {
         setRdrag({
           startX: e.clientX,
@@ -622,20 +624,8 @@ export default function Pane({ id }: Props) {
       return;
     }
 
-    // RMB resize eraser giống loupe
-    if (rdrag) {
-      const dx = e.clientX - rdrag.startX;
-
-      // loupe/eraser bước 10px như cũ; brush bước 1px cho mịn
-      const step = rdrag.kind === "brush" ? 1 : 10;
-      const next = rdrag.startSize + Math.round(dx / 4) * step;
-
-      if (rdrag.kind === "brush") setBrushSize(next);
-      else if (rdrag.kind === "eraser") setEraserSize(next);
-      else setLoupeSize(next);
-
-      return;
-    }
+    // RMB resize đã xử lý bằng document mousemove + pointer lock
+    if (rdrag) return;
 
     if (!drag) return;
     const dx = e.clientX - drag.x;
@@ -650,11 +640,14 @@ export default function Pane({ id }: Props) {
     setDrag(null);
     setRdrag(null);
   }
+
   function onMouseLeave() {
     if (drawRef.current?.raf) cancelAnimationFrame(drawRef.current.raf);
     drawRef.current = null;
     setDrag(null);
-    setRdrag(null);
+
+    // đừng cắt RMB resize khi chuột rời pane
+    // setRdrag(null);
   }
 
   return (
@@ -673,39 +666,39 @@ export default function Pane({ id }: Props) {
     >
       <div className="absolute top-1 left-0 right-0 z-20 pointer-events-none">
         <div className="flex items-start justify-center mt-1">
-          <div className="pointer-events-auto w-[300px] sm:w-[320px]">
+          <div className="pointer-events-auto w-[240px] sm:w-[260px]">
             <div
               className={
-                "px-3 py-2 bg-black border border-neutral-700/70 shadow-sm " +
+                "px-2.5 py-1.5 bg-black border border-neutral-700/70 shadow-sm " +
                 (showDetails
                   ? "rounded-t-xl rounded-b-none border-b-0"
                   : "rounded-xl")
               }
             >
               <div className="flex items-start gap-2">
-                <Camera className="w-4 h-4 opacity-70 mt-[2px] text-neutral-100" />
+                <Camera className="w-3.5 h-3.5 opacity-70 mt-[2px] text-neutral-100" />
                 <div className="min-w-0 flex-1">
                   <div
-                    className="text-[13px] font-semibold text-neutral-100 truncate"
+                    className="text-[12px] font-semibold text-neutral-100 truncate"
                     title={displayName}
                   >
                     {displayName}
                   </div>
-                  <div className="text-[12px] text-neutral-300 truncate">
+                  <div className="text-[11px] text-neutral-300 truncate">
                     {device} • {sizeLabel}
                   </div>
                 </div>
                 <div
                   onClick={() => toggleDetails(id)}
-                  className="ml-1 w-6 h-6 rounded-full flex items-center justify-center
+                  className="ml-1 w-5 h-5 rounded-full flex items-center justify-center
                             bg-transparent text-white cursor-pointer
                             hover:bg-white/10 active:bg-white/20 active:scale-95 transition"
                   title={showDetails ? "Ẩn thông tin" : "Hiện thông tin"}
                 >
                   {showDetails ? (
-                    <ChevronUp className="w-4 h-4" />
+                    <ChevronUp className="w-3.5 h-3.5" />
                   ) : (
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-3.5 h-3.5" />
                   )}
                 </div>
               </div>
@@ -714,11 +707,11 @@ export default function Pane({ id }: Props) {
             {showDetails && (t.files[id] || t.dataURL[id]) && (
               <div
                 className="bg-black border border-neutral-700/70 border-t-0
-                          rounded-b-xl shadow-sm p-3"
+                          rounded-b-xl shadow-sm p-2"
               >
-                <div className="flex flex-col divide-y divide-neutral-800/80 text-[12px]">
+                <div className="flex flex-col divide-y divide-neutral-800/80 text-[11px]">
                   <Row
-                    icon={<HardDrive className="w-4 h-4" />}
+                    icon={<HardDrive className="w-3.5 h-3.5" />}
                     label="File size"
                     value={
                       fileSizeBytes != null ? fmtFileSize(fileSizeBytes) : "—"
@@ -726,37 +719,37 @@ export default function Pane({ id }: Props) {
                   />
 
                   <Row
-                    icon={<Calendar className="w-4 h-4" />}
+                    icon={<Calendar className="w-3.5 h-3.5" />}
                     label="Date"
                     value={dateRaw ? fmtDate(dateRaw) : "—"}
                   />
 
                   <Row
-                    icon={<MapPin className="w-4 h-4" />}
+                    icon={<MapPin className="w-3.5 h-3.5" />}
                     label="Location"
                     value={fmtGps(exif) || "—"}
                   />
 
                   <Row
-                    icon={<Camera className="w-4 h-4" />}
+                    icon={<Camera className="w-3.5 h-3.5" />}
                     label="Device"
                     value={device !== "—" ? device : "—"}
                   />
 
                   <Row
-                    icon={<Timer className="w-4 h-4" />}
+                    icon={<Timer className="w-3.5 h-3.5" />}
                     label="Shutter"
                     value={shutterRaw ? fmtShutter(shutterRaw) : "—"}
                   />
 
                   <Row
-                    icon={<SunMedium className="w-4 h-4" />}
+                    icon={<SunMedium className="w-3.5 h-3.5" />}
                     label="ISO"
                     value={fmtIso(exif) || "—"}
                   />
 
                   <Row
-                    icon={<Aperture className="w-4 h-4" />}
+                    icon={<Aperture className="w-3.5 h-3.5" />}
                     label="Aperture"
                     value={
                       apertureRaw
