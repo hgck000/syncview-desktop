@@ -51,18 +51,17 @@ export default function App() {
 
   const compact = sidebarCollapsed && !sidebarPeek;
   // const compact = sidebarCollapsed;
-
-  const expandToSaved = () => {
-    const size = sidebarExpandedSize || sidebarSize || 15;
-    sidebarPanelRef.current?.resize(size);
-  };
-
   const enterTimerRef = useRef<number | null>(null);
 
   const [renderFull, setRenderFull] = useState(false);
 
   const showFull = renderFull;
   const fadeIn = !sidebarCollapsed || sidebarPeek;
+
+  const expandToSaved = () => {
+    const size = sidebarExpandedSize || sidebarSize || 15;
+    sidebarPanelRef.current?.resize(size);
+  };
 
   const onSidebarEnter = () => {
     const s = useApp.getState();
@@ -197,6 +196,26 @@ export default function App() {
     const t = window.setTimeout(() => setRenderFull(false), 180);
     return () => window.clearTimeout(t);
   }, [sidebarCollapsed, sidebarPeek]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e)) return;
+
+      // Nếu đã có active tab thì để Hotkeys xử lý (tránh toggle 2 lần)
+      const hasActive = !!useApp.getState().getActive?.();
+      if (hasActive) return;
+
+      // Chỉ bắt phím H (không kèm Ctrl/Alt/Cmd)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.toLowerCase() !== "h") return;
+
+      e.preventDefault();
+      useApp.getState().toggleHelp();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <>
