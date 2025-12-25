@@ -1,42 +1,60 @@
-; installer.iss — SyncView Desktop
+; installer.iss — SyncView Desktop (FIXED: package full PyInstaller onedir)
 
-#define MyAppVersion "1.0.0"
+; Build:
+;   iscc installer.iss /DMyAppVersion=1.2.0
+; Notes:
+; - MUST ship the entire dist\SyncView folder (SyncView.exe + _internal\**).
+; - This fixes "No module named uvicorn" caused by missing Python packages at runtime.
+
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
+
+#define MyAppName "SyncView"
+#define MyAppExeName "SyncView.exe"
+#define MyAppPublisher "SyncView"
+#define MyAppId "{{9D4C2D3F-6A90-4F9B-9D8A-0C1B2A8A3E9F}}"  ; change GUID if you cloned
 
 [Setup]
-AppName=SyncView
+AppId={#MyAppId}
+AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppPublisher=Your Name or Team
-DefaultDirName={pf}\SyncView
-DefaultGroupName=SyncView
+AppVerName={#MyAppName} {#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+DefaultDirName={autopf}\{#MyAppName}
+DefaultGroupName={#MyAppName}
 OutputDir=Output
-OutputBaseFilename=SyncView-Setup
-Compression=lzma
+OutputBaseFilename={#MyAppName}-{#MyAppVersion}-Setup
+Compression=lzma2
 SolidCompression=yes
 DisableProgramGroupPage=yes
 ArchitecturesInstallIn64BitMode=x64
-; SetupIconFile=assets\SyncView.ico
+WizardStyle=modern
 
-[Files]
-; 1) App folder build từ PyInstaller (one-folder)
-Source: "dist\SyncView\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Icons
+SetupIconFile=assets\SyncView.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
-; 2) WebView2 Evergreen bootstrapper
-Source: "assets\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-
-[Icons]
-; Shortcut trong Start Menu
-Name: "{group}\SyncView"; Filename: "{app}\SyncView.exe"
-; (tuỳ chọn) Shortcut Desktop
-; Name: "{commondesktop}\SyncView"; Filename: "{app}\SyncView.exe"; Tasks: desktopicon
+; (optional) keep settings on uninstall? if yes, remove [UninstallDelete] below
+; DisableDirPage=no
 
 [Tasks]
-; (tuỳ chọn) checkbox tạo shortcut desktop
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
+[Files]
+; IMPORTANT: copy the WHOLE onedir output (including _internal + python libs)
+Source: "dist\SyncView\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; Optional: if you ship WebView2 bootstrapper in repo, uncomment this line
+; Source: "assets\MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+
+[Icons]
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; WorkingDir: "{app}"
+
 [Run]
-; Cài WebView2 nếu máy chưa có (bootstrapper sẽ tự detect)
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2..."; Flags: skipifdoesntexist
+; Optional: run WebView2 bootstrapper (it self-detects, so safe to run)
+; Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated skipifdoesntexist
 
 [UninstallDelete]
-; Xoá session nếu bạn muốn giữ sạch (bỏ nếu muốn giữ phiên người dùng)
 Type: filesandordirs; Name: "{userappdata}\.syncview"

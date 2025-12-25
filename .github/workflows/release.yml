@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Tag để attach assets (ví dụ: v1.0.3). BẮT BUỘC khi chạy tay."
+        description: "Tag để attach assets (ví dụ: vx.y.z). BẮT BUỘC khi chạy tay."
         required: true
 
 permissions:
@@ -92,12 +92,39 @@ jobs:
 
       - name: Make DMG
         run: |
-          set -e
+          set -euo pipefail
           cd dist
-          mv "SyncView.app" "SyncView-${{ matrix.arch }}.app"
-          hdiutil create -volname "SyncView" \
-            -srcfolder "SyncView-${{ matrix.arch }}.app" \
-            -ov -format UDZO "SyncView-mac-${{ matrix.arch }}.dmg"
+
+          APP="SyncView-${{ matrix.arch }}.app"
+          DMG="SyncView-mac-${{ matrix.arch }}.dmg"
+
+          # clean outputs
+          rm -f "$DMG"
+          rm -rf "_dmg_stage" "$APP"
+
+          # rename output app (PyInstaller produces SyncView.app)
+          mv "SyncView.app" "$APP"
+
+          # detach stale mounts if any
+          if hdiutil info | grep -q "/Volumes/SyncView"; then
+            DEV=$(hdiutil info | awk '/\/Volumes\/SyncView/{print $1; exit}')
+            hdiutil detach "$DEV" || hdiutil detach -force "$DEV" || true
+          fi
+
+          # stage copy to avoid "resource busy" on freshly-built bundle
+          mkdir -p _dmg_stage
+          ditto "$APP" "_dmg_stage/$APP"
+
+          # retry create
+          for i in 1 2 3; do
+            hdiutil create -volname "SyncView" \
+              -srcfolder "_dmg_stage/$APP" \
+              -ov -format UDZO "$DMG" && break
+            echo "hdiutil create failed (attempt $i). retrying..."
+            sleep 3
+          done
+
+          test -f "$DMG"
 
       - name: Upload mac artifact
         uses: actions/upload-artifact@v4
@@ -175,8 +202,7 @@ jobs:
         with:
           name: SyncView-Windows-x64
           path: |
-            dist\SyncView\SyncView.exe
-            Output\*.exe
+            Output\SyncView-*-Setup.exe
           if-no-files-found: error
           retention-days: 5
   # ---------- Publish single Release (needs cả 2 build) ----------
@@ -200,6 +226,6 @@ jobs:
           files: |
             artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
             artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
-            artifacts/SyncView-Windows-x64/**/Output/*.exe
+            artifacts/SyncView-Windows-x64/**/Output/SyncView-*-Setup.exe
           generate_release_notes: true
           fail_on_unmatched_files: false
