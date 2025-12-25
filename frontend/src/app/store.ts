@@ -498,15 +498,19 @@ export const useApp = create<AppState>()(
 
     setPaneSize: (pane, cw, ch) => {
       const { tabs, activeTabId } = get();
-      console.log("[store] setPaneSize", pane, { cw, ch });
       set({
-        tabs: tabs.map((t) =>
-          t.id === activeTabId
-            ? { ...t, paneSize: { ...t.paneSize, [pane]: { cw, ch } } }
-            : t
-        ),
+        tabs: tabs.map((t) => {
+          if (t.id !== activeTabId) return t;
+          const prev = t.paneSize?.[pane];
+          if (prev && prev.cw === cw && prev.ch === ch) return t;
+          return {
+            ...t,
+            paneSize: { ...t.paneSize, [pane]: { cw, ch } },
+          };
+        }),
       });
     },
+
     setDataURLForPane: (pane, data, name) => {
       console.log(
         "[store] setDataURLForPane",

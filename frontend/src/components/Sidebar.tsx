@@ -298,7 +298,7 @@ export default function Sidebar({
               const from = items.indexOf(String(active.id));
               const to = items.indexOf(String(over.id));
               if (from < 0 || to < 0) return;
-              // dùng action reorderTabs trong store (đã thêm ở bước trước)
+              // dùng action reorderTabs trong store
               useApp.getState().reorderTabs(from, to);
             };
             return (
@@ -358,7 +358,7 @@ export default function Sidebar({
             )}
             {tab && paneIds.length === 0 && (
               <div className="p-3 rounded border border-neutral-800 bg-neutral-900/50 text-neutral-300 text-sm">
-                Chưa có ảnh nào trong tab này.
+                No images in this tab yet
               </div>
             )}
             {tab &&
@@ -407,7 +407,7 @@ export default function Sidebar({
     </div>
   );
   return (
-    <div className="h-full relative overflow-visible">
+    <div className="h-full relative">
       {/* Compact luôn nằm dưới (chỉ render khi compact=true) */}
       {compact && compactUI}
 
@@ -415,20 +415,13 @@ export default function Sidebar({
       {showFull && (
         <div
           className={[
-            "absolute top-0 left-0 h-full sv-fade",
-            // collapsed -> overlay rộng cố định và đè lên viewer
-            compact
-              ? "w-[280px] shadow-2xl border-r border-neutral-800"
-              : "right-0",
+            "absolute inset-0 sv-fade",
             fullFadeIn ? "sv-fade-in" : "sv-fade-out",
           ].join(" ")}
         >
           {fullUI}
         </div>
       )}
-
-      {/* Trường hợp không compact (pinned mở) thì compactUI không render,
-          fullUI vẫn render bình thường vì showFull=true */}
     </div>
   );
 }

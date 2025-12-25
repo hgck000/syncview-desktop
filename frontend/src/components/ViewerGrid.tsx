@@ -97,17 +97,12 @@ function DragOverlay({ show, needsTab }: { show: boolean; needsTab: boolean }) {
     >
       <div className="text-center px-4">
         <div className="text-neutral-100 text-base font-semibold">
-          Thả ảnh để thêm vào workspace
+          Drop photos to add to workspace
         </div>
-
-        {/* <div className="mt-2 text-neutral-400 text-sm">
-          Nhấn <Keycap>H</Keycap> để mở hướng dẫn
-        </div> */}
-
         {needsTab && (
           <div className="mt-3 text-neutral-300 text-sm">
             <span className="px-2 py-0.5 bg-neutral-900 rounded border border-neutral-700">
-              Tạo tab mới trước
+              Create a new tab first
             </span>
           </div>
         )}
@@ -143,15 +138,10 @@ export default function ViewerGrid() {
         {needsTab ? (
           <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-1">
             <div className="text-neutral-500 text-[17px]">
-              Kéo-thả 1–4 ảnh vào đây
-              {!has && (
-                <span className="mx-2 px-2 py-0.5 bg-neutral-900 rounded text-[11px] text-neutral-300 border border-neutral-800">
-                  Tạo tab mới trước
-                </span>
-              )}
+              Create a new tab first
             </div>
             <div className="text-neutral-400 text-sm text-[13px]">
-              Nhấn <Keycap>H</Keycap> để mở hướng dẫn
+              Press <Keycap>H</Keycap> for guide
             </div>
           </div>
         ) : (

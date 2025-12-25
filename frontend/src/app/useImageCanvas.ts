@@ -18,13 +18,34 @@ type Opts = {
   loupe: LoupeOpt;
   pointer: Pointer; // vị trí con trỏ 0..1 trong viewer (pane)
   onImageMeta?: (w: number, h: number) => void;
+  onViewCompensate?: (v: {
+    scale: number;
+    offsetX: number;
+    offsetY: number;
+  }) => void;
 };
 
 export function useImageCanvas(opts: Opts) {
-  const { path, dataURL, view, onImageMeta, grid, loupe, pointer } = opts;
+  const {
+    path,
+    dataURL,
+    view,
+    onImageMeta,
+    onViewCompensate,
+    grid,
+    loupe,
+    pointer,
+  } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const effectiveViewRef = useRef(view);
+  const lastSizeRef = useRef<{ cw: number; ch: number }>({ cw: 0, ch: 0 });
+  const pendingStoreViewRef = useRef<null | {
+    scale: number;
+    offsetX: number;
+    offsetY: number;
+  }>(null);
 
   // function draw() {
   //   const canvas = canvasRef.current;
@@ -161,6 +182,9 @@ export function useImageCanvas(opts: Opts) {
     const cwCss = canvas.clientWidth;
     const chCss = canvas.clientHeight;
     if (cwCss <= 0 || chCss <= 0) return;
+    if (lastSizeRef.current.cw === 0 || lastSizeRef.current.ch === 0) {
+      lastSizeRef.current = { cw: cwCss, ch: chCss };
+    }
 
     canvas.width = Math.max(1, Math.floor(cwCss * dpr));
     canvas.height = Math.max(1, Math.floor(chCss * dpr));
@@ -175,12 +199,15 @@ export function useImageCanvas(opts: Opts) {
     const ih = img.naturalHeight;
 
     const fit = Math.min(cwCss / iw, chCss / ih);
-    const total = fit * view.scale;
+    const eff = effectiveViewRef.current;
+    const total = fit * eff.scale;
+
+    // const total = fit * view.scale;
 
     const w = iw * total;
     const h = ih * total;
-    const x = (cwCss - w) / 2 + view.offsetX;
-    const y = (chCss - h) / 2 + view.offsetY;
+    const x = (cwCss - w) / 2 + eff.offsetX;
+    const y = (chCss - h) / 2 + eff.offsetY;
 
     ctx.clearRect(0, 0, cwCss, chCss);
     ctx.imageSmoothingEnabled = true;
@@ -261,6 +288,13 @@ export function useImageCanvas(opts: Opts) {
     if (rafRef.current != null) return; // đã có 1 frame đang chờ
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
+
+      const pending = pendingStoreViewRef.current;
+      if (pending && onViewCompensate) {
+        pendingStoreViewRef.current = null;
+        onViewCompensate(pending);
+      }
+
       drawNow();
     });
   }
@@ -288,7 +322,77 @@ export function useImageCanvas(opts: Opts) {
 
     load();
 
-    const ro = new ResizeObserver(() => scheduleDraw());
+    const ro = new ResizeObserver(() => {
+      const canvas = canvasRef.current;
+      const img = imgRef.current;
+      if (!canvas) return;
+
+      const cw = canvas.clientWidth;
+      const ch = canvas.clientHeight;
+      const prev = lastSizeRef.current;
+
+      if (cw > 0 && ch > 0 && prev.cw > 0 && prev.ch > 0 && img) {
+        // chỉ bù khi user đã pan/zoom (không phải default fit)
+        const base = effectiveViewRef.current;
+        const isDefault =
+          Math.abs(base.scale - 1) < 1e-3 &&
+          Math.abs(base.offsetX) < 0.5 &&
+          Math.abs(base.offsetY) < 0.5;
+
+        if (!isDefault) {
+          const iw = img.naturalWidth || 1;
+          const ih = img.naturalHeight || 1;
+
+          const fit1 = Math.min(prev.cw / iw, prev.ch / ih);
+          const fit2 = Math.min(cw / iw, ch / ih);
+
+          if (fit1 > 0 && fit2 > 0 && isFinite(fit1) && isFinite(fit2)) {
+            const clamp = (n: number, a: number, b: number) =>
+              Math.max(a, Math.min(b, n));
+
+            // giữ tổng zoom thực tế (fit*scale) gần như không đổi
+            const scale2 = clamp(base.scale * (fit1 / fit2), 0.8, 10);
+            const total1 = fit1 * base.scale;
+            const total2 = fit2 * scale2;
+
+            // anchor ở giữa viewport để ổn định khi mouse đang ở sidebar
+            const u = 0.5;
+            const v = 0.5;
+
+            const ax1 = u * prev.cw;
+            const ay1 = v * prev.ch;
+
+            const x1 = (prev.cw - iw * total1) / 2 + base.offsetX;
+            const y1 = (prev.ch - ih * total1) / 2 + base.offsetY;
+
+            const ix = (ax1 - x1) / total1;
+            const iy = (ay1 - y1) / total1;
+
+            const ax2 = u * cw;
+            const ay2 = v * ch;
+
+            const offsetX2 = ax2 - ix * total2 - (cw - iw * total2) / 2;
+            const offsetY2 = ay2 - iy * total2 - (ch - ih * total2) / 2;
+
+            const next = {
+              scale: scale2,
+              offsetX: offsetX2,
+              offsetY: offsetY2,
+            };
+
+            // vẽ ngay bằng view đã bù (tránh 1 frame nhảy)
+            effectiveViewRef.current = next;
+
+            // đẩy vào store ngay trước draw trong scheduleDraw()
+            pendingStoreViewRef.current = next;
+          }
+        }
+      }
+
+      if (cw > 0 && ch > 0) lastSizeRef.current = { cw, ch };
+      scheduleDraw();
+    });
+
     if (canvasRef.current) ro.observe(canvasRef.current);
 
     return () => {
@@ -302,6 +406,7 @@ export function useImageCanvas(opts: Opts) {
   }, [path, dataURL]);
 
   useEffect(() => {
+    effectiveViewRef.current = view;
     if (!canvasRef.current || !imgRef.current) return;
     scheduleDraw();
   }, [
@@ -316,8 +421,6 @@ export function useImageCanvas(opts: Opts) {
     loupe.zoom,
     pointer.u,
     pointer.v,
-    // onImageMeta,
-    // draw
   ]);
   return canvasRef;
 }

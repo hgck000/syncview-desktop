@@ -9,8 +9,6 @@ import {
 } from "lucide-react";
 import { useApp } from "../app/store";
 import { openFileDialog } from "../app/bridge";
-import { useRef } from "react";
-// import { useRef, useState  } from "react";
 
 export default function Toolbar() {
   // const t = useApp(s => s.getActive());
@@ -48,7 +46,6 @@ export default function Toolbar() {
   const toggleDraw = useApp((s) => s.toggleDraw);
   const toggleErase = useApp((s) => s.toggleErase);
   const setBrushColor = useApp((s) => s.setBrushColor);
-  const colorRef = useRef<HTMLInputElement>(null);
 
   async function onOpen() {
     // pane gốc để gửi xuống BE (dùng như hiện tại của bạn)
@@ -137,14 +134,6 @@ export default function Toolbar() {
       >
         <Pencil size={16} />
         Draw
-        {/* input color ẩn */}
-        <input
-          ref={colorRef}
-          type="color"
-          value={annotate.color}
-          onChange={(e) => setBrushColor(e.target.value)}
-          className="hidden"
-        />
       </div>
 
       {/* Erase */}

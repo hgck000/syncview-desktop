@@ -55,10 +55,11 @@ export default function Pane({ id }: Props) {
   // const view = t.view[id];
 
   const setMeta = useApp((s) => s.setImageMeta);
-  const setSize = useApp((s) => s.setPaneSize); // <— NEW
+  const setSize = useApp((s) => s.setPaneSize);
   const applyPan = useApp((s) => s.applyPan);
   const applyZoom = useApp((s) => s.applyZoom);
   const resetView = useApp((s) => s.resetView);
+  const setView = useApp((s) => s.setView);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
@@ -78,6 +79,7 @@ export default function Pane({ id }: Props) {
     loupe,
     pointer,
     onImageMeta: (w, h) => setMeta(id, w, h),
+    onViewCompensate: (v) => setView(id, v),
   });
   const annotCanvasRef = useAnnotCanvas({
     paneId: id,
@@ -272,20 +274,37 @@ export default function Pane({ id }: Props) {
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const send = () => {
-      const r = el.getBoundingClientRect();
-      setSize(
-        id,
-        Math.max(1, Math.floor(r.width)),
-        Math.max(1, Math.floor(r.height))
-      );
 
-      // setSize(id, Math.max(1, Math.floor(r.width)), Math.max(1, Math.floor(r.height)));
+    let raf = 0;
+    let lastCw = 0;
+    let lastCh = 0;
+
+    const measureAndSend = () => {
+      const r = el.getBoundingClientRect();
+      const cw = Math.max(1, Math.floor(r.width));
+      const ch = Math.max(1, Math.floor(r.height));
+      if (cw === lastCw && ch === lastCh) return;
+      lastCw = cw;
+      lastCh = ch;
+      setSize(id, cw, ch);
     };
-    send();
-    const ro = new ResizeObserver(send);
+
+    measureAndSend();
+
+    const ro = new ResizeObserver(() => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        measureAndSend();
+      });
+    });
+
     ro.observe(el);
-    return () => ro.disconnect();
+
+    return () => {
+      ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [id, setSize]);
 
   useEffect(() => {
@@ -784,17 +803,18 @@ export default function Pane({ id }: Props) {
 
       <div className="h-full min-h-[180px]">
         {path || data ? (
-          <div
-            ref={wrapRef}
-            className="relative w-full h-full bg-black"
-            onContextMenu={onContextMenu}
-            onMouseDown={onMouseDown}
-            onMouseMove={onMouseMove}
-            onMouseUp={onMouseUp}
-            onMouseLeave={onMouseLeave}
-            onWheel={onWheel}
-            onDoubleClick={onDoubleClick}
-          >
+          // <div
+          //   ref={wrapRef}
+          //   className="relative w-full h-full bg-black"
+          //   onContextMenu={onContextMenu}
+          //   onMouseDown={onMouseDown}
+          //   onMouseMove={onMouseMove}
+          //   onMouseUp={onMouseUp}
+          //   onMouseLeave={onMouseLeave}
+          //   onWheel={onWheel}
+          //   onDoubleClick={onDoubleClick}
+          // >
+          <div className="relative w-full h-full bg-black">
             {/* canvas ảnh */}
             <canvas
               ref={canvasRef}
