@@ -68,7 +68,7 @@ export default function Pane({ id }: Props) {
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [hovered, setHovered] = useState(false);
 
-  const hasImage = !!path || !!data;
+  const hasImage = !!(t.files[id] || t.dataURL[id]);
 
   const loupeForCanvas = !hasImage
     ? { ...loupe, on: false }
@@ -113,6 +113,7 @@ export default function Pane({ id }: Props) {
   const exif = t.exif?.[id];
 
   const showDetails = t.showDetails[id];
+  const detailsOpen = showDetails && hasImage;
   const setExif = useApp((s) => s.setExif);
   const toggleDetails = useApp((s) => s.toggleDetails);
 
@@ -754,7 +755,7 @@ export default function Pane({ id }: Props) {
             <div
               className={
                 "px-2.5 py-1.5 bg-black border border-neutral-700/70 shadow-sm " +
-                (showDetails
+                (detailsOpen
                   ? "rounded-t-xl rounded-b-none border-b-0"
                   : "rounded-xl")
               }
@@ -777,9 +778,9 @@ export default function Pane({ id }: Props) {
                   className="ml-1 w-5 h-5 rounded-full flex items-center justify-center
                             bg-transparent text-white cursor-pointer
                             hover:bg-white/10 active:bg-white/20 active:scale-95 transition"
-                  title={showDetails ? "Ẩn thông tin" : "Hiện thông tin"}
+                  title={detailsOpen ? "Ẩn thông tin" : "Hiện thông tin"}
                 >
-                  {showDetails ? (
+                  {detailsOpen ? (
                     <ChevronUp className="w-3.5 h-3.5" />
                   ) : (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -788,59 +789,69 @@ export default function Pane({ id }: Props) {
               </div>
             </div>
 
-            {showDetails && (t.files[id] || t.dataURL[id]) && (
+            {hasImage && (
               <div
-                className="bg-black border border-neutral-700/70 border-t-0
-                          rounded-b-xl shadow-sm p-2"
+                className={[
+                  "overflow-hidden",
+                  "transition-[max-height,opacity,transform] duration-200 ease-out",
+                  detailsOpen
+                    ? "max-h-[320px] opacity-100 translate-y-0"
+                    : "max-h-0 opacity-0 -translate-y-1 pointer-events-none",
+                ].join(" ")}
               >
-                <div className="flex flex-col divide-y divide-neutral-800/80 text-[11px]">
-                  <Row
-                    icon={<HardDrive className="w-3.5 h-3.5" />}
-                    label="File size"
-                    value={
-                      fileSizeBytes != null ? fmtFileSize(fileSizeBytes) : "—"
-                    }
-                  />
+                <div
+                  className="bg-black border border-neutral-700/70 border-t-0
+                          rounded-b-xl shadow-sm p-2"
+                >
+                  <div className="flex flex-col divide-y divide-neutral-800/80 text-[11px]">
+                    <Row
+                      icon={<HardDrive className="w-3.5 h-3.5" />}
+                      label="File size"
+                      value={
+                        fileSizeBytes != null ? fmtFileSize(fileSizeBytes) : "—"
+                      }
+                    />
 
-                  <Row
-                    icon={<Calendar className="w-3.5 h-3.5" />}
-                    label="Date"
-                    value={dateRaw ? fmtDate(dateRaw) : "—"}
-                  />
+                    <Row
+                      icon={<Calendar className="w-3.5 h-3.5" />}
+                      label="Date"
+                      value={dateRaw ? fmtDate(dateRaw) : "—"}
+                    />
 
-                  <Row
-                    icon={<MapPin className="w-3.5 h-3.5" />}
-                    label="Location"
-                    value={fmtGps(exif) || "—"}
-                  />
+                    <Row
+                      icon={<MapPin className="w-3.5 h-3.5" />}
+                      label="Location"
+                      value={fmtGps(exif) || "—"}
+                    />
 
-                  <Row
-                    icon={<Camera className="w-3.5 h-3.5" />}
-                    label="Device"
-                    value={device !== "—" ? device : "—"}
-                  />
+                    <Row
+                      icon={<Camera className="w-3.5 h-3.5" />}
+                      label="Device"
+                      value={device !== "—" ? device : "—"}
+                    />
 
-                  <Row
-                    icon={<Timer className="w-3.5 h-3.5" />}
-                    label="Shutter"
-                    value={shutterRaw ? fmtShutter(shutterRaw) : "—"}
-                  />
+                    <Row
+                      icon={<Timer className="w-3.5 h-3.5" />}
+                      label="Shutter"
+                      value={shutterRaw ? fmtShutter(shutterRaw) : "—"}
+                    />
 
-                  <Row
-                    icon={<SunMedium className="w-3.5 h-3.5" />}
-                    label="ISO"
-                    value={fmtIso(exif) || "—"}
-                  />
+                    <Row
+                      icon={<SunMedium className="w-3.5 h-3.5" />}
+                      label="ISO"
+                      value={fmtIso(exif) || "—"}
+                    />
 
-                  <Row
-                    icon={<Aperture className="w-3.5 h-3.5" />}
-                    label="Aperture"
-                    value={
-                      apertureRaw
-                        ? `f/${(+apertureRaw).toFixed(1).replace(/\.0$/, "")}`
-                        : "—"
-                    }
-                  />
+                    <Row
+                      icon={<Aperture className="w-3.5 h-3.5" />}
+                      label="Aperture"
+                      value={
+                        apertureRaw
+                          ? `f/${(+apertureRaw).toFixed(1).replace(/\.0$/, "")}`
+                          : "—"
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             )}

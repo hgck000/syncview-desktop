@@ -147,8 +147,17 @@ export function useImageCanvas(opts: Opts) {
 
       ctx.restore();
       ctx.save();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+
+      // viền “2 lớp” để luôn nổi trên nền sáng/tối
+      const innerW = Math.max(2, Math.round(size / 90)); // size lớn thì viền dày hơn chút
+      const outerW = innerW + 2;
+
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      // Lớp ngoài: tối
+      ctx.lineWidth = outerW;
+      ctx.strokeStyle = "rgba(0,0,0,0.65)";
       if (loupe.shape !== "square") {
         ctx.beginPath();
         ctx.arc(cx, cy, half, 0, Math.PI * 2);
@@ -156,6 +165,18 @@ export function useImageCanvas(opts: Opts) {
       } else {
         ctx.strokeRect(cx - half, cy - half, size, size);
       }
+
+      // Lớp trong: sáng
+      ctx.lineWidth = innerW;
+      ctx.strokeStyle = "rgba(255,255,255,0.92)";
+      if (loupe.shape !== "square") {
+        ctx.beginPath();
+        ctx.arc(cx, cy, half, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(cx - half, cy - half, size, size);
+      }
+
       ctx.restore();
     }
   }
