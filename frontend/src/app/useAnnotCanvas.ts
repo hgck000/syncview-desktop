@@ -67,7 +67,7 @@ export function useAnnotCanvas(opts: {
         ctx.globalCompositeOperation =
           s.mode === "erase" ? "destination-out" : "source-over";
         ctx.strokeStyle = s.mode === "erase" ? "rgba(0,0,0,1)" : s.color;
-        ctx.lineWidth = s.size;
+        ctx.lineWidth = s.size * view.scale;
 
         ctx.beginPath();
         const p0 = s.pts[0];
@@ -137,7 +137,7 @@ export function useAnnotCanvas(opts: {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
 
-      const r = Math.max(1, annotate.size / 2);
+      const r = Math.max(1, (annotate.size * view.scale) / 2);
 
       ctx.save();
       ctx.globalAlpha = 0.95;
@@ -164,7 +164,7 @@ export function useAnnotCanvas(opts: {
       ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(255,255,255,0.9)";
       ctx.beginPath();
-      ctx.arc(cx, cy, annotate.eraserSize / 2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, (annotate.eraserSize * view.scale) / 2, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -181,6 +181,7 @@ export function useAnnotCanvas(opts: {
     annotate.color,
     annotate.size,
     annotate.eraserSize,
+    view.scale,
   ]);
 
   const schedule = useCallback(() => {

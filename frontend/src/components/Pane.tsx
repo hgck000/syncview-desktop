@@ -63,6 +63,7 @@ export default function Pane({ id }: Props) {
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
+  const spaceDownRef = useRef(false);
 
   // lưu vị trí con trỏ đã biết (chuẩn hoá) để dblclick dùng đúng chỗ đó
   const lastNormRef = useRef<{ u: number; v: number }>({ u: 0.5, v: 0.5 });
@@ -111,47 +112,6 @@ export default function Pane({ id }: Props) {
   }>(null);
   // RMB resize: dùng pointer lock để cursor không “bay” khỏi pane
 
-  useEffect(() => {
-    if (!rdrag) return;
-
-    // show cursor + feedback
-    const prevCursor = document.body.style.cursor;
-    document.body.style.cursor = "ew-resize";
-
-    const onMove = (ev: MouseEvent) => {
-      // dx theo clientX (cursor vẫn chạy bình thường)
-      const dx = ev.clientX - rdrag.startX;
-
-      const step = rdrag.kind === "brush" ? 1 : 10;
-      const next = rdrag.startSize + Math.round(dx / 4) * step;
-
-      if (rdrag.kind === "brush") setBrushSize(next);
-      else if (rdrag.kind === "eraser") setEraserSize(next);
-      else setLoupeSize(next);
-    };
-
-    const stop = () => {
-      document.body.style.cursor = prevCursor;
-      setRdrag(null);
-    };
-
-    const onUp = () => stop();
-
-    // chặn context menu trong lúc RMB resize
-    const onCtx = (ev: MouseEvent) => ev.preventDefault();
-
-    window.addEventListener("mousemove", onMove, true);
-    window.addEventListener("mouseup", onUp, true);
-    window.addEventListener("contextmenu", onCtx, true);
-
-    return () => {
-      window.removeEventListener("mousemove", onMove, true);
-      window.removeEventListener("mouseup", onUp, true);
-      window.removeEventListener("contextmenu", onCtx, true);
-      document.body.style.cursor = prevCursor;
-    };
-  }, [rdrag, setBrushSize, setEraserSize, setLoupeSize]);
-
   const clearPane = useApp((s) => s.clearPane);
   const displayName =
     t.names[id] ??
@@ -168,13 +128,6 @@ export default function Pane({ id }: Props) {
 
   const sizeLabel = view.imgW && view.imgH ? `${view.imgW}×${view.imgH}` : "—";
 
-  function dataURLByteLength(u?: string) {
-    if (!u) return undefined;
-    const i = u.indexOf(",");
-    const b64 = i >= 0 ? u.slice(i + 1) : u;
-    const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
-    return Math.max(0, (b64.length * 3) / 4 - pad) | 0;
-  }
   const fileSizeBytes =
     exif?.FileSize ?? (data ? dataURLByteLength(data) : undefined);
   const dateRaw = exif?.DateTimeOriginal ?? exif?.CreateDate ?? exif?.DateTime;
@@ -251,6 +204,47 @@ export default function Pane({ id }: Props) {
   })();
 
   useEffect(() => {
+    if (!rdrag) return;
+
+    // show cursor + feedback
+    const prevCursor = document.body.style.cursor;
+    document.body.style.cursor = "ew-resize";
+
+    const onMove = (ev: MouseEvent) => {
+      // dx theo clientX (cursor vẫn chạy bình thường)
+      const dx = ev.clientX - rdrag.startX;
+
+      const step = rdrag.kind === "brush" ? 1 : 10;
+      const next = rdrag.startSize + Math.round(dx / 4) * step;
+
+      if (rdrag.kind === "brush") setBrushSize(next);
+      else if (rdrag.kind === "eraser") setEraserSize(next);
+      else setLoupeSize(next);
+    };
+
+    const stop = () => {
+      document.body.style.cursor = prevCursor;
+      setRdrag(null);
+    };
+
+    const onUp = () => stop();
+
+    // chặn context menu trong lúc RMB resize
+    const onCtx = (ev: MouseEvent) => ev.preventDefault();
+
+    window.addEventListener("mousemove", onMove, true);
+    window.addEventListener("mouseup", onUp, true);
+    window.addEventListener("contextmenu", onCtx, true);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove, true);
+      window.removeEventListener("mouseup", onUp, true);
+      window.removeEventListener("contextmenu", onCtx, true);
+      document.body.style.cursor = prevCursor;
+    };
+  }, [rdrag, setBrushSize, setEraserSize, setLoupeSize]);
+
+  useEffect(() => {
     let cancelled = false;
 
     (async () => {
@@ -313,6 +307,29 @@ export default function Pane({ id }: Props) {
     }
   }, [id, exif]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e)) return;
+      if (e.code !== "Space") return;
+
+      // tránh bị scroll trang khi giữ Space
+      e.preventDefault();
+      spaceDownRef.current = true;
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      spaceDownRef.current = false;
+    };
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    window.addEventListener("keyup", onKeyUp, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+      window.removeEventListener("keyup", onKeyUp, { capture: true });
+    };
+  }, []);
+
   function Row({
     icon,
     label,
@@ -333,6 +350,14 @@ export default function Pane({ id }: Props) {
         </div>
       </div>
     );
+  }
+
+  function dataURLByteLength(u?: string) {
+    if (!u) return undefined;
+    const i = u.indexOf(",");
+    const b64 = i >= 0 ? u.slice(i + 1) : u;
+    const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+    return Math.max(0, (b64.length * 3) / 4 - pad) | 0;
   }
 
   function fmtFileSize(bytes?: number | string) {
@@ -552,36 +577,43 @@ export default function Pane({ id }: Props) {
     const data = dataURL[id];
     if (!path && !data) return;
 
-    // LMB: nếu đang chọn tool vẽ/xóa thì vẽ, không pan
-    if (e.button === 0 && annotate.mode !== "none") {
-      const p0 = mouseToImageUV(e);
-      if (!p0) return;
+    // LMB
+    if (e.button === 0) {
+      const spacePan = spaceDownRef.current;
 
-      const targets = linkAll ? panes : [id];
-      const strokeId = startStroke(
-        targets as any,
-        annotate.mode === "erase" ? "erase" : "draw",
-        p0
-      );
+      // Draw / Erase: mặc định vẽ, giữ Space thì pan
+      if (annotate.mode !== "none") {
+        if (spacePan) {
+          setDrag({ x: e.clientX, y: e.clientY });
+          return;
+        }
 
-      drawRef.current = {
-        panes: targets as any,
-        strokeId,
-        last: p0,
-        raf: null,
-      };
+        const p0 = mouseToImageUV(e);
+        if (!p0) return;
+
+        const targets = linkAll ? panes : [id];
+        const strokeId = startStroke(
+          targets as any,
+          annotate.mode === "erase" ? "erase" : "draw",
+          p0
+        );
+
+        drawRef.current = {
+          panes: targets as any,
+          strokeId,
+          last: p0,
+          raf: null,
+        };
+        return;
+      }
+
+      // Loupe (và các mode khác): pan bình thường
+      setDrag({ x: e.clientX, y: e.clientY });
       return;
     }
 
-    // LMB pan như cũ
-    if (e.button === 0) setDrag({ x: e.clientX, y: e.clientY });
-
-    // RMB: nếu erase đang bật → resize eraser; else nếu loupe.on → resize loupe
+    // RMB: giữ nguyên logic resize hiện tại
     if (e.button === 2) {
-      // RMB resize: chặn menu chuột phải và tránh bubble
-      e.preventDefault();
-      e.stopPropagation();
-
       if (annotate.mode === "erase") {
         setRdrag({
           startX: e.clientX,
@@ -667,6 +699,18 @@ export default function Pane({ id }: Props) {
 
     // đừng cắt RMB resize khi chuột rời pane
     // setRdrag(null);
+  }
+
+  function isEditableTarget(ev: KeyboardEvent) {
+    const el = ev.target as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName;
+    return (
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      (el as any).isContentEditable ||
+      el.getAttribute?.("role") === "textbox"
+    );
   }
 
   return (
