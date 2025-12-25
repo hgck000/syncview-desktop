@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Tag để attach assets (ví dụ: v1.0.3). BẮT BUỘC khi chạy tay."
+        description: "Tag để attach assets (ví dụ: vx.y.z). BẮT BUỘC khi chạy tay."
         required: true
 
 permissions:
@@ -175,8 +175,7 @@ jobs:
         with:
           name: SyncView-Windows-x64
           path: |
-            dist\SyncView\SyncView.exe
-            Output\*.exe
+            Output\SyncView-*-Setup.exe
           if-no-files-found: error
           retention-days: 5
   # ---------- Publish single Release (needs cả 2 build) ----------
@@ -200,6 +199,6 @@ jobs:
           files: |
             artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
             artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
-            artifacts/SyncView-Windows-x64/**/Output/*.exe
+            artifacts/SyncView-Windows-x64/**/Output/SyncView-*-Setup.exe
           generate_release_notes: true
           fail_on_unmatched_files: false

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os, sys, threading, time, socket, traceback, uvicorn, webview
+import urllib.request, urllib.error
 from pathlib import Path
 from app.bridge import Bridge
 from fastapi import FastAPI
@@ -59,6 +60,19 @@ def wait_for_port(host: str, port: int, timeout_sec: int = 20) -> bool:
             time.sleep(0.25)
     return False
 
+def wait_for_http(url: str, timeout_sec: int = 25) -> bool:
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=2) as resp:
+                # 200 + content-type text/html is a good signal FE is being served
+                if resp.status == 200:
+                    return True
+        except Exception:
+            time.sleep(0.25)
+    return False
+
+
 def start_api():
     try:
         # cho backend biết đường dẫn FE (đã --add-data "frontend/dist;frontend/dist")
@@ -84,12 +98,25 @@ if __name__ == "__main__":
     t = threading.Thread(target=start_api, daemon=True)
     t.start()
 
-    # 2) đợi server nghe port
-    if not wait_for_port(API_HOST, API_PORT, timeout_sec=20):
-        # ghi log để kiểm tra
-        log_exc("startup", RuntimeError("Backend did not start within timeout"))
+    # 2) đợi backend sẵn sàng (port + HTTP /)
+    url = f"http://{API_HOST}:{API_PORT}/"
+    ready = wait_for_http(url, timeout_sec=25)
+    if not ready:
+        err = RuntimeError(f"Backend not ready at {url}")
+        log_exc("startup", err)
+        html = f"""
+        <html><body style='font-family:Segoe UI, Arial; padding:16px;'>
+          <h2>SyncView không khởi động được</h2>
+          <p>Không truy cập được <b>{url}</b>.</p>
+          <p>Log đã ghi tại: <code>{LOG_FILE}</code></p>
+          <p>Hãy gửi file log này cho dev để bắt lỗi nhanh.</p>
+        </body></html>
+        """
+        webview.create_window("SyncView - Startup Error", html=html, width=720, height=480)
+        webview.start()
+        raise SystemExit(1)
 
-    # 3) tạo window sau khi backend sẵn sàng
+    # 3) tạo window sau khi backend sẵn sàng sau khi backend sẵn sàng
     # window = webview.create_window("SyncView", f"http://{API_HOST}:{API_PORT}")
     window = webview.create_window(
         "SyncView",

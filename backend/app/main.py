@@ -1,7 +1,7 @@
-# backend/app/main.py
 import os
 from pathlib import Path
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
@@ -44,4 +44,4 @@ else:
     # Không tìm thấy FE_DIR: tạo route báo lỗi rõ ràng (tránh JSON 404 khó hiểu)
     @app.get("/")
     def _missing_fe():
-        return {"error": "FE not found", "hint": "Check SYNCVIEW_FRONTEND_DIR and PyInstaller --add-data"}
+        return HTMLResponse("<h2>FE not found</h2><p>Check SYNCVIEW_FRONTEND_DIR and PyInstaller --add-data</p>", status_code=500)
