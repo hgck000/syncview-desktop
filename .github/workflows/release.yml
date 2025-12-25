@@ -86,7 +86,7 @@ jobs:
             --icon SyncView.icns \
             --add-data "frontend/dist:frontend/dist" \
             --hidden-import h11 \
-            --collect-submodules uvicorn \
+            --collect-all uvicorn \
             --collect-submodules anyio \
             backend/run_prod.py
 
@@ -142,7 +142,7 @@ jobs:
             --name SyncView `
             --add-data "frontend\dist;frontend/dist" `
             --hidden-import h11 `
-            --collect-submodules uvicorn `
+            --collect-all uvicorn `
             --collect-submodules anyio `
             backend\run_prod.py
           # In cây dist để debug đường dẫn khi cần
