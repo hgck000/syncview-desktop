@@ -1,22 +1,24 @@
 ; installer.iss — SyncView Desktop
 
+#define MyAppVersion "1.0.0"
+
 [Setup]
 AppName=SyncView
-AppVersion=1.0.0
+AppVersion={#MyAppVersion}
 AppPublisher=Your Name or Team
 DefaultDirName={pf}\SyncView
 DefaultGroupName=SyncView
+OutputDir=Output
 OutputBaseFilename=SyncView-Setup
 Compression=lzma
 SolidCompression=yes
 DisableProgramGroupPage=yes
 ArchitecturesInstallIn64BitMode=x64
-; Tùy chọn icon của installer:
-; SetupIconFile=assets\app.ico
+; SetupIconFile=assets\SyncView.ico
 
 [Files]
 ; 1) App folder build từ PyInstaller (one-folder)
-Source: "dist\SyncView\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "dist\SyncView\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; 2) WebView2 Evergreen bootstrapper
 Source: "assets\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
@@ -37,4 +39,4 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 
 [UninstallDelete]
 ; Xoá session nếu bạn muốn giữ sạch (bỏ nếu muốn giữ phiên người dùng)
-Type: filesandordirs; Name: "{userappdata}\..\ .syncview"
+Type: filesandordirs; Name: "{userappdata}\.syncview"

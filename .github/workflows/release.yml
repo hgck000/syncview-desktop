@@ -151,16 +151,34 @@ jobs:
             throw "Missing dist\SyncView\SyncView.exe"
           }
 
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y
+
+          # Lấy version từ tag v2.1.0 -> 2.1.0 (khi chạy tag) hoặc từ inputs.tag_name (khi workflow_dispatch)
+          $tag = "${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
+          $ver = $tag.TrimStart('v')
+          echo "Tag=$tag  Version=$ver"
+
+          # Build installer, truyền define vào installer.iss
+          iscc /DMyAppVersion=$ver .\installer.iss
+
+          # Check output
+          Get-ChildItem -Recurse .\Output | Select-Object FullName, Length
+          if (-not (Get-ChildItem .\Output -Filter *.exe -ErrorAction SilentlyContinue)) {
+            throw "Missing setup exe in .\Output"
+          }
+
       - name: Upload win artifact
         uses: actions/upload-artifact@v4
         with:
           name: SyncView-Windows-x64
           path: |
             dist\SyncView\SyncView.exe
-            installer\Output\**\*.exe
+            Output\*.exe
           if-no-files-found: error
           retention-days: 5
-
   # ---------- Publish single Release (needs cả 2 build) ----------
   release:
     runs-on: ubuntu-latest
@@ -182,6 +200,6 @@ jobs:
           files: |
             artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
             artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
-            artifacts/SyncView-Windows-x64/**/SyncView.exe
+            artifacts/SyncView-Windows-x64/**/Output/*.exe
           generate_release_notes: true
           fail_on_unmatched_files: false
