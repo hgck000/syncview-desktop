@@ -192,6 +192,8 @@ type AppState = {
 
   startStroke: (panes: PaneId[], mode: StrokeMode, p0: StrokePt) => string;
   appendStrokePoint: (panes: PaneId[], strokeId: string, p: StrokePt) => void;
+  hoveredPane: PaneId | null;
+  setHoveredPane: (pane: PaneId | null) => void;
 };
 
 type SavedSession = {
@@ -261,6 +263,9 @@ export const useApp = create<AppState>()(
     activeTabId: "",
     sidebarSize: 24,
     helpOn: false,
+    hoveredPane: null,
+    setHoveredPane: (pane) => set({ hoveredPane: pane }),
+
     toggleHelp: () => set((s) => ({ helpOn: !s.helpOn })),
     hydrated: false,
     markHydrated: (v) => set({ hydrated: v }),
@@ -274,7 +279,8 @@ export const useApp = create<AppState>()(
         return { ...state, tabs: [...state.tabs, t], activeTabId: t.id };
       }),
 
-    setActiveTab: (id) => set((state) => ({ ...state, activeTabId: id })),
+    setActiveTab: (id) =>
+      set((state) => ({ ...state, activeTabId: id, hoveredPane: null })),
 
     sidebarCollapsed: false,
     sidebarPeek: false,
@@ -292,16 +298,6 @@ export const useApp = create<AppState>()(
           t.id === id ? { ...t, name: title || t.name } : t
         ),
       })),
-
-    // renameTab: (id, title) =>
-    //   set((state) => ({
-    //     ...state,
-    //     tabs: state.tabs.map((t) => {
-    //       if (t.id !== id) return t;
-    //       const nextName = (title ?? "").trim();
-    //       return { ...t, name: nextName.length ? nextName : t.name };
-    //     }),
-    //   })),
 
     closeTab: (id) =>
       set((state) => {

@@ -29,8 +29,9 @@ export function useAnnotCanvas(opts: {
   loupe: LoupeOpt;
   pointer: Pointer;
   annotate: Annotate;
+  uiActive?: boolean;
 }) {
-  const { paneId, view, loupe, pointer, annotate } = opts;
+  const { paneId, view, loupe, pointer, annotate, uiActive = true } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
   const drawStrokes = useCallback(
@@ -133,7 +134,7 @@ export function useAnnotCanvas(opts: {
     }
     // ==== Cursor preview (dot) ====
     // Vẽ SAU CÙNG để loupe không “xoá” nó
-    if (annotate.mode === "draw") {
+    if (uiActive && annotate.mode === "draw") {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
 
@@ -155,7 +156,7 @@ export function useAnnotCanvas(opts: {
       ctx.restore();
     }
 
-    if (annotate.mode === "erase") {
+    if (uiActive && annotate.mode === "erase") {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
 
@@ -182,6 +183,7 @@ export function useAnnotCanvas(opts: {
     annotate.size,
     annotate.eraserSize,
     view.scale,
+    uiActive,
   ]);
 
   const schedule = useCallback(() => {

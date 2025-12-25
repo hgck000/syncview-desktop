@@ -38,6 +38,9 @@ export default function Pane({ id }: Props) {
   const setEraserSize = useApp((s) => s.setEraserSize);
   const setBrushSize = useApp((s) => s.setBrushSize);
 
+  const setHoveredPane = useApp((s) => s.setHoveredPane);
+  const uiActive = useApp((s) => s.hoveredPane === id);
+
   const drawRef = useRef<null | {
     panes: ("A" | "B" | "C" | "D")[];
     strokeId: string;
@@ -63,6 +66,16 @@ export default function Pane({ id }: Props) {
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
+  const [hovered, setHovered] = useState(false);
+
+  const hasImage = !!path || !!data;
+
+  const loupeForCanvas = !hasImage
+    ? { ...loupe, on: false }
+    : loupe.on && !linkAll && !hovered
+    ? { ...loupe, on: false }
+    : loupe;
+
   const spaceDownRef = useRef(false);
 
   // lưu vị trí con trỏ đã biết (chuẩn hoá) để dblclick dùng đúng chỗ đó
@@ -77,16 +90,18 @@ export default function Pane({ id }: Props) {
     dataURL: data,
     view,
     grid,
-    loupe,
+    loupe: loupeForCanvas,
     pointer,
+    uiActive,
     onImageMeta: (w, h) => setMeta(id, w, h),
     onViewCompensate: (v) => setView(id, v),
   });
   const annotCanvasRef = useAnnotCanvas({
     paneId: id,
     view,
-    loupe,
+    loupe: loupeForCanvas,
     pointer,
+    uiActive,
     annotate: {
       mode: annotate.mode,
       color: annotate.color,
@@ -693,12 +708,14 @@ export default function Pane({ id }: Props) {
   }
 
   function onMouseLeave() {
+    setHovered(false);
+
     if (drawRef.current?.raf) cancelAnimationFrame(drawRef.current.raf);
     drawRef.current = null;
     setDrag(null);
+    setRdrag(null);
 
-    // đừng cắt RMB resize khi chuột rời pane
-    // setRdrag(null);
+    if (useApp.getState().hoveredPane === id) setHoveredPane(null);
   }
 
   function isEditableTarget(ev: KeyboardEvent) {
@@ -726,6 +743,10 @@ export default function Pane({ id }: Props) {
       onMouseLeave={onMouseLeave}
       onWheel={onWheel}
       onDoubleClick={onDoubleClick}
+      onMouseEnter={() => {
+        setHovered(true);
+        setHoveredPane(id);
+      }}
     >
       <div className="absolute top-1 left-0 right-0 z-20 pointer-events-none">
         <div className="flex items-start justify-center mt-1">
