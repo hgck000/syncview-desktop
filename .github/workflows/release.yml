@@ -8,7 +8,6 @@ on:
       tag_name:
         description: "Tag để attach assets (ví dụ: v1.0.3). BẮT BUỘC khi chạy tay."
         required: true
-  
 
 permissions:
   contents: write
@@ -47,7 +46,34 @@ jobs:
           source .venv/bin/activate
           python -m pip install --upgrade pip wheel setuptools
           pip install -r backend/requirements.txt
-          pip install pyinstaller pyobjc-core pyobjc-framework-Cocoa
+          pip install pyinstaller pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz pyobjc-framework-WebKit pyobjc-framework-security
+
+      - name: Build macOS icon (.icns) from PNG
+        run: |
+          set -e
+          SRC="assets/SyncView.png"
+          if [ ! -f "$SRC" ]; then
+            echo "Missing $SRC"
+            exit 1
+          fi
+
+          rm -rf SyncView.iconset SyncView.icns
+          mkdir -p SyncView.iconset
+
+          sips -z 16 16     "$SRC" --out SyncView.iconset/icon_16x16.png
+          sips -z 32 32     "$SRC" --out SyncView.iconset/icon_16x16@2x.png
+          sips -z 32 32     "$SRC" --out SyncView.iconset/icon_32x32.png
+          sips -z 64 64     "$SRC" --out SyncView.iconset/icon_32x32@2x.png
+          sips -z 128 128   "$SRC" --out SyncView.iconset/icon_128x128.png
+          sips -z 256 256   "$SRC" --out SyncView.iconset/icon_128x128@2x.png
+          sips -z 256 256   "$SRC" --out SyncView.iconset/icon_256x256.png
+          sips -z 512 512   "$SRC" --out SyncView.iconset/icon_256x256@2x.png
+          sips -z 512 512   "$SRC" --out SyncView.iconset/icon_512x512.png
+          sips -z 1024 1024 "$SRC" --out SyncView.iconset/icon_512x512@2x.png
+
+          iconutil -c icns SyncView.iconset -o SyncView.icns
+          rm -rf SyncView.iconset
+          ls -lh SyncView.icns
 
       - name: PyInstaller .app
         env: { PYTHONWARNINGS: ignore }
@@ -57,6 +83,7 @@ jobs:
             --windowed \
             --onedir \
             --name SyncView \
+            --icon SyncView.icns \
             --add-data "frontend/dist:frontend/dist" \
             --hidden-import h11 \
             --collect-submodules uvicorn \
@@ -67,9 +94,9 @@ jobs:
         run: |
           set -e
           cd dist
-          mv SyncView "SyncView-${{ matrix.arch }}"
+          mv "SyncView.app" "SyncView-${{ matrix.arch }}.app"
           hdiutil create -volname "SyncView" \
-            -srcfolder "SyncView-${{ matrix.arch }}" \
+            -srcfolder "SyncView-${{ matrix.arch }}.app" \
             -ov -format UDZO "SyncView-mac-${{ matrix.arch }}.dmg"
 
       - name: Upload mac artifact
