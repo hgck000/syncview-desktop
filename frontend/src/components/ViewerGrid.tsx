@@ -145,7 +145,7 @@ export default function ViewerGrid() {
             </div>
           </div>
         ) : (
-          <div className={gridClass}>
+          <div className={gridClass} data-role="viewer-grid">
             {t.panes.map((id) => (
               <Pane key={id} id={id} />
             ))}

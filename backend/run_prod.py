@@ -121,30 +121,27 @@ if __name__ == "__main__":
     window = webview.create_window(
         "SyncView",
         f"http://{API_HOST}:{API_PORT}",
-        maximized=True,      # 👉 mở app ra là full luôn
-        resizable=True,      # tuỳ, nhưng thường bạn vẫn muốn cho resize
+        maximized=True,
+        resizable=True,
     )
 
 
     # 4) expose API pywebview v5 (nếu cần)
     try:
         from app.bridge import Bridge
-        bridge = Bridge(APP_DATA_DIR, window)  # window có thể optional tùy bạn đã sửa
-        # expose từng hàm (đổi theo methods bạn có)
+        bridge = Bridge(APP_DATA_DIR, window)
         window.expose(
             getattr(bridge, "open_dialog", lambda *a, **k: None),
             getattr(bridge, "read_image_dataurl", lambda *a, **k: None),
             getattr(bridge, "read_exif_from_path", lambda *a, **k: None),
             getattr(bridge, "read_exif_from_dataurl", lambda *a, **k: None),
-
-            # tên thật trong Bridge (snake_case)
             getattr(bridge, "write_last_session", lambda *a, **k: None),
             getattr(bridge, "read_last_session",  lambda *a, **k: None),
+            getattr(bridge, "save_png_dialog", lambda *a, **k: None),
         )
         setattr(bridge, "saveLastSession", bridge.write_last_session)
         setattr(bridge, "loadLastSession", bridge.read_last_session)
 
-        # 3) Expose thêm 2 tên camelCase (PyWebview v5 cho phép expose nhiều lần)
         window.expose(
             getattr(bridge, "saveLastSession"),
             getattr(bridge, "loadLastSession"),

@@ -25,6 +25,7 @@ type Opts = {
     offsetX: number;
     offsetY: number;
   }) => void;
+  exporting?: boolean;
 };
 
 export function useImageCanvas(opts: Opts) {
@@ -38,6 +39,7 @@ export function useImageCanvas(opts: Opts) {
     loupe,
     pointer,
     uiActive = true,
+    exporting,
   } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -115,7 +117,7 @@ export function useImageCanvas(opts: Opts) {
     }
 
     // === LOUPE ===
-    if (loupe.on) {
+    if (!exporting && loupe.on) {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
       const size = loupe.size;
@@ -320,6 +322,7 @@ export function useImageCanvas(opts: Opts) {
     pointer.u,
     pointer.v,
     uiActive,
+    exporting,
   ]);
   return canvasRef;
 }

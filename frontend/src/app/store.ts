@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
@@ -91,19 +90,18 @@ type TabState = {
   name: string;
   layout: "auto";
   linkAll: boolean;
-  // sizes: { sidebar: number; leftSplit: number };
-  panes: PaneId[]; // các slot đang hiển thị
-  focusIndex: number; // pane đang focus (0..panes.length-1)
+  panes: PaneId[];
+  focusIndex: number;
   files: Record<PaneId, string | undefined>; // path tuyệt đối (từ Open)
   dataURL: Record<PaneId, string | undefined>; // dùng khi drop không có path
-  names: Record<PaneId, string | undefined>; // label ưu tiên hiển thị
+  names: Record<PaneId, string | undefined>;
   view: Record<PaneId, View>;
-  paneSize: Record<PaneId, PaneSize>; // <— NEW: kích thước khung vẽ theo pane
+  paneSize: Record<PaneId, PaneSize>;
   grid: GridState;
   exif: Record<PaneId, Exif | undefined>;
   showDetails: Record<PaneId, boolean>;
   loupe: LoupeState;
-  pointerNorm: Record<PaneId, { u: number; v: number }>; // vị trí con trỏ chuẩn hoá 0..1
+  pointerNorm: Record<PaneId, { u: number; v: number }>;
   sizes?: { sidebar?: number; leftSplit?: number };
   annotate: AnnotateState;
   strokes: Record<PaneId, Stroke[]>;
@@ -141,7 +139,6 @@ type AppState = {
   setView: (pane: PaneId, patch: Partial<View>) => void;
   fitView: (pane: PaneId, cw: number, ch: number) => void;
   applyPan: (pane: PaneId, dx: number, dy: number) => void;
-  // applyZoom: (pane: PaneId, factor: number, around?: { cx: number; cy: number; cw: number; ch: number }) => void;
 
   setPaneSize: (pane: PaneId, cw: number, ch: number) => void;
   resetView: (pane: PaneId) => void;
@@ -161,7 +158,6 @@ type AppState = {
 
   toggleLoupe: () => void;
   setLoupeSize: (px: number) => void;
-  // setLoupeZoom: (z: number) => void;
   setPointerNorm: (pane: PaneId, u: number, v: number) => void;
   setPointerNormAll: (u: number, v: number) => void;
 
@@ -194,6 +190,9 @@ type AppState = {
   appendStrokePoint: (panes: PaneId[], strokeId: string, p: StrokePt) => void;
   hoveredPane: PaneId | null;
   setHoveredPane: (pane: PaneId | null) => void;
+
+  exporting: boolean;
+  setExporting: (v: boolean) => void;
 };
 
 type SavedSession = {
@@ -240,6 +239,7 @@ function makeEmptyTab(name = "Untitled"): TabState {
     strokes: { A: [], B: [], C: [], D: [] },
   };
 }
+
 function panesFromSources(
   files: Record<PaneId, string | undefined>,
   dataURL: Record<PaneId, string | undefined>
@@ -248,6 +248,7 @@ function panesFromSources(
   console.log("[store] panesFromFiles ->", used);
   return used;
 }
+
 function usedPanes(
   files: Record<PaneId, string | undefined>,
   dataURL: Record<PaneId, string | undefined>
@@ -290,6 +291,9 @@ export const useApp = create<AppState>()(
     setSidebarPeek: (v) => set({ sidebarPeek: v }),
     setSidebarExpandedSize: (v) =>
       set({ sidebarExpandedSize: Math.max(4, Math.min(20, v)) }),
+
+    exporting: false,
+    setExporting: (v) => set(() => ({ exporting: v })),
 
     renameTab: (id, title) =>
       set((state) => ({
@@ -442,6 +446,7 @@ export const useApp = create<AppState>()(
         ),
       });
     },
+
     focusPrev: () => {
       const t = get().getActive()!;
       const len = t.panes.length || 1;
@@ -667,6 +672,7 @@ export const useApp = create<AppState>()(
         });
       });
     },
+
     nextEmptyPaneId: () => {
       const t = get().getActive()!;
       for (const id of ORDER) {
@@ -938,6 +944,7 @@ export const useApp = create<AppState>()(
       tabs.splice(toIndex, 0, moved);
       set({ tabs });
     },
+
     addImageFromDataURL: (dataURL) =>
       set((state) => {
         const tab = state.getActiveSafe();
@@ -993,6 +1000,7 @@ export const useApp = create<AppState>()(
 
         return { ...state, tabs: newTabs };
       }),
+
     toggleDraw: () =>
       set((state) => {
         const t = state.getActiveSafe();
@@ -1009,6 +1017,7 @@ export const useApp = create<AppState>()(
           ),
         };
       }),
+
     toggleErase: () =>
       set((state) => {
         const t = state.getActiveSafe();
@@ -1025,6 +1034,7 @@ export const useApp = create<AppState>()(
           ),
         };
       }),
+
     setBrushColor: (hex) =>
       set((state) => ({
         tabs: state.tabs.map((x) =>
@@ -1036,6 +1046,7 @@ export const useApp = create<AppState>()(
               }
         ),
       })),
+
     setBrushSize: (px) =>
       set((state) => ({
         tabs: state.tabs.map((x) =>
@@ -1047,6 +1058,7 @@ export const useApp = create<AppState>()(
               }
         ),
       })),
+
     setEraserSize: (px) =>
       set((state) => ({
         tabs: state.tabs.map((x) =>

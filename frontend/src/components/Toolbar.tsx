@@ -6,12 +6,12 @@ import {
   ImageIcon,
   Pencil,
   Eraser,
+  Download,
 } from "lucide-react";
 import { useApp } from "../app/store";
-import { openFileDialog } from "../app/bridge";
+import { openFileDialog, savePngDialog } from "../app/bridge";
 
 export default function Toolbar() {
-  // const t = useApp(s => s.getActive());
   const t = useApp((s) => s.getActiveSafe());
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
   // const toggleGrid   = useApp(s => s.toggleGrid);
@@ -23,9 +23,9 @@ export default function Toolbar() {
   // const applyZoom     = useApp(s => s.applyZoom);
   const toggleLoupe = useApp((s) => s.toggleLoupe);
   // const setLoupeSize = useApp(s => s.setLoupeSize);
+  // const setLoupeZoom = useApp(s => s.setLoupeZoom);
   const clearAllPanes = useApp((s) => s.clearAllPanes);
   const hasAny = !!t?.panes?.length;
-  // const setLoupeZoom = useApp(s => s.setLoupeZoom);
 
   // const handleOpen = async () => {
   //   const paneId = focusedPaneId; // lấy từ store/hook
@@ -34,18 +34,13 @@ export default function Toolbar() {
   //   useApp.getState().addFilesToActiveTabFromDialog(paths, paneId);
   // };
 
-  // async function onOpen() {
-  //   // nếu chưa có pane nào, chọn slot trống đầu tiên (A/B/C/D)
-  //   const target = t.panes.length ? t.panes[t.focusIndex] : nextEmpty() ?? "D";
-  //   console.log("[UI] Open -> target pane =", target);
-  //   const path = await openFileDialog(target);
-  //   if (path) setFileForPane(target, path);
-  //   if (!path) return;
-  // }
   const annotate = useApp((s) => s.getActiveSafe().annotate);
   const toggleDraw = useApp((s) => s.toggleDraw);
   const toggleErase = useApp((s) => s.toggleErase);
   const setBrushColor = useApp((s) => s.setBrushColor);
+
+  const setExporting = useApp((s) => s.setExporting);
+  const hasAnyImage = t.panes.some((id) => t.files[id] || t.dataURL[id]);
 
   async function onOpen() {
     // pane gốc để gửi xuống BE (dùng như hiện tại của bạn)
@@ -86,14 +81,149 @@ export default function Toolbar() {
     if (!id) return;
     resetView(id);
   }
-  // function on100() {
-  //   const id = activePane(); if (!id) return;
-  //   applyZoom(id, 2, { type: 'norm', u: 0.5, v: 0.5 });
-  // }
+
+  function sanitizeFilename(name: string) {
+    // Windows cấm: <>:"/\|?*
+    return (
+      (name || "SyncView")
+        // eslint-disable-next-line no-control-regex
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120)
+    );
+  }
+
+  function nextFrame() {
+    return new Promise<void>((r) => requestAnimationFrame(() => r()));
+  }
+
+  function canvasToDataURL(canvas: HTMLCanvasElement): Promise<string> {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("toBlob failed"));
+          const fr = new FileReader();
+          fr.onloadend = () => resolve(String(fr.result));
+          fr.onerror = () => reject(new Error("FileReader failed"));
+          fr.readAsDataURL(blob);
+        },
+        "image/png",
+        1
+      );
+    });
+  }
+
+  async function onExport() {
+    if (!hasAnyImage) return;
+
+    const gridEl = document.querySelector(
+      '[data-role="viewer-grid"]'
+    ) as HTMLElement | null;
+    if (!gridEl) {
+      alert("Không tìm thấy viewer grid để export.");
+      return;
+    }
+
+    // bật exporting để canvas redraw sạch (không loupe/cursor UI)
+    setExporting(true);
+    try {
+      // đợi 2 frame cho chắc redraw xong
+      await nextFrame();
+      await nextFrame();
+
+      const gridRect = gridEl.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      const out = document.createElement("canvas");
+      out.width = Math.max(1, Math.floor(gridRect.width * dpr));
+      out.height = Math.max(1, Math.floor(gridRect.height * dpr));
+
+      const ctx = out.getContext("2d");
+      if (!ctx) return;
+
+      // nền giống bg-neutral-950
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fillRect(0, 0, out.width, out.height);
+
+      for (const id of t.panes) {
+        if (!t.files[id] && !t.dataURL[id]) continue;
+
+        const paneWrap = gridEl.querySelector(
+          `[data-role="pane-wrap"][data-pane="${id}"]`
+        ) as HTMLElement | null;
+        if (!paneWrap) continue;
+
+        const pr = paneWrap.getBoundingClientRect();
+        const dx = Math.floor((pr.left - gridRect.left) * dpr);
+        const dy = Math.floor((pr.top - gridRect.top) * dpr);
+        const dw = Math.max(1, Math.floor(pr.width * dpr));
+        const dh = Math.max(1, Math.floor(pr.height * dpr));
+
+        const imgCanvas = paneWrap.querySelector(
+          'canvas[data-role="pane-image"]'
+        ) as HTMLCanvasElement | null;
+
+        const annCanvas = paneWrap.querySelector(
+          'canvas[data-role="pane-annot"]'
+        ) as HTMLCanvasElement | null;
+
+        if (imgCanvas) {
+          ctx.drawImage(
+            imgCanvas,
+            0,
+            0,
+            imgCanvas.width,
+            imgCanvas.height,
+            dx,
+            dy,
+            dw,
+            dh
+          );
+        }
+        if (annCanvas) {
+          ctx.drawImage(
+            annCanvas,
+            0,
+            0,
+            annCanvas.width,
+            annCanvas.height,
+            dx,
+            dy,
+            dw,
+            dh
+          );
+        }
+      }
+
+      const suggested = `${sanitizeFilename(t.name)}.png`;
+      const dataUrl = await canvasToDataURL(out);
+      const savedPath = await savePngDialog(dataUrl, suggested);
+      if (!savedPath) return;
+
+      console.log("[Export] saved ->", savedPath);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     // <div className="h-10 flex items-center px-3 text-sm border-b border-neutral-800"></div>
     <div className="h-10 flex items-center gap-2 px-2 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
+      {/* Link All */}
+      <div
+        onClick={toggleLinkAll}
+        title="Link (E)"
+        className={`px-2 py-1 rounded flex items-center justify-center gap-1 select-none cursor-pointer btn-width transition
+                    ${
+                      t.linkAll
+                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
+                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    }`}
+      >
+        <Link2 size={16} /> Link
+      </div>
+
       {/* Fit */}
       <div
         onClick={onFit}
@@ -175,19 +305,7 @@ export default function Toolbar() {
         </div>
       )}
 
-      {/* {annotate.mode === "erase" && (
-        <div
-          onClick={() =>
-            setEraserSize(
-              annotate.eraserSize >= 60 ? 12 : annotate.eraserSize + 12
-            )
-          }
-          title={`Eraser: ${annotate.eraserSize}px (RMB drag in pane)`}
-          className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer select-none ml-2"
-        >
-          {annotate.eraserSize}px
-        </div>
-      )} */}
+      {/* Open */}
       <div className="ml-auto" />
       <div
         onClick={onOpen}
@@ -199,19 +317,20 @@ export default function Toolbar() {
         <ImageIcon size={16} /> Open
       </div>
 
-      {/* Link All */}
+      {/* Export */}
       <div
-        onClick={toggleLinkAll}
-        title="Link (E)"
-        className={`px-2 py-1 rounded flex items-center justify-center gap-1 select-none cursor-pointer btn-width transition
-                    ${
-                      t.linkAll
-                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                    }`}
+        onClick={onExport}
+        title="Export workspace as PNG"
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center transition
+    ${
+      hasAnyImage
+        ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+        : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
+    }`}
       >
-        <Link2 size={16} /> Link
+        <Download size={16} /> Export
       </div>
+
       {/* Clear All */}
       <div
         onClick={() => hasAny && clearAllPanes()}
@@ -226,7 +345,7 @@ export default function Toolbar() {
         <Trash2 size={16} />
         Clear
       </div>
-      {/* <button onClick={on100} className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700">100%</button> */}
+
       {/* <button
         onClick={toggleGrid}
         title="Grid (#)"
@@ -238,13 +357,6 @@ export default function Toolbar() {
         title={`Grid size: ${t.grid.size}px`}
         className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs">
         {t.grid.size}px
-      </button> */}
-
-      {/* <button
-        onClick={() => setLoupeSize(t.loupe.size >= 240 ? 160 : t.loupe.size + 40)}
-        title={`Size: ${t.loupe.size}px`}
-        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs">
-        {t.loupe.size}px
       </button> */}
 
       {/* </div> */}

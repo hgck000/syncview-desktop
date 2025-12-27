@@ -30,8 +30,17 @@ export function useAnnotCanvas(opts: {
   pointer: Pointer;
   annotate: Annotate;
   uiActive?: boolean;
+  exporting?: boolean;
 }) {
-  const { paneId, view, loupe, pointer, annotate, uiActive = true } = opts;
+  const {
+    paneId,
+    view,
+    loupe,
+    pointer,
+    annotate,
+    uiActive = true,
+    exporting,
+  } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
   const drawStrokes = useCallback(
@@ -109,7 +118,7 @@ export function useAnnotCanvas(opts: {
     drawStrokes(ctx, cwCss, chCss, strokes);
 
     // Loupe: clear vùng loupe rồi vẽ lại strokes với transform “phóng quanh tâm”
-    if (loupe.on && loupe.zoom > 1) {
+    if (!exporting && loupe.on && loupe.zoom > 1) {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
       const size = loupe.size;
@@ -134,7 +143,7 @@ export function useAnnotCanvas(opts: {
     }
     // ==== Cursor preview (dot) ====
     // Vẽ SAU CÙNG để loupe không “xoá” nó
-    if (uiActive && annotate.mode === "draw") {
+    if (!exporting && uiActive && annotate.mode === "draw") {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
 
@@ -156,7 +165,7 @@ export function useAnnotCanvas(opts: {
       ctx.restore();
     }
 
-    if (uiActive && annotate.mode === "erase") {
+    if (!exporting && uiActive && annotate.mode === "erase") {
       const cx = pointer.u * cwCss;
       const cy = pointer.v * chCss;
 
@@ -184,6 +193,7 @@ export function useAnnotCanvas(opts: {
     annotate.eraserSize,
     view.scale,
     uiActive,
+    exporting,
   ]);
 
   const schedule = useCallback(() => {
@@ -215,6 +225,7 @@ export function useAnnotCanvas(opts: {
     annotate.eraserSize,
     annotate.color,
     annotate.size,
+    // exporting,
   ]);
 
   // subscribe strokes riêng → không rerender React, chỉ schedule canvas draw

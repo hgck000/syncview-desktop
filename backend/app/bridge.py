@@ -88,33 +88,6 @@ class Bridge:
             items.remove(path)
         items.insert(0, path)
         self.recent[pane] = items[:10]
-        
-    # def _exif_to_dict(self, img: Image.Image) -> Dict:
-    #     """Chuyển EXIF của Pillow sang dict khoẻ mạnh (keys human-readable)"""
-    #     out = {}
-    #     try:
-    #         raw = img.getexif() or {}
-    #     except Exception:
-    #         raw = {}
-    #     tagmap = {v: k for k, v in ExifTags.TAGS.items()}
-    #     def get(tag):
-    #         key = tagmap.get(tag)
-    #         return raw.get(key) if key is not None else None
-
-    #     out["Make"] = get("Make")
-    #     out["Model"] = get("Model")
-    #     out["DateTimeOriginal"] = get("DateTimeOriginal") or get("DateTime")
-    #     out["FNumber"] = self._ratio_to_float(get("FNumber"))
-    #     out["ExposureTime"] = self._ratio_to_float(get("ExposureTime"))
-    #     out["ISOSpeedRatings"] = get("ISOSpeedRatings") or get("PhotographicSensitivity")
-    #     out["FocalLength"] = self._ratio_to_float(get("FocalLength"))
-    #     out["LensModel"] = get("LensModel")
-    #     out["Orientation"] = get("Orientation")
-    #     try:
-    #         out["ImageWidth"], out["ImageHeight"] = img.size
-    #     except Exception:
-    #         pass
-    #     return out
 
     def _ratio_to_float(self, v):
         try:
@@ -125,20 +98,6 @@ class Bridge:
             return float(v)
         except Exception:
             return None
-
-    # def read_exif_from_path(self, path: str) -> Optional[Dict]:
-    #     try:
-    #         p = Path(path)
-    #         if not p.exists():
-    #             print(f"[Bridge][EXIF] not found: {path}")
-    #             return None
-    #         with Image.open(p) as im:
-    #             info = self._exif_to_dict(im)
-    #         print(f"[Bridge][EXIF] path OK: {path}")
-    #         return info
-    #     except Exception as e:
-    #         print(f"[Bridge][EXIF][ERROR] path: {e}")
-    #         return None
 
     def read_exif_from_dataurl(self, dataurl: str) -> Optional[Dict]:
         try:
@@ -327,29 +286,6 @@ class Bridge:
             pass
 
         return out
-
-
-    
-    # def read_exif_from_path(self, path: str) -> Optional[Dict]:
-    #     try:
-    #         p = Path(path)
-    #         if not p.exists():
-    #             print(f"[Bridge][EXIF] not found: {path}")
-    #             return None
-
-    #         with Image.open(p) as im:
-    #             info = self._exif_to_dict(im)
-    #         try:
-    #             info.setdefault("FileSize", p.stat().st_size)
-    #         except Exception as e:
-    #             print(f"[Bridge][EXIF][WARN] stat error for {path}: {e}")
-
-    #         print(f"[Bridge][EXIF] path OK: {path}")
-    #         return info
-
-    #     except Exception as e:
-    #         print(f"[Bridge][EXIF][ERROR] path: {e}")
-    #         return None
         
     def read_exif_from_path(self, path: str) -> Optional[Dict[str, Any]]:
         try:
@@ -373,3 +309,42 @@ class Bridge:
             print(f"[Bridge][EXIF][ERROR] path: {e}")
             return None
 
+    def save_png_dialog(self, dataurl: str, suggested_name: str = "SyncView.png") -> Optional[str]:
+        try:
+            if not self.window:
+                print("[Bridge][ERROR] window not attached")
+                return None
+
+            # đảm bảo có .png
+            name = suggested_name or "SyncView.png"
+            if not name.lower().endswith(".png"):
+                name += ".png"
+
+            result = self.window.create_file_dialog(
+                webview.SAVE_DIALOG,
+                directory=str(Path.home()),
+                save_filename=name,
+                file_types=("PNG (*.png)",)
+            )
+            if not result:
+                return None
+
+            # pywebview có thể trả string hoặc list
+            path = result[0] if isinstance(result, list) else result
+            p = Path(path)
+            if p.suffix.lower() != ".png":
+                p = p.with_suffix(".png")
+            p = p.expanduser().resolve()
+
+            # parse data URL
+            b64 = dataurl.split(",", 1)[1] if dataurl.startswith("data:") else dataurl
+            raw = base64.b64decode(b64)
+
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(raw)
+            print(f"[Bridge] saved png -> {p}")
+            return str(p)
+
+        except Exception as e:
+            print(f"[Bridge][ERROR] save_png_dialog: {e}")
+            return None

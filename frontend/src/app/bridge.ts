@@ -9,6 +9,10 @@ declare global {
         read_exif_from_path(path: string): Promise<any | null>;
         read_exif_from_dataurl(dataurl: string): Promise<any | null>;
         read_keymap?: () => Promise<Record<string, string> | null>;
+        save_png_dialog?: (
+          dataurl: string,
+          suggested_name: string
+        ) => Promise<string | null>;
       };
     };
     api?: {
@@ -50,25 +54,13 @@ export async function readExifFromPath(path: string) {
     ? await window.pywebview.api.read_exif_from_path(path)
     : null;
 }
+
 export async function readExifFromDataURL(dataurl: string) {
   console.log("[FE] readExifFromDataURL ->", dataurl?.slice(0, 32) + "...");
   return window.pywebview?.api?.read_exif_from_dataurl
     ? await window.pywebview.api.read_exif_from_dataurl(dataurl)
     : null;
 }
-
-// export async function openFileDialog(pane: string): Promise<string[] | null> {
-//   console.log("[FE] openFileDialog ->", pane);
-//   if (!window.pywebview?.api?.open_dialog) {
-//     console.warn("[FE] pywebview api not available");
-//     alert("Hãy chạy bằng backend/run_dev.py để dùng file dialog hệ thống.");
-//     return null;
-//   }
-//   const res = await window.pywebview.api.open_dialog(pane);
-//   console.log("[FE] openFileDialog <-", res);
-//   if (!res || !Array.isArray(res) || res.length === 0) return null;
-//   return res as string[];
-// }
 
 export async function openFileDialog(pane: string): Promise<string[] | null> {
   console.log("[FE] openFileDialog ->", pane);
@@ -151,4 +143,16 @@ export async function writeLastSession(data: any): Promise<boolean> {
     console.error("[bridge] writeLastSession error", e);
     return false;
   }
+}
+
+export async function savePngDialog(
+  dataurl: string,
+  suggestedName: string
+): Promise<string | null> {
+  const api = await waitForPywebviewApi();
+  if (!api?.save_png_dialog) {
+    alert("Save dialog chưa sẵn sàng. Hãy chạy bằng backend (pywebview).");
+    return null;
+  }
+  return (await api.save_png_dialog(dataurl, suggestedName)) ?? null;
 }

@@ -21,7 +21,6 @@ import {
 type Props = { id: "A" | "B" | "C" | "D" };
 
 export default function Pane({ id }: Props) {
-  // const t = useApp((s) => s.getActive())!;
   const t = useApp((s) => s.getActiveSafe());
   const panes = useApp((s) => s.getActiveSafe().panes);
   const files = useApp((s) => s.getActiveSafe().files);
@@ -32,6 +31,7 @@ export default function Pane({ id }: Props) {
   const pointer = useApp((s) => s.getActiveSafe().pointerNorm[id]);
   const linkAll = useApp((s) => s.getActiveSafe().linkAll);
   const annotate = useApp((s) => s.getActiveSafe().annotate);
+  const exporting = useApp((s) => s.exporting);
 
   const startStroke = useApp((s) => s.startStroke);
   const appendStrokePoint = useApp((s) => s.appendStrokePoint);
@@ -55,7 +55,6 @@ export default function Pane({ id }: Props) {
   const path = t.files[id];
   const data = t.dataURL[id];
   // const label = t.names[id] ?? basename(path) ?? `${id}: Empty`;
-  // const view = t.view[id];
 
   const setMeta = useApp((s) => s.setImageMeta);
   const setSize = useApp((s) => s.setPaneSize);
@@ -81,10 +80,6 @@ export default function Pane({ id }: Props) {
   // lưu vị trí con trỏ đã biết (chuẩn hoá) để dblclick dùng đúng chỗ đó
   const lastNormRef = useRef<{ u: number; v: number }>({ u: 0.5, v: 0.5 });
 
-  // const grid = t.grid;
-  // const loupe = t.loupe;
-
-  // const pointer = t.pointerNorm[id];
   const canvasRef = useImageCanvas({
     path,
     dataURL: data,
@@ -92,15 +87,18 @@ export default function Pane({ id }: Props) {
     grid,
     loupe: loupeForCanvas,
     pointer,
+    exporting,
     uiActive,
     onImageMeta: (w, h) => setMeta(id, w, h),
     onViewCompensate: (v) => setView(id, v),
   });
+
   const annotCanvasRef = useAnnotCanvas({
     paneId: id,
     view,
     loupe: loupeForCanvas,
     pointer,
+    exporting,
     uiActive,
     annotate: {
       mode: annotate.mode,
@@ -730,6 +728,8 @@ export default function Pane({ id }: Props) {
   return (
     <div
       ref={wrapRef}
+      data-role="pane-wrap"
+      data-pane={id}
       className={`relative min-h-0 bg-neutral-900 border rounded overflow-hidden ${
         focused ? "border-neutral-400" : "border-neutral-800"
       }`}
@@ -875,27 +875,18 @@ export default function Pane({ id }: Props) {
 
       <div className="h-full min-h-[180px]">
         {path || data ? (
-          // <div
-          //   ref={wrapRef}
-          //   className="relative w-full h-full bg-black"
-          //   onContextMenu={onContextMenu}
-          //   onMouseDown={onMouseDown}
-          //   onMouseMove={onMouseMove}
-          //   onMouseUp={onMouseUp}
-          //   onMouseLeave={onMouseLeave}
-          //   onWheel={onWheel}
-          //   onDoubleClick={onDoubleClick}
-          // >
           <div className="relative w-full h-full bg-black">
             {/* canvas ảnh */}
             <canvas
               ref={canvasRef}
+              data-role="pane-image"
               className="absolute inset-0 w-full h-full"
             />
 
             {/* canvas annotation vẽ đè */}
             <canvas
               ref={annotCanvasRef}
+              data-role="pane-annot"
               className="absolute inset-0 w-full h-full pointer-events-none"
             />
           </div>
