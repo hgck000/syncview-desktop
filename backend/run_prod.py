@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os, sys, threading, time, socket, traceback, uvicorn, webview
-import urllib.request, urllib.error
+import urllib.request
 from pathlib import Path
 from app.bridge import Bridge
 from fastapi import FastAPI

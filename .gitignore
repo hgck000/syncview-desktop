@@ -34,3 +34,5 @@ backend/app/*.log
 coverage/
 tmp/
 .cache/
+
+build.txt

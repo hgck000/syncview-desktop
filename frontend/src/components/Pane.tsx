@@ -325,10 +325,10 @@ export default function Pane({ id }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isEditableTarget(e)) return;
       if (e.code !== "Space") return;
+      if (isEditableTarget(e)) return;
 
-      // tránh bị scroll trang khi giữ Space
+      // preventDefault (chặn mặc định) để không bị scroll/nhảy focus khi giữ Space
       e.preventDefault();
       spaceDownRef.current = true;
     };
@@ -338,8 +338,10 @@ export default function Pane({ id }: Props) {
       spaceDownRef.current = false;
     };
 
+    // capture (bắt ở pha capture) để ăn Space sớm, tránh webview/DOM xử lý trước
     window.addEventListener("keydown", onKeyDown, { capture: true });
     window.addEventListener("keyup", onKeyUp, { capture: true });
+
     return () => {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("keyup", onKeyUp, { capture: true });
@@ -594,39 +596,33 @@ export default function Pane({ id }: Props) {
     if (!path && !data) return;
 
     // LMB
-    if (e.button === 0) {
-      const spacePan = spaceDownRef.current;
-
-      // Draw / Erase: mặc định vẽ, giữ Space thì pan
-      if (annotate.mode !== "none") {
-        if (spacePan) {
-          setDrag({ x: e.clientX, y: e.clientY });
-          return;
-        }
-
-        const p0 = mouseToImageUV(e);
-        if (!p0) return;
-
-        const targets = linkAll ? panes : [id];
-        const strokeId = startStroke(
-          targets as any,
-          annotate.mode === "erase" ? "erase" : "draw",
-          p0
-        );
-
-        drawRef.current = {
-          panes: targets as any,
-          strokeId,
-          last: p0,
-          raf: null,
-        };
+    if (e.button === 0 && annotate.mode !== "none") {
+      if (spaceDownRef.current) {
+        setDrag({ x: e.clientX, y: e.clientY });
         return;
       }
 
-      // Loupe (và các mode khác): pan bình thường
-      setDrag({ x: e.clientX, y: e.clientY });
+      const p0 = mouseToImageUV(e);
+      if (!p0) return;
+
+      const targets = linkAll ? panes : [id];
+      const strokeId = startStroke(
+        targets as any,
+        annotate.mode === "erase" ? "erase" : "draw",
+        p0
+      );
+
+      drawRef.current = {
+        panes: targets as any,
+        strokeId,
+        last: p0,
+        raf: null,
+      };
       return;
     }
+
+    // LMB pan như cũ
+    if (e.button === 0) setDrag({ x: e.clientX, y: e.clientY });
 
     // RMB: giữ nguyên logic resize hiện tại
     if (e.button === 2) {
