@@ -36,6 +36,45 @@ export type AnnotateState = {
   eraserSize: number;
 };
 
+export type TextStyle = {
+  fontFamily: "Arial" | "Times New Roman" | "Courier New" | "Verdana";
+  fontSizeImgPx: number; // cỡ chữ theo px “trên ảnh” (sẽ nhân total khi render)
+  color: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+};
+
+export type TextBox = {
+  id: number;
+  u: number; // 0..1 theo ảnh
+  v: number; // 0..1 theo ảnh
+  w: number; // 0..1 theo ảnh
+  h: number; // 0..1 theo ảnh
+  text: string;
+  committed: boolean; // commit xong thì không hiện viền
+  style: TextStyle;
+};
+
+export type TextToolState = {
+  on: boolean;
+  style: TextStyle;
+};
+
+export type TextUIState = {
+  selected: Record<PaneId, number | null>;
+  editing: { pane: PaneId; id: number } | null;
+};
+
+const DEFAULT_TEXT_STYLE: TextStyle = {
+  fontFamily: "Arial",
+  fontSizeImgPx: 28,
+  color: "#ffffff",
+  bold: false,
+  italic: false,
+  underline: false,
+};
+
 type GridState = { on: boolean; size: number; opacity: number };
 type PaneSize = { cw: number; ch: number };
 type Keymap = Record<string, string>;
@@ -83,6 +122,12 @@ const SAFE_EMPTY_TAB: TabState = {
   },
   annotate: { mode: "none", color: "#ff3b30", size: 4, eraserSize: 18 },
   strokes: { A: [], B: [], C: [], D: [] },
+  textTool: { on: false, style: DEFAULT_TEXT_STYLE },
+  textBoxes: { A: [], B: [], C: [], D: [] },
+  textUI: {
+    selected: { A: null, B: null, C: null, D: null },
+    editing: null,
+  },
 };
 
 type TabState = {
@@ -92,8 +137,8 @@ type TabState = {
   linkAll: boolean;
   panes: PaneId[];
   focusIndex: number;
-  files: Record<PaneId, string | undefined>; // path tuyệt đối (từ Open)
-  dataURL: Record<PaneId, string | undefined>; // dùng khi drop không có path
+  files: Record<PaneId, string | undefined>;
+  dataURL: Record<PaneId, string | undefined>;
   names: Record<PaneId, string | undefined>;
   view: Record<PaneId, View>;
   paneSize: Record<PaneId, PaneSize>;
@@ -105,6 +150,9 @@ type TabState = {
   sizes?: { sidebar?: number; leftSplit?: number };
   annotate: AnnotateState;
   strokes: Record<PaneId, Stroke[]>;
+  textTool: TextToolState;
+  textBoxes: Record<PaneId, TextBox[]>;
+  textUI: TextUIState;
 };
 
 type AppState = {
@@ -193,6 +241,34 @@ type AppState = {
 
   exporting: boolean;
   setExporting: (v: boolean) => void;
+
+  spaceDown: boolean;
+  setSpaceDown: (v: boolean) => void;
+
+  toggleText: () => void;
+  setTextToolStyle: (patch: Partial<TextStyle>) => void;
+
+  createTextBox: (
+    panes: PaneId[],
+    uiPane: PaneId,
+    box: Omit<TextBox, "id">
+  ) => number;
+  setTextBoxText: (panes: PaneId[], id: number, text: string) => void;
+  setTextBoxRect: (
+    panes: PaneId[],
+    id: number,
+    patch: Partial<Pick<TextBox, "u" | "v" | "w" | "h">>
+  ) => void;
+  commitTextBox: (panes: PaneId[], id: number) => void;
+  deleteTextBox: (panes: PaneId[], id: number) => void;
+
+  selectTextBox: (pane: PaneId, id: number | null) => void;
+  setEditingTextBox: (pane: PaneId | null, id: number | null) => void;
+  setTextBoxStyle: (
+    panes: PaneId[],
+    id: number,
+    patch: Partial<TextStyle>
+  ) => void;
 };
 
 type SavedSession = {
@@ -237,6 +313,12 @@ function makeEmptyTab(name = "Untitled"): TabState {
     layout: "auto",
     annotate: { mode: "none", color: "#ff3b30", size: 4, eraserSize: 18 },
     strokes: { A: [], B: [], C: [], D: [] },
+    textTool: { on: false, style: DEFAULT_TEXT_STYLE },
+    textBoxes: { A: [], B: [], C: [], D: [] },
+    textUI: {
+      selected: { A: null, B: null, C: null, D: null },
+      editing: null,
+    },
   };
 }
 
@@ -264,6 +346,10 @@ export const useApp = create<AppState>()(
     activeTabId: "",
     sidebarSize: 24,
     helpOn: false,
+
+    spaceDown: false,
+    setSpaceDown: (v) => set({ spaceDown: v }),
+
     hoveredPane: null,
     setHoveredPane: (pane) => set({ hoveredPane: pane }),
 
@@ -386,7 +472,6 @@ export const useApp = create<AppState>()(
           }
 
           const tabs: TabState[] = data.tabs.map((raw: any, idx: number) => {
-            // 👉 CLONE từ SAFE_EMPTY_TAB, không gọi SAFE_EMPTY_TAB()
             const base: TabState = {
               ...SAFE_EMPTY_TAB,
               id: raw.id ?? `tab-${idx + 1}`,
@@ -396,7 +481,7 @@ export const useApp = create<AppState>()(
             return {
               ...base,
               ...raw,
-              exif: {}, // luôn reset exif, sẽ được nạp lại qua readExifFromPath
+              exif: {},
             };
           });
 
@@ -775,6 +860,12 @@ export const useApp = create<AppState>()(
             ...t,
             loupe: { ...t.loupe, on: next, zoom: next ? 2 : t.loupe.zoom },
             annotate: { ...t.annotate, mode: next ? "none" : t.annotate.mode },
+            textTool: { ...t.textTool, on: false },
+            textUI: {
+              ...t.textUI,
+              editing: null,
+              selected: { A: null, B: null, C: null, D: null },
+            },
           };
         }),
       });
@@ -1013,6 +1104,12 @@ export const useApp = create<AppState>()(
                   ...x,
                   loupe: { ...x.loupe, on: false },
                   annotate: { ...x.annotate, mode: nextMode },
+                  textTool: { ...t.textTool, on: false },
+                  textUI: {
+                    ...t.textUI,
+                    editing: null,
+                    selected: { A: null, B: null, C: null, D: null },
+                  },
                 }
           ),
         };
@@ -1030,10 +1127,297 @@ export const useApp = create<AppState>()(
                   ...x,
                   loupe: { ...x.loupe, on: false },
                   annotate: { ...x.annotate, mode: nextMode },
+                  textTool: { ...t.textTool, on: false },
+                  textUI: {
+                    ...t.textUI,
+                    editing: null,
+                    selected: { A: null, B: null, C: null, D: null },
+                  },
                 }
           ),
         };
       }),
+
+    toggleText: () =>
+      set((state) => {
+        const t = state.getActiveSafe();
+        const next = !t.textTool.on;
+
+        const clearedSelected = {
+          A: null,
+          B: null,
+          C: null,
+          D: null,
+        } as Record<PaneId, null>;
+
+        return {
+          tabs: state.tabs.map((x) =>
+            x.id !== state.activeTabId
+              ? x
+              : {
+                  ...x,
+                  loupe: { ...x.loupe, on: false },
+                  annotate: { ...x.annotate, mode: "none" },
+                  textTool: { ...x.textTool, on: next },
+                  textUI: next
+                    ? x.textUI
+                    : { ...x.textUI, editing: null, selected: clearedSelected },
+                }
+          ),
+        };
+      }),
+
+    setTextToolStyle: (patch) =>
+      set((state) => ({
+        tabs: state.tabs.map((x) =>
+          x.id !== state.activeTabId
+            ? x
+            : {
+                ...x,
+                textTool: {
+                  ...x.textTool,
+                  style: { ...x.textTool.style, ...patch },
+                },
+              }
+        ),
+      })),
+
+    selectTextBox: (pane, id) =>
+      set((state) => {
+        const t = state.getActiveSafe();
+        const cleared = { A: null, B: null, C: null, D: null } as Record<
+          PaneId,
+          null
+        >;
+
+        const nextSelected = t.linkAll
+          ? ({ A: id, B: id, C: id, D: id } as Record<PaneId, number | null>)
+          : ({ ...cleared, [pane]: id } as Record<PaneId, number | null>);
+
+        return {
+          tabs: state.tabs.map((x) =>
+            x.id !== state.activeTabId
+              ? x
+              : { ...x, textUI: { ...x.textUI, selected: nextSelected } }
+          ),
+        };
+      }),
+
+    setEditingTextBox: (pane, id) =>
+      set((state) => {
+        const t = state.getActiveSafe();
+        const nextEditing = pane && id != null ? { pane, id } : null;
+
+        // khi edit thì auto select id đó (theo linkAll rules)
+        const cleared = { A: null, B: null, C: null, D: null } as Record<
+          PaneId,
+          null
+        >;
+        const nextSelected =
+          pane && id != null
+            ? t.linkAll
+              ? ({ A: id, B: id, C: id, D: id } as Record<
+                  PaneId,
+                  number | null
+                >)
+              : ({ ...cleared, [pane]: id } as Record<PaneId, number | null>)
+            : (cleared as Record<PaneId, number | null>);
+
+        return {
+          tabs: state.tabs.map((x) =>
+            x.id !== state.activeTabId
+              ? x
+              : {
+                  ...x,
+                  textUI: {
+                    ...x.textUI,
+                    editing: nextEditing,
+                    selected: nextSelected,
+                  },
+                }
+          ),
+        };
+      }),
+
+    createTextBox: (panes, uiPane, box) => {
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+
+          const nextTextBoxes = { ...tab.textBoxes };
+          for (const pid of panes) {
+            const arr = nextTextBoxes[pid] ? [...nextTextBoxes[pid]] : [];
+            arr.push({ ...box, id, style: { ...box.style } });
+            nextTextBoxes[pid] = arr;
+          }
+
+          // auto editing on UI pane
+          const cleared = { A: null, B: null, C: null, D: null } as Record<
+            PaneId,
+            null
+          >;
+          const selected = tab.linkAll
+            ? ({ A: id, B: id, C: id, D: id } as Record<PaneId, number | null>)
+            : ({ ...cleared, [uiPane]: id } as Record<PaneId, number | null>);
+
+          return {
+            ...tab,
+            textBoxes: nextTextBoxes,
+            textUI: { selected, editing: { pane: uiPane, id } },
+          };
+        }),
+      }));
+
+      return id;
+    },
+
+    setTextBoxText: (panes, id, text) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const nextTextBoxes = { ...tab.textBoxes };
+
+          for (const pid of panes) {
+            const arr = nextTextBoxes[pid];
+            if (!arr) continue;
+            nextTextBoxes[pid] = arr.map((b) =>
+              b.id === id ? { ...b, text } : b
+            );
+          }
+
+          return { ...tab, textBoxes: nextTextBoxes };
+        }),
+      })),
+
+    setTextBoxRect: (panes, id, patch) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const nextTextBoxes = { ...tab.textBoxes };
+
+          for (const pid of panes) {
+            const arr = nextTextBoxes[pid];
+            if (!arr) continue;
+            nextTextBoxes[pid] = arr.map((b) =>
+              b.id === id ? { ...b, ...patch } : b
+            );
+          }
+
+          return { ...tab, textBoxes: nextTextBoxes };
+        }),
+      })),
+
+    setTextBoxStyle: (panes, id, patch) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+
+          const nextTextBoxes = { ...tab.textBoxes };
+
+          for (const pid of panes) {
+            const arr = nextTextBoxes[pid];
+            if (!arr) continue;
+
+            nextTextBoxes[pid] = arr.map((b) => {
+              if (b.id !== id) return b;
+
+              // --- auto-scale height when font size changes ---
+              const prev = b.style?.fontSizeImgPx ?? 28;
+              const next = patch.fontSizeImgPx ?? prev;
+
+              const ratio = prev > 0 ? next / prev : 1;
+
+              let nextH = b.h;
+              if (patch.fontSizeImgPx != null) {
+                // nở theo tỉ lệ font
+                nextH = b.h * ratio;
+
+                // clamp tối thiểu/tối đa
+                nextH = Math.max(0.03, Math.min(1, nextH));
+
+                // không vượt đáy ảnh
+                nextH = Math.min(nextH, 1 - b.v);
+              }
+
+              return {
+                ...b,
+                h: nextH,
+                style: { ...b.style, ...patch },
+              };
+            });
+          }
+
+          return { ...tab, textBoxes: nextTextBoxes };
+        }),
+      })),
+
+    commitTextBox: (panes, id) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+
+          const nextTextBoxes = { ...tab.textBoxes };
+          let textValue = "";
+
+          // lấy text ở uiPane nào đó (pane đầu tiên tìm thấy)
+          for (const pid of panes) {
+            const found = nextTextBoxes[pid]?.find((b) => b.id === id);
+            if (found) {
+              textValue = found.text ?? "";
+              break;
+            }
+          }
+
+          const trimmed = textValue.trim();
+          for (const pid of panes) {
+            const arr = nextTextBoxes[pid];
+            if (!arr) continue;
+
+            if (!trimmed) {
+              nextTextBoxes[pid] = arr.filter((b) => b.id !== id);
+            } else {
+              nextTextBoxes[pid] = arr.map((b) =>
+                b.id === id ? { ...b, committed: true } : b
+              );
+            }
+          }
+
+          const cleared = { A: null, B: null, C: null, D: null } as Record<
+            PaneId,
+            null
+          >;
+          return {
+            ...tab,
+            textBoxes: nextTextBoxes,
+            textUI: { selected: cleared as any, editing: null },
+          };
+        }),
+      })),
+
+    deleteTextBox: (panes, id) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const nextTextBoxes = { ...tab.textBoxes };
+          for (const pid of panes) {
+            const arr = nextTextBoxes[pid];
+            if (!arr) continue;
+            nextTextBoxes[pid] = arr.filter((b) => b.id !== id);
+          }
+
+          const cleared = { A: null, B: null, C: null, D: null } as Record<
+            PaneId,
+            null
+          >;
+          return {
+            ...tab,
+            textBoxes: nextTextBoxes,
+            textUI: { ...tab.textUI, selected: cleared as any, editing: null },
+          };
+        }),
+      })),
 
     setBrushColor: (hex) =>
       set((state) => ({

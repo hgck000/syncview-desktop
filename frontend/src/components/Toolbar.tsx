@@ -14,18 +14,12 @@ import { openFileDialog, savePngDialog } from "../app/bridge";
 export default function Toolbar() {
   const t = useApp((s) => s.getActiveSafe());
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
-  // const toggleGrid   = useApp(s => s.toggleGrid);
-  // const setGridSize  = useApp(s => s.setGridSize);
   const toggleLinkAll = useApp((s) => s.toggleLinkAll);
   const setFileForPane = useApp((s) => s.setFileForPane);
   const nextEmpty = useApp((s) => s.nextEmptyPaneId);
   const resetView = useApp((s) => s.resetView);
-  // const applyZoom     = useApp(s => s.applyZoom);
   const toggleLoupe = useApp((s) => s.toggleLoupe);
-  // const setLoupeSize = useApp(s => s.setLoupeSize);
-  // const setLoupeZoom = useApp(s => s.setLoupeZoom);
   const clearAllPanes = useApp((s) => s.clearAllPanes);
-  const hasAny = !!t?.panes?.length;
 
   // const handleOpen = async () => {
   //   const paneId = focusedPaneId; // lấy từ store/hook
@@ -42,8 +36,23 @@ export default function Toolbar() {
   const setExporting = useApp((s) => s.setExporting);
   const hasAnyImage = t.panes.some((id) => t.files[id] || t.dataURL[id]);
 
+  const BTN_BASE =
+    "px-2 py-1 rounded flex items-center gap-1 select-none transition btn-width justify-center";
+  const BTN_DISABLED = "bg-neutral-800/60 text-neutral-700 cursor-not-allowed";
+
+  const btnToggle = (active: boolean) =>
+    !hasAnyImage
+      ? BTN_DISABLED
+      : active
+      ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
+      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer";
+
+  const btnAction = () =>
+    !hasAnyImage
+      ? BTN_DISABLED
+      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer";
+
   async function onOpen() {
-    // pane gốc để gửi xuống BE (dùng như hiện tại của bạn)
     const baseTarget = t.panes.length
       ? t.panes[t.focusIndex]
       : nextEmpty() ?? "D";
@@ -53,7 +62,6 @@ export default function Toolbar() {
     const paths = await openFileDialog(baseTarget);
     if (!paths || paths.length === 0) return;
 
-    // Helper: lấy lại tab mới nhất mỗi lần, tránh dùng t cũ nếu state đã đổi
     const state = useApp.getState();
     const getActive = state.getActiveSafe;
 
@@ -62,8 +70,7 @@ export default function Toolbar() {
       const panes = s.panes;
       const focusedPaneId = panes.length ? panes[s.focusIndex] : baseTarget;
 
-      // tìm pane trống (A/B/C/D) – dùng nextEmpty của bạn
-      const empty = nextEmpty(); // hàm này nên đọc từ store hiện tại
+      const empty = nextEmpty();
 
       const targetPane = empty ?? focusedPaneId;
       console.log("[UI] Open assign", path, "->", targetPane);
@@ -208,29 +215,21 @@ export default function Toolbar() {
   }
 
   return (
-    // <div className="h-10 flex items-center px-3 text-sm border-b border-neutral-800"></div>
     <div className="h-10 flex items-center gap-2 px-2 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
       {/* Link All */}
       <div
-        onClick={toggleLinkAll}
+        onClick={() => hasAnyImage && toggleLinkAll()}
         title="Link (E)"
-        className={`px-2 py-1 rounded flex items-center justify-center gap-1 select-none cursor-pointer btn-width transition
-                    ${
-                      t.linkAll
-                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                    }`}
+        className={`${BTN_BASE} ${btnToggle(t.linkAll)}`}
       >
         <Link2 size={16} /> Link
       </div>
 
       {/* Fit */}
       <div
-        onClick={onFit}
+        onClick={() => hasAnyImage && onFit()}
         title="Fit (D)"
-        className="px-2 py-1 rounded flex items-center gap-1
-                  bg-neutral-800 hover:bg-neutral-700 text-neutral-300
-                  cursor-pointer select-none transition btn-width justify-center"
+        className={`${BTN_BASE} ${btnAction()}`}
       >
         <Maximize size={16} />
         Fit
@@ -238,14 +237,9 @@ export default function Toolbar() {
 
       {/* Loupe */}
       <div
-        onClick={toggleLoupe}
+        onClick={() => hasAnyImage && toggleLoupe()}
         title="Loupe (V)"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer btn-width justify-center transition
-                    ${
-                      t.loupe.on
-                        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                    }`}
+        className={`${BTN_BASE} ${btnToggle(t.loupe.on)}`}
       >
         <Search size={16} />
         Loupe
@@ -253,14 +247,9 @@ export default function Toolbar() {
 
       {/* Draw */}
       <div
-        onClick={toggleDraw}
+        onClick={() => hasAnyImage && toggleDraw()}
         title="Draw (F)"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition btn-width justify-center
-    ${
-      annotate.mode === "draw"
-        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-    }`}
+        className={`${BTN_BASE} ${btnToggle(annotate.mode === "draw")}`}
       >
         <Pencil size={16} />
         Draw
@@ -268,20 +257,15 @@ export default function Toolbar() {
 
       {/* Erase */}
       <div
-        onClick={toggleErase}
+        onClick={() => hasAnyImage && toggleErase()}
         title="Erase (G)"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none cursor-pointer transition btn-width justify-center
-    ${
-      annotate.mode === "erase"
-        ? "bg-blue-600/60 hover:bg-blue-600 text-white"
-        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-    }`}
+        className={`${BTN_BASE} ${btnToggle(annotate.mode === "erase")}`}
       >
         <Eraser size={16} /> Erase
       </div>
 
       {/* controls */}
-      {annotate.mode === "draw" && (
+      {hasAnyImage && annotate.mode === "draw" && (
         <div className="relative group">
           <input
             type="color"
@@ -333,11 +317,11 @@ export default function Toolbar() {
 
       {/* Clear All */}
       <div
-        onClick={() => hasAny && clearAllPanes()}
+        onClick={() => hasAnyImage && clearAllPanes()}
         title="Clear all"
         className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center transition
                     ${
-                      hasAny
+                      hasAnyImage
                         ? "bg-neutral-800 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer"
                         : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
                     }`}
@@ -345,24 +329,6 @@ export default function Toolbar() {
         <Trash2 size={16} />
         Clear
       </div>
-
-      {/* <button
-        onClick={toggleGrid}
-        title="Grid (#)"
-        className={`px-2 py-1 rounded flex items-center gap-1 ${t.grid.on ? "bg-blue-700/60 hover:bg-blue-700" : "bg-neutral-800 hover:bg-neutral-700"}`}>
-        <LayoutGrid size={16}/> Grid
-      </button>
-      <button
-        onClick={() => setGridSize(t.grid.size === 32 ? 64 : t.grid.size === 64 ? 16 : 32)}
-        title={`Grid size: ${t.grid.size}px`}
-        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs">
-        {t.grid.size}px
-      </button> */}
-
-      {/* </div> */}
-      {/* <div className="ml-auto" />
-      <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 flex items-center gap-1"><Camera size={16}/> Snapshot</button>
-      <button className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700"><Sun size={16}/></button> */}
     </div>
   );
 }

@@ -159,25 +159,29 @@ export default function App() {
       const items = cd.items;
       if (!items || !items.length) return;
 
-      const blobs: Blob[] = [];
+      const files: File[] = [];
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) blobs.push(file);
+          const f = item.getAsFile();
+          if (f) files.push(f);
         }
       }
 
-      if (!blobs.length) return;
+      if (!files.length) return;
+
+      const collator = new Intl.Collator(undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      files.sort((a, b) => collator.compare(a.name, b.name));
 
       // mình xử lý paste image → chặn dán text vào đâu đó linh tinh
       ev.preventDefault();
 
-      for (const blob of blobs) {
-        const dataURL = await blobToDataURL(blob);
-        if (dataURL) {
-          addImageFromDataURL(dataURL);
-        }
+      for (const f of files) {
+        const dataURL = await blobToDataURL(f);
+        if (dataURL) addImageFromDataURL(dataURL);
       }
     }
 
