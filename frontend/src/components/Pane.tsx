@@ -21,17 +21,25 @@ import {
 type Props = { id: "A" | "B" | "C" | "D" };
 
 export default function Pane({ id }: Props) {
-  const t = useApp((s) => s.getActiveSafe());
   const panes = useApp((s) => s.getActiveSafe().panes);
-  const files = useApp((s) => s.getActiveSafe().files);
-  const dataURL = useApp((s) => s.getActiveSafe().dataURL);
+  const focusIndex = useApp((s) => s.getActiveSafe().focusIndex);
+
+  const path = useApp((s) => s.getActiveSafe().files[id]);
+  const data = useApp((s) => s.getActiveSafe().dataURL[id]);
+
   const view = useApp((s) => s.getActiveSafe().view[id]);
   const grid = useApp((s) => s.getActiveSafe().grid);
   const loupe = useApp((s) => s.getActiveSafe().loupe);
   const pointer = useApp((s) => s.getActiveSafe().pointerNorm[id]);
   const linkAll = useApp((s) => s.getActiveSafe().linkAll);
-  const annotate = useApp((s) => s.getActiveSafe().annotate);
+
+  const toolMode = useApp((s) => s.getActiveSafe().annotate.mode);
+  const brushSize = useApp((s) => s.getActiveSafe().annotate.size);
+  const eraserSize = useApp((s) => s.getActiveSafe().annotate.eraserSize);
+
   const exporting = useApp((s) => s.exporting);
+
+  const clearPane = useApp((s) => s.clearPane);
 
   const startStroke = useApp((s) => s.startStroke);
   const appendStrokePoint = useApp((s) => s.appendStrokePoint);
@@ -49,12 +57,8 @@ export default function Pane({ id }: Props) {
     pending?: { u: number; v: number };
   }>(null);
 
-  const idx = t.panes.indexOf(id);
-  const focused = idx === t.focusIndex;
-
-  const path = t.files[id];
-  const data = t.dataURL[id];
-  // const label = t.names[id] ?? basename(path) ?? `${id}: Empty`;
+  const idx = panes.indexOf(id);
+  const focused = idx === focusIndex;
 
   const setMeta = useApp((s) => s.setImageMeta);
   const setSize = useApp((s) => s.setPaneSize);
@@ -67,7 +71,7 @@ export default function Pane({ id }: Props) {
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [hovered, setHovered] = useState(false);
 
-  const hasImage = !!(t.files[id] || t.dataURL[id]);
+  const hasImage = !!(path || data);
 
   const loupeForCanvas = !hasImage
     ? { ...loupe, on: false }
@@ -100,17 +104,12 @@ export default function Pane({ id }: Props) {
     pointer,
     exporting,
     uiActive,
-    annotate: {
-      mode: annotate.mode,
-      color: annotate.color,
-      size: annotate.size,
-      eraserSize: annotate.eraserSize,
-    },
   });
 
-  const exif = t.exif?.[id];
+  const exif = useApp((s) => s.getActiveSafe().exif?.[id]);
 
-  const showDetails = t.showDetails[id];
+  const showDetails = useApp((s) => s.getActiveSafe().showDetails[id]);
+  const name = useApp((s) => s.getActiveSafe().names[id]);
   const detailsOpen = showDetails && hasImage;
   const setExif = useApp((s) => s.setExif);
   const toggleDetails = useApp((s) => s.toggleDetails);
@@ -126,14 +125,8 @@ export default function Pane({ id }: Props) {
   }>(null);
   // RMB resize: dùng pointer lock để cursor không “bay” khỏi pane
 
-  const clearPane = useApp((s) => s.clearPane);
   const displayName =
-    t.names[id] ??
-    (t.files[id]
-      ? basename(t.files[id]!)
-      : t.dataURL[id]
-      ? "(dropped image)"
-      : "(Empty)");
+    name ?? (path ? basename(path) : data ? "(dropped image)" : "(Empty)");
 
   const device =
     exif?.Make && exif?.Model
@@ -536,7 +529,7 @@ export default function Pane({ id }: Props) {
       const vN = (e.clientY - rect.top) / rect.height;
       lastNormRef.current = { u: uN, v: vN };
 
-      if (t.linkAll) setPointerNormAll(uN, vN);
+      if (linkAll) setPointerNormAll(uN, vN);
       else setPointerNorm(id, uN, vN);
       applyZoom(id, factor, { type: "norm", u: uN, v: vN });
     } else {
@@ -549,7 +542,7 @@ export default function Pane({ id }: Props) {
     const { u, v } = lastNormRef.current;
     if (Math.abs(view.scale - 1) < 0.01) {
       applyZoom(id, 3, { type: "norm", u, v });
-      if (t.linkAll) setPointerNormAll(u, v);
+      if (linkAll) setPointerNormAll(u, v);
       else setPointerNorm(id, u, v);
     } else {
       resetView(id);
@@ -585,16 +578,14 @@ export default function Pane({ id }: Props) {
   }
 
   function onContextMenu(e: React.MouseEvent) {
-    if (loupe.on || annotate.mode === "none") e.preventDefault();
+    if (loupe.on || toolMode === "none") e.preventDefault();
   }
 
   function onMouseDown(e: React.MouseEvent) {
-    const path = files[id];
-    const data = dataURL[id];
     if (!path && !data) return;
 
     // LMB
-    if (e.button === 0 && annotate.mode !== "none") {
+    if (e.button === 0 && toolMode !== "none") {
       if (spaceDownRef.current) {
         setDrag({ x: e.clientX, y: e.clientY });
         return;
@@ -606,7 +597,7 @@ export default function Pane({ id }: Props) {
       const targets = linkAll ? panes : [id];
       const strokeId = startStroke(
         targets as any,
-        annotate.mode === "erase" ? "erase" : "draw",
+        toolMode === "erase" ? "erase" : "draw",
         p0
       );
 
@@ -624,18 +615,18 @@ export default function Pane({ id }: Props) {
 
     // RMB: giữ nguyên logic resize hiện tại
     if (e.button === 2) {
-      if (annotate.mode === "erase") {
+      if (toolMode === "erase") {
         setRdrag({
           startX: e.clientX,
-          startSize: annotate.eraserSize,
+          startSize: eraserSize,
           kind: "eraser",
         });
         return;
       }
-      if (annotate.mode === "draw") {
+      if (toolMode === "draw") {
         setRdrag({
           startX: e.clientX,
-          startSize: annotate.size,
+          startSize: brushSize,
           kind: "brush",
         });
         return;
@@ -854,7 +845,7 @@ export default function Pane({ id }: Props) {
           </div>
         </div>
 
-        {(t.files[id] || t.dataURL[id]) && (
+        {(path || data) && (
           <div className="absolute top-1.5 right-1.5 pointer-events-auto">
             <div
               onClick={() => {

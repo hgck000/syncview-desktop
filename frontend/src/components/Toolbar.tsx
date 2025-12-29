@@ -7,12 +7,13 @@ import {
   Pencil,
   Eraser,
   Download,
+  LayoutGrid,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useApp } from "../app/store";
 import { openFileDialog, savePngDialog } from "../app/bridge";
 
 export default function Toolbar() {
-  const t = useApp((s) => s.getActiveSafe());
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
   const toggleLinkAll = useApp((s) => s.toggleLinkAll);
   const setFileForPane = useApp((s) => s.setFileForPane);
@@ -20,6 +21,28 @@ export default function Toolbar() {
   const resetView = useApp((s) => s.resetView);
   const toggleLoupe = useApp((s) => s.toggleLoupe);
   const clearAllPanes = useApp((s) => s.clearAllPanes);
+  const toggleLayout = useApp((s) => s.toggleLayout);
+
+  // Throttle update màu brush theo rAF để tránh re-render/draw quá dày khi kéo color picker
+  const colorRafRef = useRef<number | null>(null);
+  const pendingColorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (colorRafRef.current != null)
+        cancelAnimationFrame(colorRafRef.current);
+    };
+  }, []);
+
+  function setBrushColorThrottled(next: string) {
+    pendingColorRef.current = next;
+    if (colorRafRef.current != null) return;
+    colorRafRef.current = requestAnimationFrame(() => {
+      colorRafRef.current = null;
+      const c = pendingColorRef.current;
+      if (c) setBrushColor(c);
+    });
+  }
 
   // const handleOpen = async () => {
   //   const paneId = focusedPaneId; // lấy từ store/hook
@@ -28,13 +51,21 @@ export default function Toolbar() {
   //   useApp.getState().addFilesToActiveTabFromDialog(paths, paneId);
   // };
 
-  const annotate = useApp((s) => s.getActiveSafe().annotate);
   const toggleDraw = useApp((s) => s.toggleDraw);
   const toggleErase = useApp((s) => s.toggleErase);
   const setBrushColor = useApp((s) => s.setBrushColor);
 
   const setExporting = useApp((s) => s.setExporting);
-  const hasAnyImage = t.panes.some((id) => t.files[id] || t.dataURL[id]);
+  const hasAnyImage = useApp((s) => {
+    const t = s.getActiveSafe();
+    return t.panes.some((id) => t.files[id] || t.dataURL[id]);
+  });
+  const linkAll = useApp((s) => s.getActiveSafe().linkAll);
+  const loupeOn = useApp((s) => s.getActiveSafe().loupe.on);
+  const toolMode = useApp((s) => s.getActiveSafe().annotate.mode);
+  const brushColor = useApp((s) => s.getActiveSafe().annotate.color);
+  const paneCount = useApp((s) => s.getActiveSafe().panes.length);
+  const layout = useApp((s) => s.getActiveSafe().layout);
 
   const BTN_BASE =
     "px-2 py-1 rounded flex items-center gap-1 select-none transition btn-width justify-center";
@@ -53,8 +84,9 @@ export default function Toolbar() {
       : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer";
 
   async function onOpen() {
-    const baseTarget = t.panes.length
-      ? t.panes[t.focusIndex]
+    const t0 = useApp.getState().getActiveSafe();
+    const baseTarget = t0.panes.length
+      ? t0.panes[t0.focusIndex]
       : nextEmpty() ?? "D";
 
     console.log("[UI] Open -> base target pane =", baseTarget);
@@ -80,9 +112,9 @@ export default function Toolbar() {
   }
 
   function activePane() {
+    const t = useApp.getState().getActiveSafe();
     return t.panes[t.focusIndex];
   }
-
   function onFit() {
     const id = activePane();
     if (!id) return;
@@ -123,6 +155,8 @@ export default function Toolbar() {
 
   async function onExport() {
     if (!hasAnyImage) return;
+
+    const t = useApp.getState().getActiveSafe();
 
     const gridEl = document.querySelector(
       '[data-role="viewer-grid"]'
@@ -220,7 +254,7 @@ export default function Toolbar() {
       <div
         onClick={() => hasAnyImage && toggleLinkAll()}
         title="Link (E)"
-        className={`${BTN_BASE} ${btnToggle(t.linkAll)}`}
+        className={`${BTN_BASE} ${btnToggle(linkAll)}`}
       >
         <Link2 size={16} /> Link
       </div>
@@ -239,7 +273,7 @@ export default function Toolbar() {
       <div
         onClick={() => hasAnyImage && toggleLoupe()}
         title="Loupe (V)"
-        className={`${BTN_BASE} ${btnToggle(t.loupe.on)}`}
+        className={`${BTN_BASE} ${btnToggle(loupeOn)}`}
       >
         <Search size={16} />
         Loupe
@@ -249,7 +283,7 @@ export default function Toolbar() {
       <div
         onClick={() => hasAnyImage && toggleDraw()}
         title="Draw (F)"
-        className={`${BTN_BASE} ${btnToggle(annotate.mode === "draw")}`}
+        className={`${BTN_BASE} ${btnToggle(toolMode === "draw")}`}
       >
         <Pencil size={16} />
         Draw
@@ -259,18 +293,19 @@ export default function Toolbar() {
       <div
         onClick={() => hasAnyImage && toggleErase()}
         title="Erase (G)"
-        className={`${BTN_BASE} ${btnToggle(annotate.mode === "erase")}`}
+        className={`${BTN_BASE} ${btnToggle(toolMode === "erase")}`}
       >
         <Eraser size={16} /> Erase
       </div>
 
       {/* controls */}
-      {hasAnyImage && annotate.mode === "draw" && (
+      {hasAnyImage && toolMode === "draw" && (
         <div className="relative group">
           <input
             type="color"
-            value={annotate.color}
-            onChange={(e) => setBrushColor(e.target.value)}
+            value={brushColor}
+            onInput={(e) => setBrushColorThrottled(e.currentTarget.value)}
+            onChange={(e) => setBrushColorThrottled(e.currentTarget.value)}
             className="absolute inset-0 opacity-0 cursor-pointer"
             title="Brush color"
           />
@@ -284,7 +319,7 @@ export default function Toolbar() {
         group-hover:ring-2 group-hover:ring-blue-400/60
         transition
       "
-            style={{ backgroundColor: annotate.color }}
+            style={{ backgroundColor: brushColor }}
           />
         </div>
       )}
@@ -299,6 +334,27 @@ export default function Toolbar() {
                   cursor-pointer select-none transition btn-width justify-center"
       >
         <ImageIcon size={16} /> Open
+      </div>
+
+      {/* Layout toggle (2x2 <-> 1x4) */}
+      <div
+        onClick={() => paneCount === 4 && toggleLayout()}
+        title={
+          paneCount === 4
+            ? `Toggle layout (${layout === "row1x4" ? "1x4" : "2x2"})`
+            : "Layout toggle is available when you have 4 photos"
+        }
+        className={`px-2 py-1 rounded flex items-center gap-1
+            ${
+              paneCount === 4
+                ? layout === "row1x4"
+                  ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
+                  : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+                : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
+            }
+            select-none transition btn-width justify-center`}
+      >
+        <LayoutGrid size={16} /> Layout
       </div>
 
       {/* Export */}

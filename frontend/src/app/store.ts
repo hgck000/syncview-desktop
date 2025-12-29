@@ -133,7 +133,7 @@ const SAFE_EMPTY_TAB: TabState = {
 type TabState = {
   id: string;
   name: string;
-  layout: "auto";
+  layout: "auto" | "row1x4";
   linkAll: boolean;
   panes: PaneId[];
   focusIndex: number;
@@ -174,6 +174,7 @@ type AppState = {
   setSidebarSize: (v: number) => void;
   setLeftSplit: (v: number) => void;
   toggleLinkAll: () => void;
+  toggleLayout: () => void;
 
   focusNext: () => void;
   focusPrev: () => void;
@@ -478,9 +479,16 @@ export const useApp = create<AppState>()(
               name: raw.name ?? `Tab ${idx + 1}`,
             };
 
+            const layoutRaw = raw.layout;
+            const layout =
+              layoutRaw === "row1x4" || layoutRaw === "auto"
+                ? layoutRaw
+                : "auto";
+
             return {
               ...base,
               ...raw,
+              layout,
               exif: {},
             };
           });
@@ -518,6 +526,20 @@ export const useApp = create<AppState>()(
         tabs: tabs.map((t) =>
           t.id === activeTabId ? { ...t, linkAll: !t.linkAll } : t
         ),
+      });
+    },
+    toggleLayout: () => {
+      set((state) => {
+        const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
+        if (idx === -1) return state;
+
+        const tab = state.tabs[idx];
+        const nextLayout = tab.layout === "row1x4" ? "auto" : "row1x4";
+        if (tab.layout === nextLayout) return state;
+
+        const nextTabs = state.tabs.slice();
+        nextTabs[idx] = { ...tab, layout: nextLayout };
+        return { tabs: nextTabs };
       });
     },
 
@@ -1420,40 +1442,51 @@ export const useApp = create<AppState>()(
       })),
 
     setBrushColor: (hex) =>
-      set((state) => ({
-        tabs: state.tabs.map((x) =>
-          x.id !== state.activeTabId
-            ? x
-            : {
-                ...x,
-                annotate: { ...x.annotate, color: hex },
-              }
-        ),
-      })),
+      set((state) => {
+        const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
+        if (idx === -1) return state;
+
+        const tab = state.tabs[idx];
+        if (tab.annotate.color === hex) return state;
+
+        const nextTabs = state.tabs.slice();
+        nextTabs[idx] = { ...tab, annotate: { ...tab.annotate, color: hex } };
+        return { tabs: nextTabs };
+      }),
 
     setBrushSize: (px) =>
-      set((state) => ({
-        tabs: state.tabs.map((x) =>
-          x.id !== state.activeTabId
-            ? x
-            : {
-                ...x,
-                annotate: { ...x.annotate, size: clamp(px, 1, 280) },
-              }
-        ),
-      })),
+      set((state) => {
+        const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
+        if (idx === -1) return state;
+
+        const tab = state.tabs[idx];
+        const nextSize = clamp(px, 1, 280);
+        if (tab.annotate.size === nextSize) return state;
+
+        const nextTabs = state.tabs.slice();
+        nextTabs[idx] = {
+          ...tab,
+          annotate: { ...tab.annotate, size: nextSize },
+        };
+        return { tabs: nextTabs };
+      }),
 
     setEraserSize: (px) =>
-      set((state) => ({
-        tabs: state.tabs.map((x) =>
-          x.id !== state.activeTabId
-            ? x
-            : {
-                ...x,
-                annotate: { ...x.annotate, eraserSize: clamp(px, 4, 640) },
-              }
-        ),
-      })),
+      set((state) => {
+        const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
+        if (idx === -1) return state;
+
+        const tab = state.tabs[idx];
+        const nextSize = clamp(px, 4, 640);
+        if (tab.annotate.eraserSize === nextSize) return state;
+
+        const nextTabs = state.tabs.slice();
+        nextTabs[idx] = {
+          ...tab,
+          annotate: { ...tab.annotate, eraserSize: nextSize },
+        };
+        return { tabs: nextTabs };
+      }),
 
     startStroke: (panes, mode, p0) => {
       const id = `${Date.now().toString(36)}-${Math.random()

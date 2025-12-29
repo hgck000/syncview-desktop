@@ -112,15 +112,19 @@ function DragOverlay({ show, needsTab }: { show: boolean; needsTab: boolean }) {
 }
 
 export default function ViewerGrid() {
-  const t = useApp((s) => s.getActiveSafe());
   const has = useApp((s) => s.hasActive());
-  const n = t.panes.length;
+  const panes = useApp((s) => s.getActiveSafe().panes);
+  const layout = useApp((s) => s.getActiveSafe().layout);
+  const n = panes.length;
 
   const rootRef = useRef<HTMLDivElement>(null);
   const dragOver = useFileDragOver(rootRef);
 
-  // Quy tắc lưới mới: 1→1 cột, 2→2 cột, 3→3 cột, 4→2x2
+  // Quy tắc lưới:
+  // - Mặc định (layout = auto): 1→1 cột, 2→2 cột, 3→3 cột, 4→2x2
+  // - Khi layout = row1x4 và đang có 4 pane: 1 hàng x 4 cột
   const gridBase = "h-full p-1 gap-1 bg-neutral-950 grid auto-rows-fr";
+
   const gridClass =
     n === 1
       ? `${gridBase} grid-cols-1`
@@ -128,6 +132,8 @@ export default function ViewerGrid() {
       ? `${gridBase} grid-cols-2`
       : n === 3
       ? `${gridBase} grid-cols-3`
+      : layout === "row1x4"
+      ? `${gridBase} grid-cols-4 grid-rows-1`
       : `${gridBase} grid-cols-2 grid-rows-2`;
 
   const needsTab = !has || n === 0;
@@ -146,7 +152,7 @@ export default function ViewerGrid() {
           </div>
         ) : (
           <div className={gridClass} data-role="viewer-grid">
-            {t.panes.map((id) => (
+            {panes.map((id) => (
               <Pane key={id} id={id} />
             ))}
           </div>

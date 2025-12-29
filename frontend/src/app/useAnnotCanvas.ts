@@ -28,7 +28,6 @@ export function useAnnotCanvas(opts: {
   view: View;
   loupe: LoupeOpt;
   pointer: Pointer;
-  annotate: Annotate;
   uiActive?: boolean;
   exporting?: boolean;
 }) {
@@ -37,12 +36,25 @@ export function useAnnotCanvas(opts: {
     view,
     loupe,
     pointer,
-    annotate,
     uiActive = true,
-    exporting,
+    exporting = false,
   } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
+  const annotateRef = useRef<Annotate>(
+    useApp.getState().getActiveSafe().annotate
+  );
+  const uiActiveRef = useRef(uiActive);
+  const exportingRef = useRef(exporting);
+
+  useEffect(() => {
+    uiActiveRef.current = uiActive;
+  }, [uiActive]);
+
+  useEffect(() => {
+    exportingRef.current = exporting;
+  }, [exporting]);
+
   const drawStrokes = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -99,13 +111,19 @@ export function useAnnotCanvas(opts: {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const annotate = annotateRef.current;
+
     const rect = canvas.getBoundingClientRect();
     const cwCss = Math.max(1, rect.width);
     const chCss = Math.max(1, rect.height);
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(cwCss * dpr));
-    canvas.height = Math.max(1, Math.floor(chCss * dpr));
+    const wPx = Math.max(1, Math.floor(cwCss * dpr));
+    const hPx = Math.max(1, Math.floor(chCss * dpr));
+    if (canvas.width !== wPx || canvas.height !== hPx) {
+      canvas.width = wPx;
+      canvas.height = hPx;
+    }
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -187,10 +205,6 @@ export function useAnnotCanvas(opts: {
     pointer.u,
     pointer.v,
     drawStrokes,
-    annotate.mode,
-    annotate.color,
-    annotate.size,
-    annotate.eraserSize,
     view.scale,
     uiActive,
     exporting,
@@ -221,12 +235,22 @@ export function useAnnotCanvas(opts: {
     loupe.shape,
     pointer.u,
     pointer.v,
-    annotate.mode,
-    annotate.eraserSize,
-    annotate.color,
-    annotate.size,
     // exporting,
   ]);
+
+  // subscribe annotate riêng → đổi color/size chỉ redraw pane đang hover (uiActive)
+  useEffect(() => {
+    const unsub = useApp.subscribe(
+      (s) => s.getActiveSafe().annotate,
+      (a) => {
+        annotateRef.current = a;
+        if (uiActiveRef.current && !exportingRef.current) schedule();
+      }
+    );
+    return () => {
+      unsub();
+    };
+  }, [schedule]);
 
   // subscribe strokes riêng → không rerender React, chỉ schedule canvas draw
   useEffect(() => {
