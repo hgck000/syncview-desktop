@@ -237,6 +237,7 @@ type AppState = {
 
   startStroke: (panes: PaneId[], mode: StrokeMode, p0: StrokePt) => string;
   appendStrokePoint: (panes: PaneId[], strokeId: string, p: StrokePt) => void;
+  setStrokeLineEnd: (panes: PaneId[], strokeId: string, p1: StrokePt) => void;
   hoveredPane: PaneId | null;
   setHoveredPane: (pane: PaneId | null) => void;
 
@@ -1492,45 +1493,84 @@ export const useApp = create<AppState>()(
       const id = `${Date.now().toString(36)}-${Math.random()
         .toString(36)
         .slice(2, 8)}`;
-      set((state) => {
-        const t = state.getActiveSafe();
-        const size = mode === "erase" ? t.annotate.eraserSize : t.annotate.size;
-        const color = t.annotate.color;
 
-        return {
-          tabs: state.tabs.map((tab) => {
-            if (tab.id !== state.activeTabId) return tab;
-            const nextStrokes = { ...tab.strokes };
-            for (const pid of panes) {
-              const arr = nextStrokes[pid] ? [...nextStrokes[pid]] : [];
-              arr.push({ id, mode, color, size, pts: [p0] });
-              nextStrokes[pid] = arr;
-            }
-            return { ...tab, strokes: nextStrokes };
-          }),
-        };
+      set((state) => {
+        const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
+        if (idx === -1) return state;
+
+        const tab = state.tabs[idx];
+        const size =
+          mode === "erase" ? tab.annotate.eraserSize : tab.annotate.size;
+        const color = tab.annotate.color;
+
+        const nextStrokes = { ...tab.strokes };
+        for (const pid of panes) {
+          const arr = nextStrokes[pid] ? [...nextStrokes[pid]] : [];
+          arr.push({ id, mode, color, size, pts: [p0] });
+          nextStrokes[pid] = arr;
+        }
+
+        const nextTabs = state.tabs.slice();
+        nextTabs[idx] = { ...tab, strokes: nextStrokes };
+        return { tabs: nextTabs };
       });
+
       return id;
     },
 
     appendStrokePoint: (panes, strokeId, p) =>
-      set((state) => ({
-        tabs: state.tabs.map((tab) => {
-          if (tab.id !== state.activeTabId) return tab;
-          const nextStrokes = { ...tab.strokes };
-          for (const pid of panes) {
-            const arr = nextStrokes[pid];
-            if (!arr || arr.length === 0) continue;
-            const last = arr[arr.length - 1];
-            if (last.id !== strokeId) continue;
+      set((state) => {
+        const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
+        if (idx === -1) return state;
 
-            // clone nhẹ để tránh mutate
-            const nextLast: Stroke = { ...last, pts: [...last.pts, p] };
-            const nextArr = arr.slice(0, -1).concat(nextLast);
-            nextStrokes[pid] = nextArr;
-          }
-          return { ...tab, strokes: nextStrokes };
-        }),
-      })),
+        const tab = state.tabs[idx];
+        let changed = false;
+        const nextStrokes = { ...tab.strokes };
+
+        for (const pid of panes) {
+          const arr = nextStrokes[pid];
+          if (!arr || arr.length === 0) continue;
+          const last = arr[arr.length - 1];
+          if (last.id !== strokeId) continue;
+
+          const nextLast: Stroke = { ...last, pts: [...last.pts, p] };
+          nextStrokes[pid] = arr.slice(0, -1).concat(nextLast);
+          changed = true;
+        }
+
+        if (!changed) return state;
+        const nextTabs = state.tabs.slice();
+        nextTabs[idx] = { ...tab, strokes: nextStrokes };
+        return { tabs: nextTabs };
+      }),
+
+    setStrokeLineEnd: (panes, strokeId, p1) =>
+      set((state) => {
+        const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
+        if (idx === -1) return state;
+
+        const tab = state.tabs[idx];
+        let changed = false;
+        const nextStrokes = { ...tab.strokes };
+
+        for (const pid of panes) {
+          const arr = nextStrokes[pid];
+          if (!arr || arr.length === 0) continue;
+          const last = arr[arr.length - 1];
+          if (last.id !== strokeId) continue;
+
+          const p0 = last.pts[0];
+          if (!p0) continue;
+
+          const nextLast: Stroke = { ...last, pts: [p0, p1] };
+          nextStrokes[pid] = arr.slice(0, -1).concat(nextLast);
+          changed = true;
+        }
+
+        if (!changed) return state;
+        const nextTabs = state.tabs.slice();
+        nextTabs[idx] = { ...tab, strokes: nextStrokes };
+        return { tabs: nextTabs };
+      }),
   }))
 );

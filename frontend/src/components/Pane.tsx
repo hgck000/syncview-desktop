@@ -38,11 +38,11 @@ export default function Pane({ id }: Props) {
   const eraserSize = useApp((s) => s.getActiveSafe().annotate.eraserSize);
 
   const exporting = useApp((s) => s.exporting);
-
   const clearPane = useApp((s) => s.clearPane);
 
   const startStroke = useApp((s) => s.startStroke);
   const appendStrokePoint = useApp((s) => s.appendStrokePoint);
+  const setStrokeLineEnd = useApp((s) => s.setStrokeLineEnd);
   const setEraserSize = useApp((s) => s.setEraserSize);
   const setBrushSize = useApp((s) => s.setBrushSize);
 
@@ -55,6 +55,7 @@ export default function Pane({ id }: Props) {
     last?: { u: number; v: number };
     raf: number | null;
     pending?: { u: number; v: number };
+    lineMode?: boolean;
   }>(null);
 
   const idx = panes.indexOf(id);
@@ -80,6 +81,7 @@ export default function Pane({ id }: Props) {
     : loupe;
 
   const spaceDownRef = useRef(false);
+  const shiftDownRef = useRef(false);
 
   // lưu vị trí con trỏ đã biết (chuẩn hoá) để dblclick dùng đúng chỗ đó
   const lastNormRef = useRef<{ u: number; v: number }>({ u: 0.5, v: 0.5 });
@@ -316,6 +318,13 @@ export default function Pane({ id }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Shift: dùng để vẽ nét thẳng khi đang vẽ
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        if (isEditableTarget(e)) return;
+        shiftDownRef.current = true;
+        return;
+      }
+
       if (e.code !== "Space") return;
       if (isEditableTarget(e)) return;
 
@@ -325,6 +334,10 @@ export default function Pane({ id }: Props) {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        shiftDownRef.current = false;
+        return;
+      }
       if (e.code !== "Space") return;
       spaceDownRef.current = false;
     };
@@ -660,6 +673,16 @@ export default function Pane({ id }: Props) {
             const next = cur.pending;
             cur.pending = undefined;
             cur.raf = null;
+
+            // SHIFT: nếu đang giữ Shift (hoặc đã vào lineMode) thì ép stroke thành 1 đoạn thẳng (2 điểm)
+            const cur2 = drawRef.current;
+            const line = !!cur2 && (cur2.lineMode || shiftDownRef.current);
+            if (cur2 && line) {
+              cur2.lineMode = true;
+              setStrokeLineEnd(cur2.panes as any, cur2.strokeId, next);
+              cur2.last = next;
+              return;
+            }
 
             // bỏ điểm quá dày để giảm nặng
             const last = cur.last;
