@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   Link2,
   Maximize,
@@ -28,6 +29,7 @@ export default function Toolbar() {
   const toggleLayout = useApp((s) => s.toggleLayout);
   const toggleText = useApp((s) => s.toggleText);
   const setTextToolStyle = useApp((s) => s.setTextToolStyle);
+  const patchTextBoxStyle = useApp((s) => s.patchTextBoxStyle);
 
   const textOn = useApp((s) => s.getActiveSafe().textTool.on);
   const textStyle = useApp((s) => s.getActiveSafe().textTool.style);
@@ -35,6 +37,22 @@ export default function Toolbar() {
   // Throttle update màu brush theo rAF để tránh re-render/draw quá dày khi kéo color picker
   const colorRafRef = useRef<number | null>(null);
   const pendingColorRef = useRef<string | null>(null);
+
+  // const focusedPane = useApp((s) => {
+  //   const t = s.getActiveSafe();
+  //   return (t.panes?.[t.focusIndex] ?? "A") as any;
+  // });
+
+  const selectedBox = useApp((s) => {
+    const t = s.getActiveSafe();
+    const pane = (t.panes?.[t.focusIndex] ?? "A") as any;
+    const id = t.textUI.selected[pane];
+    if (id == null) return null;
+    return (t.textBoxes[pane] ?? []).find((b) => b.id === id) ?? null;
+  });
+
+  const textToolStyle = useApp((s) => s.getActiveSafe().textTool.style);
+  const shownTextStyle = selectedBox?.style ?? textToolStyle;
 
   useEffect(() => {
     return () => {
@@ -68,7 +86,6 @@ export default function Toolbar() {
   const brushColor = useApp((s) => s.getActiveSafe().annotate.color);
   const paneCount = useApp((s) => s.getActiveSafe().panes.length);
   const layout = useApp((s) => s.getActiveSafe().layout);
-  const patchTextBoxStyle = useApp((s) => s.patchTextBoxStyle);
 
   const rafTextColor = useRef<number | null>(null);
   const pendingTextColor = useRef<string>(textStyle.color);
@@ -284,6 +301,26 @@ export default function Toolbar() {
     patchTextBoxStyle(targets, id, patch);
   }
 
+  function styleTargetsForSelected(): any[] {
+    const t = useApp.getState().getActiveSafe();
+    const pane = (t.panes?.[t.focusIndex] ?? "A") as any;
+    return t.linkAll
+      ? ((t.panes?.length ? t.panes : (["A", "B", "C", "D"] as any[])) as any[])
+      : ([pane] as any[]);
+  }
+
+  function applyStyle(patch: any) {
+    if (selectedBox) {
+      patchTextBoxStyle(
+        styleTargetsForSelected() as any,
+        selectedBox.id,
+        patch
+      );
+    } else {
+      setTextToolStyle(patch);
+    }
+  }
+
   return (
     <div className="h-10 flex items-center gap-2 px-2 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
       {/* Link All */}
@@ -354,7 +391,7 @@ export default function Toolbar() {
           >
             <input
               type="color"
-              value={textStyle.color}
+              value={shownTextStyle.color}
               onInput={(e) => {
                 const color = (e.currentTarget as HTMLInputElement).value;
                 pendingTextColor.current = color;
@@ -362,7 +399,7 @@ export default function Toolbar() {
                 rafTextColor.current = requestAnimationFrame(() => {
                   rafTextColor.current = null;
                   const c = pendingTextColor.current;
-                  setTextToolStyle({ color: c });
+                  applyStyle({ color: c });
                   applyStyleToSelected({ color: c });
                 });
               }}
@@ -371,7 +408,7 @@ export default function Toolbar() {
 
             <div
               className="w-5 h-5 rounded-sm border border-white/30 shadow-inner shadow-black/40"
-              style={{ backgroundColor: textStyle.color }}
+              style={{ backgroundColor: shownTextStyle.color }}
             />
           </div>
 
@@ -406,16 +443,16 @@ export default function Toolbar() {
             <span className="text-xs text-neutral-400">Px</span>
             <input
               type="number"
-              min={8}
-              max={160}
-              step={1}
-              value={textStyle.fontSizeImgPx}
+              min={4}
+              max={300}
+              step={2}
+              value={shownTextStyle.fontSizeImgPx}
               onChange={(e) => {
                 const fontSizeImgPx = Math.max(
                   8,
                   Math.min(160, Number(e.currentTarget.value) || 28)
                 );
-                setTextToolStyle({ fontSizeImgPx });
+                applyStyle({ fontSizeImgPx });
                 applyStyleToSelected({ fontSizeImgPx });
               }}
               className="w-14 bg-transparent outline-none text-sm"
@@ -425,36 +462,30 @@ export default function Toolbar() {
           {/* Bold / Italic / Underline */}
           <div
             onClick={() => {
-              const bold = !textStyle.bold;
-              setTextToolStyle({ bold });
-              applyStyleToSelected({ bold });
+              applyStyle({ bold: !shownTextStyle.bold });
             }}
             title="Bold"
-            className={`${BTN_BASE} ${btnToggle(!!textStyle.bold)}`}
+            className={`${BTN_BASE} ${btnToggle(!!shownTextStyle.bold)}`}
           >
             <Bold size={16} />
           </div>
 
           <div
             onClick={() => {
-              const italic = !textStyle.italic;
-              setTextToolStyle({ italic });
-              applyStyleToSelected({ italic });
+              applyStyle({ italic: !shownTextStyle.italic });
             }}
             title="Italic"
-            className={`${BTN_BASE} ${btnToggle(!!textStyle.italic)}`}
+            className={`${BTN_BASE} ${btnToggle(!!shownTextStyle.italic)}`}
           >
             <Italic size={16} />
           </div>
 
           <div
             onClick={() => {
-              const underline = !textStyle.underline;
-              setTextToolStyle({ underline });
-              applyStyleToSelected({ underline });
+              applyStyle({ underline: !shownTextStyle.underline });
             }}
             title="Underline"
-            className={`${BTN_BASE} ${btnToggle(!!textStyle.underline)}`}
+            className={`${BTN_BASE} ${btnToggle(!!shownTextStyle.underline)}`}
           >
             <Underline size={16} />
           </div>

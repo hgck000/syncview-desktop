@@ -89,7 +89,6 @@ export default function TextLayer({
 
   const createTextBox = useApp((s) => s.createTextBox);
   const selectTextBox = useApp((s) => s.selectTextBox);
-  const setTextToolStyle = useApp((s) => s.setTextToolStyle);
   const setEditingTextBox = useApp((s) => s.setEditingTextBox);
   const setTextBoxText = useApp((s) => s.setTextBoxText);
   const setTextBoxRect = useApp((s) => s.setTextBoxRect);
@@ -336,7 +335,7 @@ export default function TextLayer({
                 if (t.linkAll) clearTextUI();
                 else clearTextUI(paneId);
                 selectTextBox(paneId, b.id);
-                setTextToolStyle({ ...b.style });
+                // setTextToolStyle({ ...b.style });
               }}
               onEdit={() => setEditingTextBox(paneId, b.id)}
               onChange={(val) => setTextBoxText(targets, b.id, val)}
