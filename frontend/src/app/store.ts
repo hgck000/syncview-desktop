@@ -1231,20 +1231,26 @@ export const useApp = create<AppState>()(
         };
       }),
 
-    setTextToolStyle: (patch) =>
-      set((state) => ({
-        tabs: state.tabs.map((x) =>
-          x.id !== state.activeTabId
-            ? x
-            : {
-                ...x,
-                textTool: {
-                  ...x.textTool,
-                  style: { ...x.textTool.style, ...patch },
-                },
-              }
-        ),
-      })),
+    setTextToolStyle: (patch) => {
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== s.activeTabId) return t;
+
+          const next = { ...t.textTool.style, ...patch };
+
+          const n = Number(next.fontSizeImgPx);
+          next.fontSizeImgPx = Math.max(
+            1,
+            Math.min(300, Number.isFinite(n) ? n : 28)
+          );
+
+          return {
+            ...t,
+            textTool: { ...t.textTool, style: next },
+          };
+        }),
+      }));
+    },
 
     selectTextBox: (pane, id) =>
       set((state) => {
@@ -1608,20 +1614,27 @@ export const useApp = create<AppState>()(
       });
     },
 
-    patchTextBoxStyle: (
-      panes: PaneId[],
-      id: number,
-      patch: Partial<TextStyle>
-    ) => {
+    patchTextBoxStyle: (panes, id, patch) => {
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
 
           const textBoxes = { ...t.textBoxes };
+
           for (const p of panes) {
-            textBoxes[p] = (textBoxes[p] ?? []).map((b) =>
-              b.id === id ? { ...b, style: { ...b.style, ...patch } } : b
-            );
+            textBoxes[p] = (textBoxes[p] ?? []).map((b) => {
+              if (b.id !== id) return b;
+
+              const nextStyle = { ...b.style, ...patch };
+
+              const n = Number(nextStyle.fontSizeImgPx);
+              nextStyle.fontSizeImgPx = Math.max(
+                1,
+                Math.min(300, Number.isFinite(n) ? n : 28)
+              );
+
+              return { ...b, style: nextStyle };
+            });
           }
 
           return { ...t, textBoxes };

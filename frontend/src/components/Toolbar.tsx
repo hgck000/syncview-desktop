@@ -443,14 +443,14 @@ export default function Toolbar() {
             <span className="text-xs text-neutral-400">Px</span>
             <input
               type="number"
-              min={4}
+              min={1}
               max={300}
               step={2}
               value={shownTextStyle.fontSizeImgPx}
               onChange={(e) => {
                 const fontSizeImgPx = Math.max(
-                  8,
-                  Math.min(160, Number(e.currentTarget.value) || 28)
+                  1,
+                  Math.min(300, Number(e.currentTarget.value) || 28)
                 );
                 applyStyle({ fontSizeImgPx });
                 applyStyleToSelected({ fontSizeImgPx });
