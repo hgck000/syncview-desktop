@@ -170,9 +170,24 @@ export default function Hotkeys() {
         const t = s.getActiveSafe?.() ?? s.getActive?.();
         if (t?.textTool?.on) {
           if (!t.textUI?.editing) {
-            const pane: any = t.panes?.[t.focusIndex] ?? "A";
-            const idSel = t.textUI?.selected?.[pane] ?? null;
-            if (idSel != null) {
+            let paneSel: any = null;
+            let idSel: any = null;
+
+            if (t.textUI?.editing) {
+              paneSel = t.textUI.editing.pane;
+              idSel = t.textUI.editing.id;
+            } else {
+              for (const p of ["A", "B", "C", "D"] as const) {
+                const id = t.textUI?.selected?.[p] ?? null;
+                if (id != null) {
+                  paneSel = p;
+                  idSel = id;
+                  break;
+                }
+              }
+            }
+
+            if (paneSel != null && idSel != null) {
               e.preventDefault();
               e.stopPropagation();
 
@@ -180,10 +195,23 @@ export default function Hotkeys() {
                 ? t.panes?.length
                   ? t.panes
                   : ["A", "B", "C", "D"]
-                : [pane];
+                : [paneSel];
+
               deleteTextBox(panes, idSel);
               return;
             }
+            // if (idSel != null) {
+            //   e.preventDefault();
+            //   e.stopPropagation();
+
+            //   const panes = t.linkAll
+            //     ? t.panes?.length
+            //       ? t.panes
+            //       : ["A", "B", "C", "D"]
+            //     : [paneSel];
+            //   deleteTextBox(panes, idSel);
+            //   return;
+            // }
           }
         }
       }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   Link2,
   Maximize,
@@ -14,7 +13,8 @@ import {
   Italic,
   Underline,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { useMemo, useRef, useEffect } from "react";
 import { useApp, type TextStyle, type PaneId } from "../app/store";
 import { openFileDialog, savePngDialog } from "../app/bridge";
 
@@ -38,21 +38,43 @@ export default function Toolbar() {
   const colorRafRef = useRef<number | null>(null);
   const pendingColorRef = useRef<string | null>(null);
 
-  // const focusedPane = useApp((s) => {
-  //   const t = s.getActiveSafe();
-  //   return (t.panes?.[t.focusIndex] ?? "A") as any;
-  // });
+  const sel = useApp(
+    useShallow((s) => {
+      const t = s.getActiveSafe();
+      return {
+        editing: t.textUI.editing,
+        selected: t.textUI.selected,
 
-  const selectedBox = useApp((s) => {
-    const t = s.getActiveSafe();
-    const pane = (t.panes?.[t.focusIndex] ?? "A") as any;
-    const id = t.textUI.selected[pane];
-    if (id == null) return null;
-    return (t.textBoxes[pane] ?? []).find((b) => b.id === id) ?? null;
-  });
+        textBoxes: t.textBoxes,
 
-  const textToolStyle = useApp((s) => s.getActiveSafe().textTool.style);
-  const shownTextStyle = selectedBox?.style ?? textToolStyle;
+        textToolStyle: t.textTool.style,
+
+        linkAll: t.linkAll,
+        panes: t.panes,
+      };
+    })
+  );
+
+  const selection = useMemo(() => {
+    // ưu tiên editing
+    if (sel.editing) {
+      const { pane, id } = sel.editing;
+      const box = (sel.textBoxes[pane] ?? []).find((b) => b.id === id) ?? null;
+      return box ? { pane, id, box } : null;
+    }
+
+    // nếu không editing, quét selected A-D
+    for (const p of ["A", "B", "C", "D"] as const) {
+      const id = sel.selected[p];
+      if (id != null) {
+        const box = (sel.textBoxes[p] ?? []).find((b) => b.id === id) ?? null;
+        return box ? { pane: p, id, box } : null;
+      }
+    }
+    return null;
+  }, [sel.editing, sel.selected, sel.textBoxes]);
+
+  const shownTextStyle = selection?.box.style ?? sel.textToolStyle;
 
   useEffect(() => {
     return () => {
@@ -287,35 +309,18 @@ export default function Toolbar() {
     }
   }
 
-  function applyStyleToSelected(patch: Partial<TextStyle>) {
-    const t = useApp.getState().getActiveSafe();
-    const pane = t.panes?.[t.focusIndex] ?? "A";
-    const id = t.textUI.selected[pane as PaneId];
-    if (id == null) return;
-
-    const targets = t.linkAll
-      ? t.panes?.length
-        ? (t.panes as PaneId[])
-        : (["A", "B", "C", "D"] as PaneId[])
-      : ([pane] as PaneId[]);
-    patchTextBoxStyle(targets, id, patch);
+  function styleTargetsForSelection(): PaneId[] {
+    if (!selection) return [];
+    return sel.linkAll
+      ? ((sel.panes?.length
+          ? (sel.panes as PaneId[])
+          : (["A", "B", "C", "D"] as PaneId[])) as PaneId[])
+      : ([selection.pane] as PaneId[]);
   }
 
-  function styleTargetsForSelected(): any[] {
-    const t = useApp.getState().getActiveSafe();
-    const pane = (t.panes?.[t.focusIndex] ?? "A") as any;
-    return t.linkAll
-      ? ((t.panes?.length ? t.panes : (["A", "B", "C", "D"] as any[])) as any[])
-      : ([pane] as any[]);
-  }
-
-  function applyStyle(patch: any) {
-    if (selectedBox) {
-      patchTextBoxStyle(
-        styleTargetsForSelected() as any,
-        selectedBox.id,
-        patch
-      );
+  function applyStyle(patch: Partial<TextStyle>) {
+    if (selection) {
+      patchTextBoxStyle(styleTargetsForSelection(), selection.id, patch);
     } else {
       setTextToolStyle(patch);
     }
@@ -400,7 +405,7 @@ export default function Toolbar() {
                   rafTextColor.current = null;
                   const c = pendingTextColor.current;
                   applyStyle({ color: c });
-                  applyStyleToSelected({ color: c });
+                  // applyStyleToSelected({ color: c });
                 });
               }}
               className="absolute inset-0 opacity-0 cursor-pointer"
@@ -420,9 +425,9 @@ export default function Toolbar() {
                 setTextToolStyle({
                   fontFamily: e.currentTarget.value as TextStyle["fontFamily"],
                 });
-                applyStyleToSelected({
-                  fontFamily: e.currentTarget.value as TextStyle["fontFamily"],
-                });
+                // applyStyleToSelected({
+                //   fontFamily: e.currentTarget.value as TextStyle["fontFamily"],
+                // });
               }}
               className="bg-transparent outline-none text-sm"
               title="Font"
@@ -453,7 +458,7 @@ export default function Toolbar() {
                   Math.min(300, Number(e.currentTarget.value) || 28)
                 );
                 applyStyle({ fontSizeImgPx });
-                applyStyleToSelected({ fontSizeImgPx });
+                // applyStyleToSelected({ fontSizeImgPx });
               }}
               className="w-14 bg-transparent outline-none text-sm"
             />
