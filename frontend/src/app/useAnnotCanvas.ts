@@ -44,28 +44,72 @@ function wrapText(
   text: string,
   maxWidth: number
 ) {
-  // hỗ trợ xuống dòng thủ công + wrap theo từ
   const paragraphs = String(text ?? "").split("\n");
   const lines: string[] = [];
 
+  const breakLongWord = (word: string) => {
+    // cắt word thành nhiều đoạn sao cho mỗi đoạn <= maxWidth
+    let s = word;
+    while (s.length > 0) {
+      let cut = 1;
+
+      // tăng cut đến khi vượt width
+      for (let i = 1; i <= s.length; i++) {
+        const part = s.slice(0, i);
+        if (ctx.measureText(part).width <= maxWidth) cut = i;
+        else break;
+      }
+
+      // an toàn: nếu maxWidth quá nhỏ, vẫn cắt 1 ký tự để tránh vòng lặp vô hạn
+      cut = Math.max(1, cut);
+
+      lines.push(s.slice(0, cut));
+      s = s.slice(cut);
+    }
+  };
+
   for (const para of paragraphs) {
-    const words = para.split(/\s+/).filter(Boolean);
+    // giữ nguyên khoảng trắng như DOM break-words/whitespace-pre-wrap?
+    // đơn giản: wrap theo space, nhưng nếu 1 "word" quá dài thì break word.
+    const words = para.split(/\s+/).filter((w) => w.length > 0);
+
     if (words.length === 0) {
-      lines.push(""); // giữ dòng trống
+      lines.push("");
       continue;
     }
 
-    let line = words[0];
-    for (let i = 1; i < words.length; i++) {
-      const test = `${line} ${words[i]}`;
+    let line = "";
+
+    for (const word of words) {
+      if (!line) {
+        // nếu word dài hơn maxWidth -> break-word
+        if (ctx.measureText(word).width <= maxWidth) {
+          line = word;
+        } else {
+          breakLongWord(word);
+          line = ""; // reset vì breakLongWord đã push line(s)
+        }
+        continue;
+      }
+
+      const test = `${line} ${word}`;
       if (ctx.measureText(test).width <= maxWidth) {
         line = test;
       } else {
+        // push line hiện tại
         lines.push(line);
-        line = words[i];
+
+        // bắt đầu line mới bằng word (hoặc break-word nếu quá dài)
+        if (ctx.measureText(word).width <= maxWidth) {
+          line = word;
+        } else {
+          breakLongWord(word);
+          line = "";
+        }
       }
     }
-    lines.push(line);
+
+    if (line) lines.push(line);
   }
 
   return lines;
@@ -232,19 +276,18 @@ export function useAnnotCanvas(opts: {
         const style = b.style;
         const fontPx = style.fontSizeImgPx * total;
 
-        // padding trong box
-        const pad = Math.max(2, Math.round(4 * total));
-        const maxWidth = Math.max(1, bw - pad * 2);
-        const maxHeight = Math.max(1, bh - pad * 2);
-
         ctx.save();
         ctx.font = buildFont(style, fontPx);
         ctx.fillStyle = style.color;
         ctx.textBaseline = "top";
 
+        // padding trong box
+        const pad = Math.max(2, Math.round(4 * total));
+        const maxWidth = Math.max(1, bw - pad * 2);
+        const maxHeight = Math.max(1, bh - pad * 2);
+
         // line height ~ 1.2
         const lineH = Math.max(6, fontPx * 1.2);
-
         const lines = wrapText(ctx, text, maxWidth);
 
         // render từng dòng, cắt nếu vượt chiều cao box
@@ -255,7 +298,7 @@ export function useAnnotCanvas(opts: {
           const xx = left + pad;
           ctx.fillText(line, xx, yy);
 
-          // underline
+          // // underline
           if (style.underline && line.length > 0) {
             ctx.strokeStyle = style.color;
             const tw = ctx.measureText(line).width;
