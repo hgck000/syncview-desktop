@@ -17,6 +17,8 @@ import {
   SunMedium,
   CircleX,
 } from "lucide-react";
+import { imgPxToStrokeUV, clamp } from "../app/annotCoords";
+import TextLayer from "./TextLayer";
 
 type Props = { id: "A" | "B" | "C" | "D" };
 
@@ -562,10 +564,6 @@ export default function Pane({ id }: Props) {
     }
   }
 
-  function clamp01(x: number) {
-    return Math.max(0, Math.min(1, x));
-  }
-
   function mouseToImageUV(e: React.MouseEvent) {
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return null;
@@ -578,16 +576,21 @@ export default function Pane({ id }: Props) {
 
     const iw = view.imgW,
       ih = view.imgH;
+
     const fit = Math.min(cwCss / iw, chCss / ih);
     const total = fit * view.scale;
+
     const w = iw * total,
       h = ih * total;
-    const x = (cwCss - w) / 2 + view.offsetX;
-    const y = (chCss - h) / 2 + view.offsetY;
+    const x0 = (cwCss - w) / 2 + view.offsetX;
+    const y0 = (chCss - h) / 2 + view.offsetY;
 
-    const u = clamp01((mx - x) / w);
-    const v = clamp01((my - y) / h);
-    return { u, v };
+    // (xImg, yImg) theo pixel ảnh
+    const xImg = clamp((mx - x0) / total, 0, iw);
+    const yImg = clamp((my - y0) / total, 0, ih);
+
+    // LƯU stroke theo square space isotropic
+    return imgPxToStrokeUV(iw, ih, xImg, yImg);
   }
 
   function onContextMenu(e: React.MouseEvent) {
@@ -903,6 +906,8 @@ export default function Pane({ id }: Props) {
               data-role="pane-annot"
               className="absolute inset-0 w-full h-full pointer-events-none"
             />
+            {/* Text layer: DOM overlay (select/edit/resize). Text thực tế sẽ được vẽ lên canvas annot để export. */}
+            <TextLayer paneId={id} view={view} />
           </div>
         ) : (
           <div className="h-full flex items-center justify-center text-neutral-500 select-none">

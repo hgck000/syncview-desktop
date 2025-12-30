@@ -37,7 +37,13 @@ export type AnnotateState = {
 };
 
 export type TextStyle = {
-  fontFamily: "Arial" | "Times New Roman" | "Courier New" | "Verdana";
+  fontFamily:
+    | "Arial"
+    | "Times New Roman"
+    | "Courier New"
+    | "Verdana"
+    | "Tahoma"
+    | "Georgia";
   fontSizeImgPx: number; // cỡ chữ theo px “trên ảnh” (sẽ nhân total khi render)
   color: string;
   bold: boolean;
@@ -267,6 +273,12 @@ type AppState = {
   selectTextBox: (pane: PaneId, id: number | null) => void;
   setEditingTextBox: (pane: PaneId | null, id: number | null) => void;
   setTextBoxStyle: (
+    panes: PaneId[],
+    id: number,
+    patch: Partial<TextStyle>
+  ) => void;
+  clearTextUI: (pane?: PaneId) => void;
+  patchTextBoxStyle: (
     panes: PaneId[],
     id: number,
     patch: Partial<TextStyle>
@@ -958,6 +970,13 @@ export const useApp = create<AppState>()(
             : 0;
           const showDetails = { ...t.showDetails, [pane]: false };
           const strokes = { ...t.strokes, [pane]: [] };
+          const textBoxes = { ...t.textBoxes, [pane]: [] };
+          const clearedSelected = {
+            A: null,
+            B: null,
+            C: null,
+            D: null,
+          } as Record<PaneId, null>;
           console.log("[store] clearPane", pane, "->", panes);
           return {
             ...t,
@@ -970,6 +989,12 @@ export const useApp = create<AppState>()(
             focusIndex,
             showDetails,
             strokes,
+            textBoxes,
+            textUI: {
+              ...t.textUI,
+              selected: clearedSelected as any,
+              editing: null,
+            },
             annotate: t.annotate,
           };
         }),
@@ -1001,6 +1026,12 @@ export const useApp = create<AppState>()(
             C: false,
             D: false,
           } as Record<PaneId, boolean>;
+          const clearedSelected = {
+            A: null,
+            B: null,
+            C: null,
+            D: null,
+          } as Record<PaneId, null>;
 
           return {
             ...t,
@@ -1012,6 +1043,16 @@ export const useApp = create<AppState>()(
             focusIndex: 0,
             view: freshView,
             showDetails,
+            strokes: { A: [], B: [], C: [], D: [] },
+            textBoxes: { A: [], B: [], C: [], D: [] },
+            textUI: {
+              ...t.textUI,
+              selected: clearedSelected as any,
+              editing: null,
+            },
+            loupe: { ...t.loupe, on: false },
+            annotate: { ...t.annotate, mode: "none" },
+            textTool: { ...t.textTool, on: false },
           };
         }),
       });
@@ -1543,6 +1584,50 @@ export const useApp = create<AppState>()(
         nextTabs[idx] = { ...tab, strokes: nextStrokes };
         return { tabs: nextTabs };
       }),
+
+    clearTextUI: (pane?: PaneId) => {
+      set((s) => {
+        const t = s.getActiveSafe();
+        const selected = { ...t.textUI.selected } as any;
+
+        if (pane) selected[pane] = null;
+        else {
+          selected.A = null;
+          selected.B = null;
+          selected.C = null;
+          selected.D = null;
+        }
+
+        return {
+          tabs: s.tabs.map((x) =>
+            x.id !== s.activeTabId
+              ? x
+              : { ...x, textUI: { ...x.textUI, selected, editing: null } }
+          ),
+        };
+      });
+    },
+
+    patchTextBoxStyle: (
+      panes: PaneId[],
+      id: number,
+      patch: Partial<TextStyle>
+    ) => {
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== s.activeTabId) return t;
+
+          const textBoxes = { ...t.textBoxes };
+          for (const p of panes) {
+            textBoxes[p] = (textBoxes[p] ?? []).map((b) =>
+              b.id === id ? { ...b, style: { ...b.style, ...patch } } : b
+            );
+          }
+
+          return { ...t, textBoxes };
+        }),
+      }));
+    },
 
     setStrokeLineEnd: (panes, strokeId, p1) =>
       set((state) => {

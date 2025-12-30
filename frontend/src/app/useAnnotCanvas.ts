@@ -1,6 +1,13 @@
 import { useEffect, useRef } from "react";
-import { useApp, type PaneId, type Stroke } from "./store";
+import {
+  useApp,
+  type PaneId,
+  type Stroke,
+  type TextBox,
+  type TextStyle,
+} from "./store";
 import { useCallback } from "react";
+import { strokeUVToImgPx } from "./annotCoords";
 
 type Pointer = { u: number; v: number };
 type LoupeOpt = {
@@ -22,6 +29,64 @@ type Annotate = {
   size: number;
   eraserSize: number;
 };
+
+function buildFont(style: TextStyle, fontPx: number) {
+  const weight = style.bold ? "700" : "400";
+  const italic = style.italic ? "italic " : "";
+  // ví dụ: "italic 700 24px Arial"
+  return `${italic}${weight} ${Math.max(6, Math.round(fontPx))}px ${
+    style.fontFamily
+  }`;
+}
+
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+) {
+  // hỗ trợ xuống dòng thủ công + wrap theo từ
+  const paragraphs = String(text ?? "").split("\n");
+  const lines: string[] = [];
+
+  for (const para of paragraphs) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push(""); // giữ dòng trống
+      continue;
+    }
+
+    let line = words[0];
+    for (let i = 1; i < words.length; i++) {
+      const test = `${line} ${words[i]}`;
+      if (ctx.measureText(test).width <= maxWidth) {
+        line = test;
+      } else {
+        lines.push(line);
+        line = words[i];
+      }
+    }
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+function drawUnderline(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  yBaseline: number,
+  textWidth: number,
+  thickness: number
+) {
+  const y = yBaseline + Math.max(1, thickness);
+  ctx.save();
+  ctx.lineWidth = thickness;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + textWidth, y);
+  ctx.stroke();
+  ctx.restore();
+}
 
 export function useAnnotCanvas(opts: {
   paneId: PaneId;
@@ -93,11 +158,15 @@ export function useAnnotCanvas(opts: {
 
         ctx.beginPath();
         const p0 = s.pts[0];
-        ctx.moveTo(x + p0.u * w, y + p0.v * h);
+        const p0img = strokeUVToImgPx(iw, ih, p0.u, p0.v);
+        ctx.moveTo(x + (p0img.x / iw) * w, y + (p0img.y / ih) * h);
+
         for (let i = 1; i < s.pts.length; i++) {
           const p = s.pts[i];
-          ctx.lineTo(x + p.u * w, y + p.v * h);
+          const pimg = strokeUVToImgPx(iw, ih, p.u, p.v);
+          ctx.lineTo(x + (pimg.x / iw) * w, y + (pimg.y / ih) * h);
         }
+
         ctx.stroke();
         ctx.restore();
       }
@@ -105,6 +174,105 @@ export function useAnnotCanvas(opts: {
       ctx.restore();
     },
     [view.imgW, view.imgH, view.scale, view.offsetX, view.offsetY]
+  );
+
+  const drawTextBoxes = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      cwCss: number,
+      chCss: number,
+      boxes: TextBox[]
+    ) => {
+      const iw = view.imgW ?? 0;
+      const ih = view.imgH ?? 0;
+      if (!iw || !ih) return;
+      if (!boxes || boxes.length === 0) return;
+
+      // y hệt drawStrokes: fit + total + x/y/w/h
+      const fit = Math.min(cwCss / iw, chCss / ih);
+      const total = fit * view.scale;
+      const w = iw * total;
+      const h = ih * total;
+      const x = (cwCss - w) / 2 + view.offsetX;
+      const y = (chCss - h) / 2 + view.offsetY;
+
+      // clip trong vùng ảnh (không vẽ chữ ra ngoài ảnh)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+
+      const t = useApp.getState().getActiveSafe();
+      const ui = t.textUI;
+      const exporting = useApp.getState().exporting;
+
+      // chỉ suppress khi user đang thao tác text (không áp dụng lúc export)
+      const suppress =
+        !exporting && t.textTool.on
+          ? new Set<number>([
+              ...(ui.editing && ui.editing.pane === paneId
+                ? [ui.editing.id]
+                : []),
+              ...(ui.selected[paneId] != null
+                ? [ui.selected[paneId] as number]
+                : []),
+            ])
+          : new Set<number>();
+
+      for (const b of boxes) {
+        if (suppress.has(b.id)) continue;
+        const text = (b.text ?? "").trimEnd();
+        if (!text.trim()) continue; // bỏ box rỗng (export không in gì)
+
+        const left = x + b.u * w;
+        const top = y + b.v * h;
+        const bw = b.w * w;
+        const bh = b.h * h;
+
+        const style = b.style;
+        const fontPx = style.fontSizeImgPx * total;
+
+        // padding trong box
+        const pad = Math.max(2, Math.round(4 * total));
+        const maxWidth = Math.max(1, bw - pad * 2);
+        const maxHeight = Math.max(1, bh - pad * 2);
+
+        ctx.save();
+        ctx.font = buildFont(style, fontPx);
+        ctx.fillStyle = style.color;
+        ctx.textBaseline = "top";
+
+        // line height ~ 1.2
+        const lineH = Math.max(6, fontPx * 1.2);
+
+        const lines = wrapText(ctx, text, maxWidth);
+
+        // render từng dòng, cắt nếu vượt chiều cao box
+        let yy = top + pad;
+        for (const line of lines) {
+          if (yy + lineH > top + pad + maxHeight + 0.5) break;
+
+          const xx = left + pad;
+          ctx.fillText(line, xx, yy);
+
+          // underline
+          if (style.underline && line.length > 0) {
+            ctx.strokeStyle = style.color;
+            const tw = ctx.measureText(line).width;
+            const thickness = Math.max(1, Math.round(fontPx / 14));
+            // baseline gần đáy line (vì textBaseline=top)
+            drawUnderline(ctx, xx, yy + fontPx, tw, thickness);
+          }
+
+          yy += lineH;
+        }
+
+        ctx.restore();
+      }
+
+      ctx.restore();
+    },
+    [view.imgW, view.imgH, view.scale, view.offsetX, view.offsetY, paneId]
   );
 
   const draw = useCallback(() => {
@@ -132,8 +300,13 @@ export function useAnnotCanvas(opts: {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, cwCss, chCss);
 
-    const strokes = useApp.getState().getActiveSafe().strokes[paneId] ?? [];
+    const t = useApp.getState().getActiveSafe();
+
+    const strokes = t.strokes[paneId] ?? [];
     drawStrokes(ctx, cwCss, chCss, strokes);
+
+    const boxes = t.textBoxes[paneId] ?? [];
+    drawTextBoxes(ctx, cwCss, chCss, boxes);
 
     // Loupe: clear vùng loupe rồi vẽ lại strokes với transform “phóng quanh tâm”
     if (!exporting && loupe.on && loupe.zoom > 1) {
@@ -156,6 +329,7 @@ export function useAnnotCanvas(opts: {
       ctx.translate(-cx, -cy);
 
       drawStrokes(ctx, cwCss, chCss, strokes);
+      drawTextBoxes(ctx, cwCss, chCss, boxes);
 
       ctx.restore();
     }
@@ -205,6 +379,7 @@ export function useAnnotCanvas(opts: {
     pointer.u,
     pointer.v,
     drawStrokes,
+    drawTextBoxes,
     view.scale,
     uiActive,
     exporting,
@@ -262,6 +437,30 @@ export function useAnnotCanvas(opts: {
       unsub();
     };
   }, [paneId, schedule]);
+
+  useEffect(() => {
+    const unsub = useApp.subscribe(
+      (s) => s.getActiveSafe().textBoxes[paneId],
+      () => schedule()
+    );
+    return () => unsub();
+  }, [paneId, schedule]);
+
+  useEffect(() => {
+    const unsub = useApp.subscribe(
+      (s) => s.getActiveSafe().textUI.selected[paneId],
+      () => schedule()
+    );
+    return () => unsub();
+  }, [paneId, schedule]);
+
+  useEffect(() => {
+    const unsub = useApp.subscribe(
+      (s) => s.getActiveSafe().textUI.editing,
+      () => schedule()
+    );
+    return () => unsub();
+  }, [schedule]);
 
   // resize observer
   useEffect(() => {

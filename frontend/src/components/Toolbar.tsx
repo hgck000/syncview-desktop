@@ -8,9 +8,13 @@ import {
   Eraser,
   Download,
   LayoutGrid,
+  Type,
+  Bold,
+  Italic,
+  Underline,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useApp } from "../app/store";
+import { useApp, type TextStyle, type PaneId } from "../app/store";
 import { openFileDialog, savePngDialog } from "../app/bridge";
 
 export default function Toolbar() {
@@ -22,6 +26,11 @@ export default function Toolbar() {
   const toggleLoupe = useApp((s) => s.toggleLoupe);
   const clearAllPanes = useApp((s) => s.clearAllPanes);
   const toggleLayout = useApp((s) => s.toggleLayout);
+  const toggleText = useApp((s) => s.toggleText);
+  const setTextToolStyle = useApp((s) => s.setTextToolStyle);
+
+  const textOn = useApp((s) => s.getActiveSafe().textTool.on);
+  const textStyle = useApp((s) => s.getActiveSafe().textTool.style);
 
   // Throttle update màu brush theo rAF để tránh re-render/draw quá dày khi kéo color picker
   const colorRafRef = useRef<number | null>(null);
@@ -44,13 +53,6 @@ export default function Toolbar() {
     });
   }
 
-  // const handleOpen = async () => {
-  //   const paneId = focusedPaneId; // lấy từ store/hook
-  //   const paths = await openFileDialog(paneId);
-  //   if (!paths) return;
-  //   useApp.getState().addFilesToActiveTabFromDialog(paths, paneId);
-  // };
-
   const toggleDraw = useApp((s) => s.toggleDraw);
   const toggleErase = useApp((s) => s.toggleErase);
   const setBrushColor = useApp((s) => s.setBrushColor);
@@ -66,10 +68,29 @@ export default function Toolbar() {
   const brushColor = useApp((s) => s.getActiveSafe().annotate.color);
   const paneCount = useApp((s) => s.getActiveSafe().panes.length);
   const layout = useApp((s) => s.getActiveSafe().layout);
+  const patchTextBoxStyle = useApp((s) => s.patchTextBoxStyle);
+
+  const rafTextColor = useRef<number | null>(null);
+  const pendingTextColor = useRef<string>(textStyle.color);
+
+  useEffect(() => {
+    return () => {
+      if (rafTextColor.current) cancelAnimationFrame(rafTextColor.current);
+    };
+  }, []);
 
   const BTN_BASE =
     "px-2 py-1 rounded flex items-center gap-1 select-none transition btn-width justify-center";
   const BTN_DISABLED = "bg-neutral-800/60 text-neutral-700 cursor-not-allowed";
+
+  const FONT_OPTIONS = [
+    "Arial",
+    "Verdana",
+    "Tahoma",
+    "Times New Roman",
+    "Georgia",
+    "Courier New",
+  ] as const;
 
   const btnToggle = (active: boolean) =>
     !hasAnyImage
@@ -115,6 +136,7 @@ export default function Toolbar() {
     const t = useApp.getState().getActiveSafe();
     return t.panes[t.focusIndex];
   }
+
   function onFit() {
     const id = activePane();
     if (!id) return;
@@ -248,6 +270,20 @@ export default function Toolbar() {
     }
   }
 
+  function applyStyleToSelected(patch: Partial<TextStyle>) {
+    const t = useApp.getState().getActiveSafe();
+    const pane = t.panes?.[t.focusIndex] ?? "A";
+    const id = t.textUI.selected[pane as PaneId];
+    if (id == null) return;
+
+    const targets = t.linkAll
+      ? t.panes?.length
+        ? (t.panes as PaneId[])
+        : (["A", "B", "C", "D"] as PaneId[])
+      : ([pane] as PaneId[]);
+    patchTextBoxStyle(targets, id, patch);
+  }
+
   return (
     <div className="h-10 flex items-center gap-2 px-2 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
       {/* Link All */}
@@ -297,6 +333,133 @@ export default function Toolbar() {
       >
         <Eraser size={16} /> Erase
       </div>
+
+      {/* Text */}
+      <div
+        onClick={() => hasAnyImage && toggleText()}
+        title="Text (T)"
+        className={`${BTN_BASE} ${btnToggle(textOn)}`}
+      >
+        <Type size={16} /> Text
+      </div>
+
+      {/* Text style controls */}
+      {textOn && hasAnyImage && (
+        <>
+          {/* Text color */}
+          <div
+            className="relative group px-2 py-1 rounded flex items-center justify-center
+                 bg-neutral-800 hover:bg-neutral-700 cursor-pointer transition"
+            title="Text color"
+          >
+            <input
+              type="color"
+              value={textStyle.color}
+              onInput={(e) => {
+                const color = (e.currentTarget as HTMLInputElement).value;
+                pendingTextColor.current = color;
+                if (rafTextColor.current) return;
+                rafTextColor.current = requestAnimationFrame(() => {
+                  rafTextColor.current = null;
+                  const c = pendingTextColor.current;
+                  setTextToolStyle({ color: c });
+                  applyStyleToSelected({ color: c });
+                });
+              }}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+
+            <div
+              className="w-5 h-5 rounded-sm border border-white/30 shadow-inner shadow-black/40"
+              style={{ backgroundColor: textStyle.color }}
+            />
+          </div>
+
+          {/* Font */}
+          <div className={`${BTN_BASE} bg-neutral-800 hover:bg-neutral-700`}>
+            <select
+              value={textStyle.fontFamily}
+              onChange={(e) => {
+                setTextToolStyle({
+                  fontFamily: e.currentTarget.value as TextStyle["fontFamily"],
+                });
+                applyStyleToSelected({
+                  fontFamily: e.currentTarget.value as TextStyle["fontFamily"],
+                });
+              }}
+              className="bg-transparent outline-none text-sm"
+              title="Font"
+            >
+              {FONT_OPTIONS.map((f) => (
+                <option key={f} value={f} className="bg-neutral-900">
+                  {f}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Font size */}
+          <div
+            className={`${BTN_BASE} bg-neutral-800 hover:bg-neutral-700`}
+            title="Font size (image px)"
+          >
+            <span className="text-xs text-neutral-400">Px</span>
+            <input
+              type="number"
+              min={8}
+              max={160}
+              step={1}
+              value={textStyle.fontSizeImgPx}
+              onChange={(e) => {
+                const fontSizeImgPx = Math.max(
+                  8,
+                  Math.min(160, Number(e.currentTarget.value) || 28)
+                );
+                setTextToolStyle({ fontSizeImgPx });
+                applyStyleToSelected({ fontSizeImgPx });
+              }}
+              className="w-14 bg-transparent outline-none text-sm"
+            />
+          </div>
+
+          {/* Bold / Italic / Underline */}
+          <div
+            onClick={() => {
+              const bold = !textStyle.bold;
+              setTextToolStyle({ bold });
+              applyStyleToSelected({ bold });
+            }}
+            title="Bold"
+            className={`${BTN_BASE} ${btnToggle(!!textStyle.bold)}`}
+          >
+            <Bold size={16} />
+          </div>
+
+          <div
+            onClick={() => {
+              const italic = !textStyle.italic;
+              setTextToolStyle({ italic });
+              applyStyleToSelected({ italic });
+            }}
+            title="Italic"
+            className={`${BTN_BASE} ${btnToggle(!!textStyle.italic)}`}
+          >
+            <Italic size={16} />
+          </div>
+
+          <div
+            onClick={() => {
+              const underline = !textStyle.underline;
+              setTextToolStyle({ underline });
+              applyStyleToSelected({ underline });
+            }}
+            title="Underline"
+            className={`${BTN_BASE} ${btnToggle(!!textStyle.underline)}`}
+          >
+            <Underline size={16} />
+          </div>
+        </>
+      )}
 
       {/* controls */}
       {hasAnyImage && toolMode === "draw" && (

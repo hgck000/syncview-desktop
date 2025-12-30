@@ -17,15 +17,6 @@ function isEditableTarget(e: KeyboardEvent) {
   );
 }
 
-// function isEditableTarget(ev: Event): boolean {
-//   const target = ev.target as HTMLElement | null;
-//   if (!target) return false;
-//   const tag = target.tagName;
-//   if (tag === "INPUT" || tag === "TEXTAREA") return true;
-//   if ((target as HTMLElement).isContentEditable) return true;
-//   return false;
-// }
-
 function comboKeyId(e: KeyboardEvent) {
   const parts: string[] = [];
   if (e.ctrlKey) parts.push("ctrl");
@@ -85,6 +76,8 @@ export default function Hotkeys() {
   const resetView = useApp((s) => s.resetView);
   const toggleDraw = useApp((s) => s.toggleDraw);
   const toggleErase = useApp((s) => s.toggleErase);
+  const toggleText = useApp((s) => s.toggleText);
+  const deleteTextBox = useApp((s) => s.deleteTextBox);
 
   const nextEmptyPaneId = useApp((s) => s.nextEmptyPaneId);
 
@@ -122,7 +115,6 @@ export default function Hotkeys() {
         e.preventDefault();
         if (t?.panes.length) toggleDetails(t.panes[t.focusIndex]);
       },
-      // "T": (e) => { if (isEditableTarget(e)) return; e.preventDefault(); toggleGrid(); },
       V: (e) => {
         if (isEditableTarget(e)) return;
         e.preventDefault();
@@ -148,6 +140,12 @@ export default function Hotkeys() {
         e.preventDefault();
         toggleErase();
       },
+      T: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        toggleText();
+      },
+
       // "ctrl+o": async (e) => {
       //   if (isEditableTarget(e)) return;
       //   e.preventDefault();
@@ -167,6 +165,28 @@ export default function Hotkeys() {
     // 2) FALLBACK CHO TỔ HỢP (modifier) — fix WebView “không ăn combo”
     const onKeyDown = async (e: KeyboardEvent) => {
       if (isEditableTarget(e)) return;
+      if (e.key === "Backspace" || e.key === "Delete") {
+        const s = useApp.getState() as any;
+        const t = s.getActiveSafe?.() ?? s.getActive?.();
+        if (t?.textTool?.on) {
+          if (!t.textUI?.editing) {
+            const pane: any = t.panes?.[t.focusIndex] ?? "A";
+            const idSel = t.textUI?.selected?.[pane] ?? null;
+            if (idSel != null) {
+              e.preventDefault();
+              e.stopPropagation();
+
+              const panes = t.linkAll
+                ? t.panes?.length
+                  ? t.panes
+                  : ["A", "B", "C", "D"]
+                : [pane];
+              deleteTextBox(panes, idSel);
+              return;
+            }
+          }
+        }
+      }
 
       const id = comboKeyId(e);
       switch (id) {
@@ -264,6 +284,8 @@ export default function Hotkeys() {
     nextEmptyPaneId,
     toggleDraw,
     toggleErase,
+    toggleText,
+    deleteTextBox,
   ]);
 
   return null;
