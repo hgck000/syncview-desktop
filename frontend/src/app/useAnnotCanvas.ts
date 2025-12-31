@@ -293,8 +293,6 @@ export function useAnnotCanvas(opts: {
         // render từng dòng, cắt nếu vượt chiều cao box
         let yy = top + pad;
         for (const line of lines) {
-          if (yy + lineH > top + pad + maxHeight + 0.5) break;
-
           const xx = left + pad;
           ctx.fillText(line, xx, yy);
 
@@ -303,7 +301,6 @@ export function useAnnotCanvas(opts: {
             ctx.strokeStyle = style.color;
             const tw = ctx.measureText(line).width;
             const thickness = Math.max(1, Math.round(fontPx / 14));
-            // baseline gần đáy line (vì textBaseline=top)
             drawUnderline(ctx, xx, yy + fontPx, tw, thickness);
           }
 

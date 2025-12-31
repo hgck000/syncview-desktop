@@ -104,6 +104,16 @@ function TextBoxView(props: {
     }
   }, [editing]);
 
+  useEffect(() => {
+    if (!editing) return;
+    const el = taRef.current;
+    if (!el) return;
+
+    // reset rồi đo scrollHeight để auto-grow
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [editing, box.text]);
+
   const fontFamily = box.style?.fontFamily ?? "Arial";
   const fontWeight = box.style?.bold ? "700" : "400";
   const fontStyle = box.style?.italic ? "italic" : "normal";
@@ -163,7 +173,7 @@ function TextBoxView(props: {
               onCommit();
             }
           }}
-          className="w-full h-full resize-none outline-none border-none bg-transparent"
+          className="w-full h-auto resize-none outline-none border-none bg-transparent"
           style={{
             color,
             fontFamily,
