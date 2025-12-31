@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp, type PaneId, type TextBox } from "../app/store";
@@ -538,7 +539,6 @@ export default function TextLayer({
                 if (t.linkAll) clearTextUI();
                 else clearTextUI(paneId);
                 selectTextBox(paneId, b.id);
-                // setTextToolStyle({ ...b.style });
               }}
               onEdit={() => setEditingTextBox(paneId, b.id)}
               onChange={(val) => setTextBoxText(targets, b.id, val)}

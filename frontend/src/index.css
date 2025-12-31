@@ -133,3 +133,16 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Hide number input spinners (Chrome/Edge/Safari) */
+input[type="number"].no-spin::-webkit-outer-spin-button,
+input[type="number"].no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide number input spinners (Firefox) */
+input[type="number"].no-spin {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

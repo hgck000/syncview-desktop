@@ -271,7 +271,6 @@ export function useAnnotCanvas(opts: {
         const left = x + b.u * w;
         const top = y + b.v * h;
         const bw = b.w * w;
-        const bh = b.h * h;
 
         const style = b.style;
         const fontPx = style.fontSizeImgPx * total;
@@ -284,7 +283,6 @@ export function useAnnotCanvas(opts: {
         // padding trong box
         const pad = Math.max(2, Math.round(4 * total));
         const maxWidth = Math.max(1, bw - pad * 2);
-        const maxHeight = Math.max(1, bh - pad * 2);
 
         // line height ~ 1.2
         const lineH = Math.max(6, fontPx * 1.2);

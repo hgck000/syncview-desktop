@@ -1241,7 +1241,7 @@ export const useApp = create<AppState>()(
           const n = Number(next.fontSizeImgPx);
           next.fontSizeImgPx = Math.max(
             1,
-            Math.min(300, Number.isFinite(n) ? n : 28)
+            Math.min(300, Number.isFinite(n) ? n : 1)
           );
 
           return {
@@ -1630,7 +1630,7 @@ export const useApp = create<AppState>()(
               const n = Number(nextStyle.fontSizeImgPx);
               nextStyle.fontSizeImgPx = Math.max(
                 1,
-                Math.min(300, Number.isFinite(n) ? n : 28)
+                Math.min(300, Number.isFinite(n) ? n : 1)
               );
 
               return { ...b, style: nextStyle };

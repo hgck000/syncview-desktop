@@ -879,9 +879,11 @@ export default function Pane({ id }: Props) {
                 clearPane(id);
               }}
               className="w-5 h-5 rounded-full flex items-center justify-center
-                        bg-white text-neutral-800/80
-                        hover:text-neutral-800
-                        active:scale-95 cursor-pointer transition"
+           bg-neutral-800/90 text-neutral-300
+           border border-neutral-700/60 shadow-sm
+           hover:bg-neutral-700 hover:text-white
+           active:scale-95 cursor-pointer transition
+           backdrop-blur-sm"
               title="Remove image"
             >
               <CircleX className="w-5 h-5" strokeWidth={2.2} />
