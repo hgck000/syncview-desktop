@@ -397,6 +397,8 @@ export default function TextLayer({
     if (!uv) {
       // click ra ngoài ảnh -> clear selection/editing
       if (textUI.editing || textUI.selected[paneId] != null) {
+        finishEditingIfNeeded(-1);
+        cleanupEmptySelectedIfNeeded();
         if (linkAll) clearTextUI();
         else clearTextUI(paneId);
       }
@@ -408,6 +410,8 @@ export default function TextLayer({
 
     // 3) Nếu đang editing/selected -> chỉ clear, không tạo mới
     if (textUI.editing || textUI.selected[paneId] != null) {
+      finishEditingIfNeeded(-1);
+      cleanupEmptySelectedIfNeeded();
       if (linkAll) clearTextUI();
       else clearTextUI(paneId);
       return;
@@ -477,6 +481,30 @@ export default function TextLayer({
     // bỏ editing + selection cũ
     if (t.linkAll) clearTextUI();
     else clearTextUI(ed.pane);
+  }
+
+  function cleanupEmptySelectedIfNeeded() {
+    const t = useApp.getState().getActiveSafe();
+
+    // nếu đang editing thì finishEditingIfNeeded sẽ xử lý
+    if (t.textUI.editing) return;
+
+    // tìm selected ở pane hiện tại (hoặc nếu linkAll thì cũng chỉ cần xử lý pane đang thao tác)
+    const idSel = t.textUI.selected[paneId];
+    if (idSel == null) return;
+
+    const arr = t.textBoxes?.[paneId] ?? [];
+    const box = arr.find((b) => b.id === idSel);
+    if (!box) return;
+
+    if (!(box.text ?? "").trim()) {
+      const targets: PaneId[] = t.linkAll
+        ? ((t.panes?.length
+            ? (t.panes as PaneId[])
+            : (["A", "B", "C", "D"] as PaneId[])) as PaneId[])
+        : ([paneId] as PaneId[]);
+      deleteTextBox(targets, box.id);
+    }
   }
 
   return (
