@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp, type PaneId, type TextBox } from "../app/store";
+import { cursorSet, cursorClear } from "../app/cursorManager";
 
 type View = {
   scale: number;
@@ -238,6 +239,7 @@ export default function TextLayer({
   const clearTextUI = useApp((s) => s.clearTextUI);
 
   const [spaceDown, setSpaceDown] = useState(false);
+  const spaceDownRef = useRef(false);
 
   const paneSize = tab.paneSize?.[paneId];
   const cwCss = Math.max(1, paneSize?.cw || hostSize.cw);
@@ -326,34 +328,70 @@ export default function TextLayer({
   }, [imgRect, setTextBoxRect, targets, textBoxes]);
 
   useEffect(() => {
-    const onDown = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
-        // đừng block nếu đang gõ trong textarea
-        const t = e.target as HTMLElement | null;
-        const tag = t?.tagName?.toLowerCase();
-        if (
-          tag === "textarea" ||
-          tag === "input" ||
-          (t as any)?.isContentEditable
-        )
-          return;
-
-        setSpaceDown(true);
-      }
+    const enablePanCursor = () => {
+      cursorSet("pan", "grab", 10);
     };
 
-    const onUp = (e: KeyboardEvent) => {
-      if (e.code === "Space") setSpaceDown(false);
+    const disablePanCursor = () => {
+      cursorClear("pan");
     };
 
-    window.addEventListener("keydown", onDown);
-    window.addEventListener("keyup", onUp);
-    window.addEventListener("blur", () => setSpaceDown(false));
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      if (e.repeat) return;
+
+      // tránh khi đang typing
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      if (
+        tag === "textarea" ||
+        tag === "input" ||
+        (el as any)?.isContentEditable
+      )
+        return;
+
+      e.preventDefault();
+      setSpaceDown(true);
+      enablePanCursor();
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      setSpaceDown(false);
+      disablePanCursor();
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (!spaceDownRef.current) return;
+      if (e.button !== 0) return;
+      cursorSet("pan", "grabbing", 10);
+    };
+
+    const onMouseUp = () => {
+      if (!spaceDownRef.current) return;
+      cursorSet("pan", "grab", 10);
+    };
+
+    const onBlur = () => disablePanCursor();
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") disablePanCursor();
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("mousedown", onMouseDown, true);
+    window.addEventListener("mouseup", onMouseUp, true);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      window.removeEventListener("keydown", onDown);
-      window.removeEventListener("keyup", onUp);
-      window.removeEventListener("blur", () => setSpaceDown(false));
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("mousedown", onMouseDown, true);
+      window.removeEventListener("mouseup", onMouseUp, true);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVisibility);
+      disablePanCursor();
     };
   }, []);
 

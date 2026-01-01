@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { imgPxToStrokeUV, clamp } from "../app/annotCoords";
 import TextLayer from "./TextLayer";
+import { cursorSet, cursorClear } from "../app/cursorManager";
 
 type Props = { id: "A" | "B" | "C" | "D" };
 
@@ -217,14 +218,10 @@ export default function Pane({ id }: Props) {
   useEffect(() => {
     if (!rdrag) return;
 
-    // show cursor + feedback
-    const prevCursor = document.body.style.cursor;
-    document.body.style.cursor = "ew-resize";
+    cursorSet("rdrag", "ew-resize", 100);
 
     const onMove = (ev: MouseEvent) => {
-      // dx theo clientX (cursor vẫn chạy bình thường)
       const dx = ev.clientX - rdrag.startX;
-
       const step = rdrag.kind === "brush" ? 1 : 10;
       const next = rdrag.startSize + Math.round(dx / 4) * step;
 
@@ -234,13 +231,11 @@ export default function Pane({ id }: Props) {
     };
 
     const stop = () => {
-      document.body.style.cursor = prevCursor;
+      cursorClear("rdrag");
       setRdrag(null);
     };
 
     const onUp = () => stop();
-
-    // chặn context menu trong lúc RMB resize
     const onCtx = (ev: MouseEvent) => ev.preventDefault();
 
     window.addEventListener("mousemove", onMove, true);
@@ -251,7 +246,7 @@ export default function Pane({ id }: Props) {
       window.removeEventListener("mousemove", onMove, true);
       window.removeEventListener("mouseup", onUp, true);
       window.removeEventListener("contextmenu", onCtx, true);
-      document.body.style.cursor = prevCursor;
+      cursorClear("rdrag");
     };
   }, [rdrag, setBrushSize, setEraserSize, setLoupeSize]);
 
@@ -260,7 +255,7 @@ export default function Pane({ id }: Props) {
 
     (async () => {
       if (!path && !data) return;
-      if (exif) return; // đã có exif cho pane này rồi
+      if (exif) return;
 
       const res = path
         ? await readExifFromPath(path)
