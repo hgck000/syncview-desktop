@@ -15,7 +15,8 @@ import {
   Aperture,
   Timer,
   SunMedium,
-  CircleX,
+  X,
+  Star,
 } from "lucide-react";
 import { imgPxToStrokeUV, clamp } from "../app/annotCoords";
 import TextLayer from "./TextLayer";
@@ -41,7 +42,6 @@ export default function Pane({ id }: Props) {
   const eraserSize = useApp((s) => s.getActiveSafe().annotate.eraserSize);
 
   const exporting = useApp((s) => s.exporting);
-  const clearPane = useApp((s) => s.clearPane);
 
   const startStroke = useApp((s) => s.startStroke);
   const appendStrokePoint = useApp((s) => s.appendStrokePoint);
@@ -867,11 +867,14 @@ export default function Pane({ id }: Props) {
         </div>
 
         {(path || data) && (
-          <div className="absolute top-1.5 right-1.5 pointer-events-auto">
+          <div className="absolute top-1.5 right-1.5 pointer-events-auto flex flex-row gap-1.5">
             <div
-              onClick={() => {
-                console.log(`[pane:${id}] delete via CircleX`);
-                clearPane(id);
+              title="Keep"
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                useApp.getState().favoritePane(id);
               }}
               className="w-5 h-5 rounded-full flex items-center justify-center
            bg-neutral-800/90 text-neutral-300
@@ -879,9 +882,25 @@ export default function Pane({ id }: Props) {
            hover:bg-neutral-700 hover:text-white
            active:scale-95 cursor-pointer transition
            backdrop-blur-sm"
-              title="Remove image"
             >
-              <CircleX className="w-5 h-5" strokeWidth={2.2} />
+              <Star className="w-4 h-4" strokeWidth={2.2} />
+            </div>
+            <div
+              title="Discard"
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                useApp.getState().rejectPane(id);
+              }}
+              className="w-5 h-5 rounded-full flex items-center justify-center
+           bg-neutral-800/90 text-neutral-300
+           border border-neutral-700/60 shadow-sm
+           hover:bg-neutral-700 hover:text-white
+           active:scale-95 cursor-pointer transition
+           backdrop-blur-sm"
+            >
+              <X className="w-5 h-5" strokeWidth={2.2} />
             </div>
           </div>
         )}

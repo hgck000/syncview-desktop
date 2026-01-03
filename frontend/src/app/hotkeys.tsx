@@ -140,36 +140,6 @@ export default function Hotkeys() {
         e.preventDefault();
         toggleText();
       },
-      "ctrl+z": (e) => {
-        if (isEditableTarget(e)) return;
-        e.preventDefault();
-        useApp.getState().undo?.();
-      },
-      "meta+z": (e) => {
-        if (isEditableTarget(e)) return;
-        e.preventDefault();
-        useApp.getState().undo?.();
-      },
-      "ctrl+y": (e) => {
-        if (isEditableTarget(e)) return;
-        e.preventDefault();
-        useApp.getState().redo?.();
-      },
-      "meta+y": (e) => {
-        if (isEditableTarget(e)) return;
-        e.preventDefault();
-        useApp.getState().redo?.();
-      },
-      "ctrl+shift+z": (e) => {
-        if (isEditableTarget(e)) return;
-        e.preventDefault();
-        useApp.getState().redo?.();
-      },
-      "meta+shift+z": (e) => {
-        if (isEditableTarget(e)) return;
-        e.preventDefault();
-        useApp.getState().redo?.();
-      },
     });
 
     // 2) FALLBACK CHO TỔ HỢP (modifier) — fix WebView “không ăn combo”
@@ -275,6 +245,27 @@ export default function Hotkeys() {
             callSaveSession();
             console.debug("[Tabs]", id, "→", { n, idx, id: target.id, ok });
           }
+          return;
+        }
+        case "ctrl+z":
+        case "meta+z": {
+          if (isEditableTarget(e)) return;
+          e.preventDefault();
+          useApp.getState().undo?.();
+          return;
+        }
+        case "ctrl+y":
+        case "meta+y": {
+          if (isEditableTarget(e)) return;
+          e.preventDefault();
+          useApp.getState().redo?.();
+          return;
+        }
+        case "ctrl+shift+z":
+        case "meta+shift+z": {
+          if (isEditableTarget(e)) return;
+          e.preventDefault();
+          useApp.getState().redo?.();
           return;
         }
         case "ctrl+v":

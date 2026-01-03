@@ -56,5 +56,5 @@ if __name__ == "__main__":
     print("[Dev] Starting webview…")
     
     # window.events.shown += on_shown
-    # webview.start()
-    webview.start(debug=True)
+    webview.start()
+    # webview.start(debug=True)
