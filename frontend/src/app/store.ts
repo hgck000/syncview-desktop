@@ -283,6 +283,7 @@ type AppState = {
     id: number,
     patch: Partial<TextStyle>
   ) => void;
+  reorderPanes: (fromIndex: number, toIndex: number) => void;
 };
 
 type SavedSession = {
@@ -336,22 +337,25 @@ function makeEmptyTab(name = "Untitled"): TabState {
   };
 }
 
-function panesFromSources(
+function panesPreserveOrder(
+  prevPanes: PaneId[],
   files: Record<PaneId, string | undefined>,
   dataURL: Record<PaneId, string | undefined>
 ): PaneId[] {
-  const used = ORDER.filter((id) => !!files[id] || !!dataURL[id]);
-  console.log("[store] panesFromFiles ->", used);
-  return used;
-}
+  const isUsed = (id: PaneId) => !!files[id] || !!dataURL[id];
 
-function usedPanes(
-  files: Record<PaneId, string | undefined>,
-  dataURL: Record<PaneId, string | undefined>
-): PaneId[] {
-  return (["A", "B", "C", "D"] as PaneId[]).filter(
-    (id) => !!files[id] || !!dataURL[id]
-  );
+  // 1) giữ lại thứ tự cũ, nhưng chỉ các pane còn ảnh
+  const out: PaneId[] = [];
+  for (const id of prevPanes) {
+    if (isUsed(id) && !out.includes(id)) out.push(id);
+  }
+
+  // 2) append những pane “mới có ảnh” nhưng chưa nằm trong prev (trường hợp add ảnh mới)
+  for (const id of ORDER) {
+    if (isUsed(id) && !out.includes(id)) out.push(id);
+  }
+
+  return out.slice(0, 4);
 }
 
 export const useApp = create<AppState>()(
@@ -589,7 +593,7 @@ export const useApp = create<AppState>()(
           const dataURL = { ...t.dataURL, [pane]: undefined };
           const names = { ...t.names, [pane]: nameOverride ?? t.names[pane] };
           // suy ra panes mới
-          const panes = panesFromSources(files, dataURL).slice(0, 4);
+          const panes = panesPreserveOrder(t.panes, files, dataURL);
           const showDetails = { ...t.showDetails, [pane]: false };
           // clamp focus
           const view = {
@@ -598,9 +602,13 @@ export const useApp = create<AppState>()(
           };
           const exif = t.exif ? { ...t.exif, [pane]: undefined } : t.exif;
           const strokes = { ...t.strokes, [pane]: [] };
-          const focusIndex = panes.length
-            ? Math.min(t.focusIndex, panes.length - 1)
-            : 0;
+          const prevFocused = t.panes[t.focusIndex] ?? null;
+          let focusIndex = 0;
+          if (panes.length) {
+            const idx = prevFocused ? panes.indexOf(prevFocused) : -1;
+            focusIndex =
+              idx >= 0 ? idx : Math.min(t.focusIndex, panes.length - 1);
+          }
           return {
             ...t,
             files,
@@ -645,7 +653,7 @@ export const useApp = create<AppState>()(
           const dataURL = { ...t.dataURL, [pane]: data };
           const files = { ...t.files, [pane]: undefined };
           const names = { ...t.names, [pane]: name ?? t.names[pane] };
-          const panes = panesFromSources(files, dataURL).slice(0, 4);
+          const panes = panesPreserveOrder(t.panes, files, dataURL);
           const view = {
             ...t.view,
             [pane]: { scale: 1, offsetX: 0, offsetY: 0 },
@@ -964,10 +972,17 @@ export const useApp = create<AppState>()(
             ...t.view,
             [pane]: { scale: 1, offsetX: 0, offsetY: 0 },
           };
-          const panes = usedPanes(files, dataURL);
-          const focusIndex = panes.length
-            ? Math.min(t.focusIndex, panes.length - 1)
-            : 0;
+          const panes = panesPreserveOrder(t.panes, files, dataURL);
+          const prevFocused = t.panes[t.focusIndex] ?? null;
+          let focusIndex = 0;
+          if (panes.length) {
+            const idx = prevFocused ? panes.indexOf(prevFocused) : -1;
+            focusIndex =
+              idx >= 0 ? idx : Math.min(t.focusIndex, panes.length - 1);
+          }
+
+          // const prevFocusedPane = t.panes[t.focusIndex] ?? null;
+
           const showDetails = { ...t.showDetails, [pane]: false };
           const strokes = { ...t.strokes, [pane]: [] };
           const textBoxes = { ...t.textBoxes, [pane]: [] };
@@ -1007,7 +1022,6 @@ export const useApp = create<AppState>()(
         tabs: tabs.map((t) => {
           if (t.id !== activeTabId) return t;
 
-          // reset toàn bộ slot A–D về rỗng
           const empty = {
             A: undefined,
             B: undefined,
@@ -1669,6 +1683,35 @@ export const useApp = create<AppState>()(
         const nextTabs = state.tabs.slice();
         nextTabs[idx] = { ...tab, strokes: nextStrokes };
         return { tabs: nextTabs };
+      }),
+
+    reorderPanes: (fromIndex, toIndex) =>
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+
+        const panes = [...tab.panes];
+        if (
+          fromIndex < 0 ||
+          toIndex < 0 ||
+          fromIndex >= panes.length ||
+          toIndex >= panes.length ||
+          fromIndex === toIndex
+        ) {
+          return state;
+        }
+
+        const moved = panes.splice(fromIndex, 1)[0];
+        panes.splice(toIndex, 0, moved);
+
+        const prevFocusedPane = tab.panes[tab.focusIndex] ?? null;
+        const focusIndex = panes.length
+          ? Math.max(0, prevFocusedPane ? panes.indexOf(prevFocusedPane) : 0)
+          : 0;
+
+        const newTab: TabState = { ...tab, panes, focusIndex };
+        const tabs = state.tabs.map((t) => (t.id === tab.id ? newTab : t));
+        return { ...state, tabs };
       }),
   }))
 );

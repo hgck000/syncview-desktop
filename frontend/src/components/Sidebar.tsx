@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useApp } from "../app/store";
-import { basename } from "../app/path";
 import {
   Pencil,
   ImageUp,
@@ -25,7 +24,7 @@ import {
 import {
   SortableContext,
   useSortable,
-  verticalListSortingStrategy, // dùng list dọc
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -94,7 +93,6 @@ function SortableTabRow({
           value={buf}
           onChange={(e) => setBuf(e.target.value)}
           onKeyDown={(e) => {
-            // chặn hotkeys khi rename (giữ nguyên hành vi cũ)
             e.stopPropagation();
             if (e.key === "Enter") onRenameCommit(buf || t.name);
             if (e.key === "Escape") onRenameCancel();
@@ -144,6 +142,75 @@ function SortableTabRow({
   );
 }
 
+function SortablePaneRow({
+  pid,
+  name,
+  hasImage,
+  focused,
+  onFocus,
+  onRemove,
+}: {
+  pid: "A" | "B" | "C" | "D";
+  name: string;
+  hasImage: boolean;
+  focused: boolean;
+  onFocus: () => void;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: pid });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    touchAction: "none",
+    userSelect: "none",
+    cursor: isDragging ? "grabbing" : "grab",
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <div
+        onClick={onFocus}
+        title={name}
+        className={[
+          "w-full px-2 py-1 rounded border text-left text-xs select-none transition flex items-center gap-2",
+          hasImage
+            ? "border-neutral-700 bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300"
+            : "border-dashed border-neutral-700 text-neutral-500 hover:bg-neutral-800/30",
+          focused ? "ring-1 ring-white/15" : "",
+        ].join(" ")}
+      >
+        <ImageUp className="h-4 w-4 opacity-80 shrink-0" />
+
+        <span className="truncate flex-1 min-w-[0px] inline-block align-middle text-sm">
+          {name}
+        </span>
+
+        {hasImage && (
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="w-5 h-5 flex items-center jusity-center bg-none rounded hover:bg-neutral-700 p-1"
+            title="Remove image"
+          >
+            <X className="w-3.5 h-3.5" strokeWidth={2.4} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar({
   compact = false,
   showFull = true,
@@ -181,6 +248,12 @@ export default function Sidebar({
     activationConstraint: { delay: 0, tolerance: 4 }, // bỏ trễ touch
   });
   const sensors = useSensors(mouse, touch);
+  const paneSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 120, tolerance: 5 },
+    })
+  );
 
   // trạng thái kéo để ẩn nút sửa/xóa toàn bộ trong lúc kéo
   const [dragging, setDragging] = React.useState(false);
@@ -364,41 +437,62 @@ export default function Sidebar({
             {tab &&
               paneIds.length > 0 &&
               (() => {
-                const tb = tab!;
                 return (
-                  <div className="space-y-1 overflow-auto pr-1">
-                    {paneIds.map((pid, i) => {
-                      const hasFile = !!tb.files?.[pid];
-                      const hasData = !!tb.dataURL?.[pid];
-                      const name =
-                        tb.names?.[pid] ??
-                        (hasFile
-                          ? basename(tb.files![pid]!)
-                          : hasData
-                          ? "(dropped image)"
-                          : `${pid}: Empty`);
-                      return (
-                        <div
-                          key={`${tb.id}-${pid}`}
-                          onClick={() => useApp.getState().setFocusIndex(i)}
-                          title={name}
-                          className={`w-full px-2 py-1 rounded border text-left text-xs select-none cursor-pointer transition
-                          ${
-                            hasFile || hasData
-                              ? "border-neutral-700 bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300"
-                              : "border-dashed border-neutral-700 text-neutral-500 hover:bg-neutral-800/30"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <ImageUp className="h-4 w-4 opacity-80 shrink-0" />
-                            <span className="truncate max-w-[180px] inline-block align-middle text-sm">
-                              {name}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <DndContext
+                    sensors={paneSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(e) => {
+                      const { active, over } = e;
+                      if (!over) return;
+
+                      const from = paneIds.indexOf(active.id as any);
+                      const to = paneIds.indexOf(over.id as any);
+                      if (from < 0 || to < 0 || from === to) return;
+
+                      useApp.getState().reorderPanes(from, to);
+                    }}
+                  >
+                    <SortableContext
+                      items={paneIds}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-1 overflow-y-hidden overflow-x-hidden pr-1">
+                        {paneIds.map((pid, i) => {
+                          const hasFile = !!tab?.files?.[pid];
+                          const hasData = !!tab?.dataURL?.[pid];
+                          const hasImage = hasFile || hasData;
+
+                          const filePath = tab?.files?.[pid] ?? "";
+                          const fileName =
+                            filePath.split(/[/\\]/).pop() ||
+                            filePath ||
+                            `${pid}: Empty`;
+
+                          const name =
+                            tab?.names?.[pid] ??
+                            (hasFile
+                              ? fileName
+                              : hasData
+                              ? "(dropped image)"
+                              : `${pid}: Empty`);
+
+                          const focused = i === tab?.focusIndex;
+
+                          return (
+                            <SortablePaneRow
+                              key={`${tab?.id ?? "tab"}-${pid}`}
+                              pid={pid}
+                              name={name}
+                              hasImage={hasImage}
+                              focused={!!focused}
+                              onFocus={() => useApp.getState().setFocusIndex(i)}
+                              onRemove={() => useApp.getState().clearPane(pid)}
+                            />
+                          );
+                        })}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 );
               })()}
           </div>
@@ -406,6 +500,7 @@ export default function Sidebar({
       </PanelGroup>
     </div>
   );
+
   return (
     <div className="h-full relative">
       {/* Compact luôn nằm dưới (chỉ render khi compact=true) */}
