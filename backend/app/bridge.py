@@ -21,6 +21,15 @@ def default_app_data() -> Path:
         return Path(xdg) / "SyncView"
     return Path.home() / ".local" / "share" / "SyncView"
 
+def _pick_first_path(result):
+    if not result:
+        return None
+    if isinstance(result, (list, tuple)):
+        return result[0] if result else None
+    if isinstance(result, str):
+        return result
+    return None
+
 class Bridge:
     def __init__(self, app_data_dir: Path | None = None, window=None):
         self.app_data_dir = Path(app_data_dir) if app_data_dir else default_app_data()
@@ -51,7 +60,7 @@ class Bridge:
         print(f"[Bridge] selected path={path}")
         return path
     
-    def open_folder_dialog(self) -> Optional[str]:
+    def open_folder_dialog(self):
         """Chọn 1 folder (không đệ quy). Trả về path hoặc None."""
         try:
             result = self.window.create_file_dialog(
@@ -62,11 +71,11 @@ class Bridge:
             print(f"[Bridge][ERROR] open_folder_dialog: {e}")
             return None
 
-        if not result:
+        folder = _pick_first_path(result)
+        if not folder:
             return None
 
-        # pywebview trả list
-        folder = str(Path(result[0]).resolve())
+        folder = str(Path(folder).resolve())
         print(f"[Bridge] selected folder={folder}")
         return folder
 
@@ -75,13 +84,16 @@ class Bridge:
         List ảnh trong folder (không đệ quy), trả về danh sách full paths
         theo thứ tự tên file (ổn định, giống “thứ tự trong folder”).
         """
+        print(f"[Bridge] list_images_in_folder folder={folder}")
+        if not folder:
+            return []
         p = Path(folder)
         if not p.exists() or not p.is_dir():
             return []
 
         # Các loại file preview được bằng Pillow/hiện tại app đang handle tốt.
         exts = {
-            ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic"
+            ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic",
         }
 
         items = []
@@ -96,10 +108,10 @@ class Bridge:
             return []
 
         items.sort(key=lambda s: Path(s).name.lower())
+        print(f"[Bridge] found {len(items)} images")
         return items
 
-    def choose_export_folder(self) -> Optional[str]:
-        """Chọn folder đích để export favourites."""
+    def choose_export_folder(self):
         try:
             result = self.window.create_file_dialog(
                 webview.FOLDER_DIALOG,
@@ -108,9 +120,11 @@ class Bridge:
         except Exception as e:
             print(f"[Bridge][ERROR] choose_export_folder: {e}")
             return None
-        if not result:
+
+        folder = _pick_first_path(result)
+        if not folder:
             return None
-        return str(Path(result[0]).resolve())
+        return str(Path(folder).resolve())
 
     def export_copy_files(self, paths: List[str], out_dir: str, copy_xmp: bool = True) -> Dict[str, Any]:
         """

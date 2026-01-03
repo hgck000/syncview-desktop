@@ -19,7 +19,7 @@ export type LoupeState = {
 };
 
 // draw & erase
-export type StrokePt = { u: number; v: number }; // u/v theo ảnh (0..1)
+export type StrokePt = { u: number; v: number };
 export type StrokeMode = "draw" | "erase";
 export type Stroke = {
   id: string;
@@ -50,6 +50,23 @@ export type TextStyle = {
   italic: boolean;
   underline: boolean;
 };
+
+export type QueueItem =
+  | {
+      kind: "file";
+      path: string;
+      name: string;
+      // thứ tự trong folder gốc để export favourite theo đúng order
+      originIndex: number;
+      folder?: string;
+    }
+  | {
+      kind: "dataURL";
+      dataURL: string;
+      name: string;
+      originIndex?: number;
+      folder?: string;
+    };
 
 export type TextBox = {
   id: number;
@@ -134,6 +151,10 @@ const SAFE_EMPTY_TAB: TabState = {
     selected: { A: null, B: null, C: null, D: null },
     editing: null,
   },
+  queue: [],
+  favorites: [],
+  rejected: [],
+  sourceFolder: undefined,
 };
 
 type TabState = {
@@ -159,6 +180,10 @@ type TabState = {
   textTool: TextToolState;
   textBoxes: Record<PaneId, TextBox[]>;
   textUI: TextUIState;
+  queue: QueueItem[];
+  favorites: QueueItem[];
+  rejected: QueueItem[];
+  sourceFolder?: string;
 };
 
 type AppState = {
@@ -284,6 +309,17 @@ type AppState = {
     patch: Partial<TextStyle>
   ) => void;
   reorderPanes: (fromIndex: number, toIndex: number) => void;
+
+  importFolder: (folder: string, paths: string[]) => void;
+  rejectPane: (pane: PaneId) => void; // X
+  favoritePane: (pane: PaneId) => void; // ★
+  undoStack: any[];
+  redoStack: any[];
+  undo: () => void;
+  redo: () => void;
+  pushUndoPoint: (label?: string) => void;
+
+  hydratePaneDataURL: (pane: PaneId) => Promise<void>;
 };
 
 type SavedSession = {
@@ -334,6 +370,10 @@ function makeEmptyTab(name = "Untitled"): TabState {
       selected: { A: null, B: null, C: null, D: null },
       editing: null,
     },
+    queue: [],
+    favorites: [],
+    rejected: [],
+    sourceFolder: undefined,
   };
 }
 
@@ -358,12 +398,170 @@ function panesPreserveOrder(
   return out.slice(0, 4);
 }
 
+function basename(p: string) {
+  const s = p ?? "";
+  return s.split(/[/\\]/).pop() || s;
+}
+
+function paneHasImage(t: TabState, pid: PaneId) {
+  return !!t.files?.[pid] || !!t.dataURL?.[pid];
+}
+
+function getPaneItem(t: TabState, pid: PaneId): QueueItem | null {
+  const fp = t.files?.[pid];
+  const du = t.dataURL?.[pid];
+  const nm = t.names?.[pid];
+
+  if (fp) {
+    return {
+      kind: "file",
+      path: fp,
+      name: nm || basename(fp),
+      originIndex: -1,
+    };
+  }
+  if (du) {
+    return {
+      kind: "dataURL",
+      dataURL: du,
+      name: nm || "(pasted image)",
+      originIndex: -1,
+    };
+  }
+  return null;
+}
+
+function clearPaneData(t: TabState, pid: PaneId): TabState {
+  // IMPORTANT: nếu bạn đã có logic clear strokes/textBoxes/exif/... ở clearPane cũ
+  // thì bạn copy đúng các field đó vào đây để đảm bảo “xóa ảnh thì xóa luôn text/strokes”.
+  const files = { ...t.files, [pid]: undefined };
+  const dataURL = { ...t.dataURL, [pid]: undefined };
+  const names = { ...t.names, [pid]: undefined };
+
+  const exif = t.exif ? { ...t.exif, [pid]: undefined } : t.exif;
+  const view = { ...t.view, [pid]: { scale: 1, offsetX: 0, offsetY: 0 } };
+  const showDetails = { ...t.showDetails, [pid]: false };
+
+  // nếu bạn đã có clear strokes/textBoxes thì giữ y như bản bạn đang dùng:
+  const strokes = t.strokes ? { ...t.strokes, [pid]: [] } : t.strokes;
+  const textBoxes = (t as any).textBoxes
+    ? { ...(t as any).textBoxes, [pid]: [] }
+    : (t as any).textBoxes;
+
+  return {
+    ...t,
+    files,
+    dataURL,
+    names,
+    exif,
+    view,
+    showDetails,
+    strokes,
+    ...(textBoxes ? { textBoxes } : {}),
+  };
+}
+
+function assignItemToPane(t: TabState, pid: PaneId, it: QueueItem): TabState {
+  if (it.kind === "file") {
+    const files = { ...t.files, [pid]: it.path };
+    const dataURL = { ...t.dataURL, [pid]: undefined };
+    const names = { ...t.names, [pid]: it.name || basename(it.path) };
+    return { ...t, files, dataURL, names };
+  } else {
+    const files = { ...t.files, [pid]: undefined };
+    const dataURL = { ...t.dataURL, [pid]: it.dataURL };
+    const names = { ...t.names, [pid]: it.name };
+    return { ...t, files, dataURL, names };
+  }
+}
+
+function fullPaneOrder(panes: PaneId[]): PaneId[] {
+  const out = [...panes];
+  for (const p of ORDER) if (!out.includes(p)) out.push(p);
+  return out.slice(0, 4);
+}
+
+function compactAndFill(t0: TabState): TabState {
+  let t = t0;
+  const order = fullPaneOrder(t.panes);
+
+  // nhớ ảnh đang focus (để cố giữ focus theo ảnh nếu còn)
+  const focusPid = t.panes[t.focusIndex] ?? null;
+  const focusKey =
+    focusPid && t.files[focusPid]
+      ? `file:${t.files[focusPid]}`
+      : focusPid && t.dataURL[focusPid]
+      ? `data:${t.dataURL[focusPid]}`
+      : null;
+
+  // gom các item đang có theo thứ tự panes hiện tại
+  const currentItems: QueueItem[] = [];
+  for (const pid of order) {
+    const it = getPaneItem(t, pid);
+    if (it) currentItems.push(it);
+  }
+
+  // clear hết 4 panes trước, rồi assign lại compact
+  for (const pid of ORDER) t = clearPaneData(t, pid);
+
+  // assign compact items
+  let usedCount = 0;
+  for (const it of currentItems) {
+    const pid = order[usedCount];
+    t = assignItemToPane(t, pid, it);
+    usedCount++;
+  }
+
+  // fill từ queue
+  const queue = [...t.queue];
+  while (usedCount < 4 && queue.length > 0) {
+    const next = queue.shift()!;
+    const pid = order[usedCount];
+    t = assignItemToPane(t, pid, next);
+    usedCount++;
+  }
+
+  // panes list = những pane có ảnh (đúng thứ tự order)
+  const panes: PaneId[] = [];
+  for (let i = 0; i < usedCount; i++) panes.push(order[i]);
+
+  // giữ focus theo “ảnh” nếu còn
+  let focusIndex = 0;
+  if (focusKey) {
+    for (let i = 0; i < panes.length; i++) {
+      const pid = panes[i];
+      const k = t.files[pid]
+        ? `file:${t.files[pid]}`
+        : t.dataURL[pid]
+        ? `data:${t.dataURL[pid]}`
+        : null;
+      if (k === focusKey) {
+        focusIndex = i;
+        break;
+      }
+    }
+  }
+
+  return { ...t, panes, focusIndex, queue };
+}
+
+function deepClone<T>(x: T): T {
+  if (x === null || typeof x !== "object") return x;
+  if (Array.isArray(x)) return x.map(deepClone) as any;
+  const out: any = {};
+  for (const k of Object.keys(x as any)) out[k] = deepClone((x as any)[k]);
+  return out;
+}
+
 export const useApp = create<AppState>()(
   subscribeWithSelector((set, get) => ({
     tabs: [],
     activeTabId: "",
     sidebarSize: 24,
     helpOn: false,
+
+    undoStack: [],
+    redoStack: [],
 
     spaceDown: false,
     setSpaceDown: (v) => set({ spaceDown: v }),
@@ -398,6 +596,42 @@ export const useApp = create<AppState>()(
 
     exporting: false,
     setExporting: (v) => set(() => ({ exporting: v })),
+
+    hydratePaneDataURL: async (pane) => {
+      const tab = get().getActiveSafe();
+      if (!tab) return;
+
+      const path = tab.files?.[pane];
+      if (!path) return;
+
+      // re-check latest (tránh stale)
+      const latest = get().getActiveSafe();
+      if (!latest || latest.dataURL?.[pane]) return;
+
+      const api = (window as any).pywebview?.api;
+      if (!api?.read_image_dataurl) return;
+
+      try {
+        const dataURL = await api.read_image_dataurl(path);
+        if (!dataURL) return;
+
+        // set vào đúng pane, nhưng tránh ghi đè nếu pane đã đổi ảnh
+        set((state) => {
+          const t = state.getActiveSafe();
+          if (!t) return state;
+          if (t.files?.[pane] !== path) return state;
+
+          const dataURLMap = { ...t.dataURL, [pane]: dataURL };
+          const nextTab = { ...t, dataURL: dataURLMap };
+          return {
+            ...state,
+            tabs: state.tabs.map((x) => (x.id === t.id ? nextTab : x)),
+          };
+        });
+      } catch (e) {
+        console.warn("[hydratePaneDataURL] failed", e);
+      }
+    },
 
     renameTab: (id, title) =>
       set((state) => ({
@@ -440,11 +674,9 @@ export const useApp = create<AppState>()(
       const s = get();
 
       const tabsForSave = s.tabs.map((t) => {
-        // copy toàn bộ tab rồi bỏ trường exif
         const restTab = { ...t } as any;
         delete restTab.exif;
 
-        // dataURL mới: chỉ giữ những ảnh không có path (drop image)
         const filteredDataURL: typeof t.dataURL = {} as any;
         for (const paneId of t.panes) {
           const path = t.files[paneId];
@@ -545,6 +777,7 @@ export const useApp = create<AppState>()(
         ),
       });
     },
+
     toggleLayout: () => {
       set((state) => {
         const idx = state.tabs.findIndex((t) => t.id === state.activeTabId);
@@ -1712,6 +1945,164 @@ export const useApp = create<AppState>()(
         const newTab: TabState = { ...tab, panes, focusIndex };
         const tabs = state.tabs.map((t) => (t.id === tab.id ? newTab : t));
         return { ...state, tabs };
+      }),
+
+    importFolder: (folder, paths) => {
+      get().pushUndoPoint?.("importFolder");
+
+      if (!folder || !paths || paths.length === 0) {
+        alert("This folder has no supported images.");
+        return;
+      }
+
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+
+        // reset culling session
+        let t: TabState = {
+          ...tab,
+          sourceFolder: folder,
+          queue: [],
+          favorites: [],
+          rejected: [],
+        };
+
+        // clear panes
+        for (const pid of ORDER) t = clearPaneData(t, pid);
+
+        const items: QueueItem[] = paths.map((p, i) => ({
+          kind: "file",
+          path: p,
+          name: basename(p),
+          originIndex: i,
+          folder,
+        }));
+
+        const order = fullPaneOrder(t.panes.length ? t.panes : ORDER);
+
+        let used = 0;
+        for (; used < 4 && used < items.length; used++) {
+          t = assignItemToPane(t, order[used], items[used]);
+        }
+
+        t = {
+          ...t,
+          panes: order.slice(0, used),
+          focusIndex: 0,
+          queue: items.slice(used),
+        };
+
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      });
+      queueMicrotask(() => {
+        const st = get();
+        for (const pid of ["A", "B", "C", "D"] as PaneId[]) {
+          void st.hydratePaneDataURL(pid);
+        }
+      });
+    },
+
+    rejectPane: (pane) => {
+      get().pushUndoPoint?.("rejectPane");
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+        if (!paneHasImage(tab, pane)) return state;
+
+        const it = getPaneItem(tab, pane);
+        if (!it) return state;
+
+        let t: TabState = tab;
+        // push vào rejected (stack)
+        t = { ...t, rejected: [...t.rejected, it] };
+
+        // clear pane rồi compact+fill
+        t = clearPaneData(t, pane);
+        t = compactAndFill(t);
+
+        const tabs = state.tabs.map((x) => (x.id === tab.id ? t : x));
+        return { ...state, tabs };
+      });
+    },
+
+    favoritePane: (pane) => {
+      get().pushUndoPoint?.("favoritePane");
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+        if (!paneHasImage(tab, pane)) return state;
+
+        const it = getPaneItem(tab, pane);
+        if (!it) return state;
+
+        let t: TabState = tab;
+        t = { ...t, favorites: [...t.favorites, it] };
+
+        t = clearPaneData(t, pane);
+        t = compactAndFill(t);
+
+        const tabs = state.tabs.map((x) => (x.id === tab.id ? t : x));
+        return { ...state, tabs };
+      });
+    },
+
+    pushUndoPoint: (_label) =>
+      set((s) => {
+        const snap = deepClone({
+          tabs: s.tabs,
+          activeTabId: s.activeTabId,
+          sidebarSize: s.sidebarSize,
+          sidebarCollapsed: s.sidebarCollapsed,
+          sidebarPeek: s.sidebarPeek,
+          sidebarExpandedSize: s.sidebarExpandedSize,
+          helpOn: s.helpOn,
+          keymap: s.keymap,
+        });
+
+        const undoStack = [...s.undoStack, snap].slice(-50);
+        return { ...s, undoStack, redoStack: [] };
+      }),
+
+    undo: () =>
+      set((s) => {
+        if (!s.undoStack.length) return s;
+        const prev = s.undoStack[s.undoStack.length - 1];
+        const cur = deepClone({
+          tabs: s.tabs,
+          activeTabId: s.activeTabId,
+          sidebarSize: s.sidebarSize,
+          sidebarCollapsed: s.sidebarCollapsed,
+          sidebarPeek: s.sidebarPeek,
+          sidebarExpandedSize: s.sidebarExpandedSize,
+          helpOn: s.helpOn,
+          keymap: s.keymap,
+        });
+        const undoStack = s.undoStack.slice(0, -1);
+        const redoStack = [...s.redoStack, cur].slice(-50);
+        return { ...s, ...prev, undoStack, redoStack };
+      }),
+
+    redo: () =>
+      set((s) => {
+        if (!s.redoStack.length) return s;
+        const next = s.redoStack[s.redoStack.length - 1];
+        const cur = deepClone({
+          tabs: s.tabs,
+          activeTabId: s.activeTabId,
+          sidebarSize: s.sidebarSize,
+          sidebarCollapsed: s.sidebarCollapsed,
+          sidebarPeek: s.sidebarPeek,
+          sidebarExpandedSize: s.sidebarExpandedSize,
+          helpOn: s.helpOn,
+          keymap: s.keymap,
+        });
+        const redoStack = s.redoStack.slice(0, -1);
+        const undoStack = [...s.undoStack, cur].slice(-50);
+        return { ...s, ...next, undoStack, redoStack };
       }),
   }))
 );

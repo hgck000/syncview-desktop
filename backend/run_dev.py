@@ -47,9 +47,14 @@ if __name__ == "__main__":
         api.read_exif_from_path, api.read_exif_from_dataurl,
         api.read_last_session, api.write_last_session,
         api.save_png_dialog,
+        api.open_folder_dialog,
+        api.list_images_in_folder,
+        api.choose_export_folder,
+        api.export_copy_files,
     )
 
     print("[Dev] Starting webview…")
     
     # window.events.shown += on_shown
-    webview.start()
+    # webview.start()
+    webview.start(debug=True)

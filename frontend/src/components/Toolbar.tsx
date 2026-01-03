@@ -13,11 +13,18 @@ import {
   Bold,
   Italic,
   Underline,
+  Folder,
+  File,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useApp, type TextStyle, type PaneId } from "../app/store";
-import { openFileDialog, savePngDialog } from "../app/bridge";
+import {
+  openFileDialog,
+  savePngDialog,
+  openFolderDialog,
+  listImagesInFolder,
+} from "../app/bridge";
 
 export default function Toolbar() {
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
@@ -38,6 +45,22 @@ export default function Toolbar() {
   // Throttle update màu brush theo rAF để tránh re-render/draw quá dày khi kéo color picker
   const colorRafRef = useRef<number | null>(null);
   const pendingColorRef = useRef<string | null>(null);
+
+  const [openMenu, setOpenMenu] = useState(false);
+  const openRef = useRef<HTMLDivElement | null>(null);
+
+  const onImportFolder = async () => {
+    const folder = await openFolderDialog();
+    if (!folder) return;
+
+    const paths = await listImagesInFolder(folder);
+    if (!paths.length) {
+      alert("This folder has no supported images.");
+      return;
+    }
+
+    useApp.getState().importFolder(folder, paths);
+  };
 
   const snap = useApp(
     useShallow((s) => {
@@ -189,13 +212,30 @@ export default function Toolbar() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!openMenu) return;
+
+    const onDown = (e: MouseEvent) => {
+      const el = openRef.current;
+      if (!el) return;
+      if (el.contains(e.target as any)) return;
+      setOpenMenu(false);
+    };
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenMenu(false);
+    };
+
+    window.addEventListener("mousedown", onDown, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [openMenu]);
+
   const BTN_BASE =
     "px-2 py-1 rounded flex items-center gap-1 select-none transition btn-width justify-center";
-
-  // const BTN_FIELD =
-  //   "relative inline-flex items-center gap-2 px-2 h-8 rounded " +
-  //   "bg-neutral-800 hover:bg-neutral-700 text-neutral-200 " +
-  //   "border border-neutral-700/60 shadow-sm transition select-none";
 
   const BTN_FIELD =
     "h-7 relative inline-flex items-center gap-1 px-1 rounded select-none transition justify-center " +
@@ -686,14 +726,67 @@ export default function Toolbar() {
 
       {/* Open */}
       <div className="ml-auto" />
-      <div
-        onClick={onOpen}
-        title="Open (Ctrl/Cmd+O)"
-        className="px-2 py-1 rounded flex items-center gap-1
-                  bg-neutral-800 hover:bg-neutral-700 text-neutral-300
-                  cursor-pointer select-none transition btn-width justify-center"
-      >
-        <ImageIcon size={16} /> Open
+      <div className="relative" ref={openRef}>
+        <div
+          onMouseDown={(e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setOpenMenu((v) => !v);
+          }}
+          title="Open (Ctrl/Cmd+O)"
+          className="px-2 py-1 rounded flex items-center gap-1
+              bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+              cursor-pointer select-none transition btn-width justify-center"
+        >
+          <ImageIcon size={16} /> Open
+        </div>
+
+        {openMenu && (
+          <div
+            className="absolute z-50 mt-1 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
+            style={{ minWidth: 70 }}
+            onMouseDown={(e) => {
+              // tránh click menu làm mất state do bubbling
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <div className="flex flex-col gap-1">
+              <div
+                className="px-2 py-1 rounded flex items-center gap-1
+                    bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+                    cursor-pointer select-none transition text-[12px]"
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setOpenMenu(false);
+                  onOpen();
+                }}
+              >
+                <File size={14} />
+                Files
+              </div>
+
+              <div
+                className="px-2 py-1 rounded flex items-center gap-1
+                    bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+                    cursor-pointer select-none transition text-[12px]"
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setOpenMenu(false);
+                  void onImportFolder();
+                }}
+              >
+                <Folder size={14} />
+                Folder
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Layout toggle (2x2 <-> 1x4) */}

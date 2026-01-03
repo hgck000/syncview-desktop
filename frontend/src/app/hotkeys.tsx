@@ -105,11 +105,6 @@ export default function Hotkeys() {
         e.preventDefault();
         focusNext();
       },
-      "shift+tab": (e) => {
-        if (isEditableTarget(e)) return;
-        e.preventDefault();
-        focusPrev();
-      },
       R: (e) => {
         if (isEditableTarget(e)) return;
         e.preventDefault();
@@ -145,21 +140,36 @@ export default function Hotkeys() {
         e.preventDefault();
         toggleText();
       },
-
-      // "ctrl+o": async (e) => {
-      //   if (isEditableTarget(e)) return;
-      //   e.preventDefault();
-      //   const pane = t.panes[t.focusIndex];
-      //   const path = await openFileDialog(pane);
-      //   if (path) setFileForPane(pane, path);
-      // },
-      // "meta+o": async (e) => { // macOS Cmd+O
-      //   if (isEditableTarget(e)) return;
-      //   e.preventDefault();
-      //   const pane = t.panes[t.focusIndex];
-      //   const path = await openFileDialog(pane);
-      //   if (path) setFileForPane(pane, path);
-      // },
+      "ctrl+z": (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        useApp.getState().undo?.();
+      },
+      "meta+z": (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        useApp.getState().undo?.();
+      },
+      "ctrl+y": (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        useApp.getState().redo?.();
+      },
+      "meta+y": (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        useApp.getState().redo?.();
+      },
+      "ctrl+shift+z": (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        useApp.getState().redo?.();
+      },
+      "meta+shift+z": (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        useApp.getState().redo?.();
+      },
     });
 
     // 2) FALLBACK CHO TỔ HỢP (modifier) — fix WebView “không ăn combo”
@@ -200,18 +210,6 @@ export default function Hotkeys() {
               deleteTextBox(panes, idSel);
               return;
             }
-            // if (idSel != null) {
-            //   e.preventDefault();
-            //   e.stopPropagation();
-
-            //   const panes = t.linkAll
-            //     ? t.panes?.length
-            //       ? t.panes
-            //       : ["A", "B", "C", "D"]
-            //     : [paneSel];
-            //   deleteTextBox(panes, idSel);
-            //   return;
-            // }
           }
         }
       }
@@ -249,9 +247,6 @@ export default function Hotkeys() {
           }
           return;
         }
-
-        // Ctrl+1..9 → nhảy tab 1..9 (1-based)
-        // Ctrl/Cmd + 1..9 → nhảy tab 1..9 (1-based)
         case "ctrl+1":
         case "meta+1":
         case "ctrl+2":

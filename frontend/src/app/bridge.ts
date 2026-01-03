@@ -174,7 +174,10 @@ export async function openFolderDialog(): Promise<string | null> {
   return (await api.open_folder_dialog()) ?? null;
 }
 
-export async function listImagesInFolder(folder: string): Promise<string[]> {
+export async function listImagesInFolder(
+  folder: string | null
+): Promise<string[]> {
+  if (!folder) return [];
   const api = window.pywebview?.api;
   if (!api?.list_images_in_folder) return [];
   const res = await api.list_images_in_folder(folder);

@@ -138,6 +138,10 @@ if __name__ == "__main__":
             getattr(bridge, "write_last_session", lambda *a, **k: None),
             getattr(bridge, "read_last_session",  lambda *a, **k: None),
             getattr(bridge, "save_png_dialog", lambda *a, **k: None),
+            getattr(bridge, "open_folder_dialog", lambda *a, **k: None),
+            getattr(bridge, "list_images_in_folder", lambda *a, **k: None),
+            getattr(bridge, "choose_export_folder", lambda *a, **k: None),
+            getattr(bridge, "export_copy_files", lambda *a, **k: None),
         )
         setattr(bridge, "saveLastSession", bridge.write_last_session)
         setattr(bridge, "loadLastSession", bridge.read_last_session)
