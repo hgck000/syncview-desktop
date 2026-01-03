@@ -155,6 +155,24 @@ const SAFE_EMPTY_TAB: TabState = {
   favorites: [],
   rejected: [],
   sourceFolder: undefined,
+  preview: { on: false, page: 0, stash: null },
+};
+
+type ReviewStash = {
+  panes: PaneId[];
+  focusIndex: number;
+
+  files: Record<PaneId, string | undefined>;
+  dataURL: Record<PaneId, string | undefined>;
+  names: Record<PaneId, string | undefined>;
+  view: Record<PaneId, View>;
+  exif: Record<PaneId, Exif | undefined>;
+  showDetails: Record<PaneId, boolean>;
+  strokes: Record<PaneId, Stroke[]>;
+  textBoxes: Record<PaneId, TextBox[]>;
+  pointerNorm: Record<PaneId, { u: number; v: number }>;
+
+  queue: QueueItem[];
 };
 
 type TabState = {
@@ -184,6 +202,11 @@ type TabState = {
   favorites: QueueItem[];
   rejected: QueueItem[];
   sourceFolder?: string;
+  preview: {
+    on: boolean;
+    page: number;
+    stash: ReviewStash | null;
+  };
 };
 
 type AppState = {
@@ -320,6 +343,9 @@ type AppState = {
   pushUndoPoint: (label?: string) => void;
 
   hydratePaneDataURL: (pane: PaneId) => Promise<void>;
+  togglePreviewKept: () => void;
+  nextKeptPage: () => void;
+  prevKeptPage: () => void;
 };
 
 type SavedSession = {
@@ -374,6 +400,7 @@ function makeEmptyTab(name = "Untitled"): TabState {
     favorites: [],
     rejected: [],
     sourceFolder: undefined,
+    preview: { on: false, page: 0, stash: null },
   };
 }
 
@@ -543,6 +570,56 @@ function compactAndFill(t0: TabState): TabState {
   }
 
   return { ...t, panes, focusIndex, queue };
+}
+
+function sortFav(t: TabState): QueueItem[] {
+  return [...(t.favorites ?? [])].sort((a, b) => {
+    const ai = a.originIndex ?? 1e15;
+    const bi = b.originIndex ?? 1e15;
+    return ai - bi;
+  });
+}
+
+function itemsFromPanes(t: TabState): QueueItem[] {
+  const out: QueueItem[] = [];
+  for (const pid of t.panes) {
+    const it = getPaneItem(t, pid); // bạn đã có helper này
+    if (it) out.push(it);
+  }
+  return out;
+}
+
+function setPanesFromItems(t0: TabState, items: QueueItem[]): TabState {
+  let t = t0;
+
+  // clear 4 panes
+  for (const pid of ORDER) t = clearPaneData(t, pid);
+
+  // fill 4 panes theo thứ tự
+  const order = fullPaneOrder(t.panes.length ? t.panes : ORDER);
+  const n = Math.min(4, items.length);
+
+  for (let i = 0; i < n; i++) {
+    t = assignItemToPane(t, order[i], items[i]);
+  }
+
+  return {
+    ...t,
+    panes: order.slice(0, n),
+    focusIndex: 0,
+  };
+}
+
+function favPageSlice(t: TabState): QueueItem[] {
+  const fav = sortFav(t);
+  const page = Math.max(0, t.preview.page | 0);
+  const start = page * 4;
+  return fav.slice(start, start + 4);
+}
+
+function favTotalPages(t: TabState): number {
+  const fav = t.favorites ?? [];
+  return Math.max(1, Math.ceil(fav.length / 4));
 }
 
 function deepClone<T>(x: T): T {
@@ -2023,6 +2100,15 @@ export const useApp = create<AppState>()(
         // clear pane rồi compact+fill
         t = clearPaneData(t, pane);
         t = compactAndFill(t);
+        // nếu hết ảnh chưa phân loại (queue rỗng) và không còn panes -> tự vào preview kept
+        if (
+          t.queue.length === 0 &&
+          t.panes.length === 0 &&
+          (t.favorites?.length ?? 0) > 0
+        ) {
+          t = { ...t, preview: { on: true, page: 0, stash: null } };
+          t = setPanesFromItems(t, favPageSlice(t));
+        }
 
         const tabs = state.tabs.map((x) => (x.id === tab.id ? t : x));
         return { ...state, tabs };
@@ -2044,6 +2130,15 @@ export const useApp = create<AppState>()(
 
         t = clearPaneData(t, pane);
         t = compactAndFill(t);
+        // nếu hết ảnh chưa phân loại (queue rỗng) và không còn panes -> tự vào preview kept
+        if (
+          t.queue.length === 0 &&
+          t.panes.length === 0 &&
+          (t.favorites?.length ?? 0) > 0
+        ) {
+          t = { ...t, preview: { on: true, page: 0, stash: null } };
+          t = setPanesFromItems(t, favPageSlice(t));
+        }
 
         const tabs = state.tabs.map((x) => (x.id === tab.id ? t : x));
         return { ...state, tabs };
@@ -2104,5 +2199,139 @@ export const useApp = create<AppState>()(
         const undoStack = [...s.undoStack, cur].slice(-50);
         return { ...s, ...next, undoStack, redoStack };
       }),
+
+    togglePreviewKept: () => {
+      get().pushUndoPoint?.("togglePreviewKept");
+
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+
+        // ON -> stash current working state, then show kept page
+        if (!tab.preview.on) {
+          const stash: ReviewStash = {
+            panes: tab.panes,
+            focusIndex: tab.focusIndex,
+
+            files: tab.files,
+            dataURL: tab.dataURL,
+            names: tab.names,
+            view: tab.view,
+            exif: tab.exif,
+            showDetails: tab.showDetails,
+            strokes: tab.strokes,
+            textBoxes: tab.textBoxes,
+            pointerNorm: tab.pointerNorm,
+
+            queue: tab.queue,
+          };
+
+          // “đẩy ảnh chưa phân loại đang hiển thị vào queue”
+          const stashPaneItems = itemsFromPanes(tab);
+          const newQueue = [...stashPaneItems, ...tab.queue];
+
+          let t: TabState = {
+            ...tab,
+            queue: newQueue,
+            preview: { on: true, page: 0, stash },
+          };
+
+          // fill panes bằng kept page 0
+          t = setPanesFromItems(t, favPageSlice(t));
+          return {
+            ...state,
+            tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+          };
+        }
+
+        // OFF -> restore stash (lôi đúng ảnh đã đẩy vào queue ra lại)
+        const stash = tab.preview.stash;
+        if (!stash) {
+          // trường hợp auto-enter mà không có stash: tắt preview thì về trạng thái rỗng (an toàn)
+          const t: TabState = {
+            ...tab,
+            preview: { on: false, page: 0, stash: null },
+          };
+          return {
+            ...state,
+            tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+          };
+        }
+
+        const restored: TabState = {
+          ...tab,
+          panes: stash.panes,
+          focusIndex: stash.focusIndex,
+
+          files: stash.files,
+          dataURL: stash.dataURL,
+          names: stash.names,
+          view: stash.view,
+          exif: stash.exif,
+          showDetails: stash.showDetails,
+          strokes: stash.strokes,
+          textBoxes: stash.textBoxes,
+          pointerNorm: stash.pointerNorm,
+
+          queue: stash.queue,
+          preview: { on: false, page: 0, stash: null },
+        };
+
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? restored : x)),
+        };
+      });
+
+      // hydrate panes hiện tại (nếu đang hiển thị path)
+      queueMicrotask(() => {
+        const st = get();
+        for (const pid of ORDER) void st.hydratePaneDataURL(pid);
+      });
+    },
+
+    nextKeptPage: () => {
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab || !tab.preview.on) return state;
+
+        const total = favTotalPages(tab);
+        const page = Math.min(total - 1, tab.preview.page + 1);
+
+        let t: TabState = { ...tab, preview: { ...tab.preview, page } };
+        t = setPanesFromItems(t, favPageSlice(t));
+
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      });
+
+      queueMicrotask(() => {
+        const st = get();
+        for (const pid of ORDER) void st.hydratePaneDataURL(pid);
+      });
+    },
+
+    prevKeptPage: () => {
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab || !tab.preview.on) return state;
+
+        const page = Math.max(0, tab.preview.page - 1);
+        let t: TabState = { ...tab, preview: { ...tab.preview, page } };
+        t = setPanesFromItems(t, favPageSlice(t));
+
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      });
+
+      queueMicrotask(() => {
+        const st = get();
+        for (const pid of ORDER) void st.hydratePaneDataURL(pid);
+      });
+    },
   }))
 );

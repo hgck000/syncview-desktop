@@ -523,6 +523,52 @@ export default function Sidebar({
                 </div>
               )}
             </div>
+            {/* Kept */}
+            <div className="mt-3 flex items-center justify-between px-2 select-none">
+              <div className="text-[11px] text-neutral-500">
+                Kept ({tab?.favorites?.length ?? 0})
+              </div>
+
+              <div
+                className="px-2 py-0.5 rounded text-[11px]
+               bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+               cursor-pointer transition"
+                title="Load kept photos into panes for review"
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  useApp.getState().togglePreviewKept();
+                }}
+              >
+                Review
+              </div>
+            </div>
+
+            <div className="mt-1 space-y-1 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain min-w-0">
+              {(tab?.favorites ?? []).slice(0, 200).map((it, idx) => {
+                const key =
+                  it.kind === "file"
+                    ? `k-file-${it.path}-${it.originIndex}`
+                    : `k-data-${idx}`;
+                return (
+                  <div
+                    key={key}
+                    className="px-2 py-1 rounded border border-neutral-800 bg-neutral-900/40
+                   text-neutral-300/70 text-[11px] leading-4 truncate"
+                    title={it.kind === "file" ? it.path : it.name}
+                  >
+                    {idx + 1}. {it.name}
+                  </div>
+                );
+              })}
+
+              {(tab?.favorites?.length ?? 0) > 200 && (
+                <div className="px-2 text-[11px] text-neutral-500">
+                  …{(tab!.favorites.length - 200).toLocaleString()} more
+                </div>
+              )}
+            </div>
           </div>
         </Panel>
       </PanelGroup>

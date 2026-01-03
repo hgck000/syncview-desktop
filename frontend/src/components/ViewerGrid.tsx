@@ -120,9 +120,6 @@ export default function ViewerGrid() {
   const rootRef = useRef<HTMLDivElement>(null);
   const dragOver = useFileDragOver(rootRef);
 
-  // Quy tắc lưới:
-  // - Mặc định (layout = auto): 1→1 cột, 2→2 cột, 3→3 cột, 4→2x2
-  // - Khi layout = row1x4 và đang có 4 pane: 1 hàng x 4 cột
   const gridBase = "h-full p-1 gap-1 bg-neutral-950 grid auto-rows-fr";
 
   const gridClass =
@@ -144,7 +141,7 @@ export default function ViewerGrid() {
         {needsTab ? (
           <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-1">
             <div className="text-neutral-500 text-[17px]">
-              Create a new tab first
+              Drop photos to add to workspace
             </div>
             <div className="text-neutral-400 text-sm text-[13px]">
               Press <Keycap>H</Keycap> for guide
