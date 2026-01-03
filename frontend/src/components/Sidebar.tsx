@@ -230,7 +230,6 @@ export default function Sidebar({
 }) {
   const { tabs, setLeftSplit } = useApp();
   const tab = useApp((s) => s.getActiveSafe());
-  // const has = useApp(s => s.hasActive());
   const leftSplit = tab?.sizes?.leftSplit ?? 60;
   const paneIds = tab?.panes ?? [];
   const activeId = useApp((s) => s.activeTabId);
@@ -495,6 +494,35 @@ export default function Sidebar({
                   </DndContext>
                 );
               })()}
+            {/* Queue */}
+            <div className="mt-2 px-2 text-[11px] text-neutral-500 select-none">
+              Queue ({tab?.queue?.length ?? 0})
+            </div>
+
+            <div className="mt-1 space-y-1 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain min-w-0">
+              {(tab?.queue ?? []).slice(0, 200).map((it, idx) => {
+                const key =
+                  it.kind === "file"
+                    ? `q-file-${it.path}-${it.originIndex}`
+                    : `q-data-${idx}`;
+                return (
+                  <div
+                    key={key}
+                    className="px-2 py-1 rounded border border-neutral-800 bg-neutral-900/40
+                   text-neutral-300/70 text-[11px] leading-4 truncate"
+                    title={it.kind === "file" ? it.path : it.name}
+                  >
+                    {idx + 1}. {it.name}
+                  </div>
+                );
+              })}
+
+              {(tab?.queue?.length ?? 0) > 200 && (
+                <div className="px-2 text-[11px] text-neutral-500">
+                  …{(tab!.queue.length - 200).toLocaleString()} more
+                </div>
+              )}
+            </div>
           </div>
         </Panel>
       </PanelGroup>
