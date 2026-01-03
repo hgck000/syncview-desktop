@@ -13,6 +13,14 @@ declare global {
           dataurl: string,
           suggested_name: string
         ) => Promise<string | null>;
+        open_folder_dialog?: () => Promise<string | null>;
+        list_images_in_folder?: (folder: string) => Promise<string[] | null>;
+        choose_export_folder?: () => Promise<string | null>;
+        export_copy_files?: (
+          paths: string[],
+          out_dir: string,
+          copy_xmp?: boolean
+        ) => Promise<{ ok: number; fail: string[] } | null>;
       };
     };
     api?: {
@@ -155,4 +163,36 @@ export async function savePngDialog(
     return null;
   }
   return (await api.save_png_dialog(dataurl, suggestedName)) ?? null;
+}
+
+export async function openFolderDialog(): Promise<string | null> {
+  const api = window.pywebview?.api;
+  if (!api?.open_folder_dialog) {
+    alert("Folder dialog chưa sẵn sàng. Hãy chạy bằng backend (pywebview).");
+    return null;
+  }
+  return (await api.open_folder_dialog()) ?? null;
+}
+
+export async function listImagesInFolder(folder: string): Promise<string[]> {
+  const api = window.pywebview?.api;
+  if (!api?.list_images_in_folder) return [];
+  const res = await api.list_images_in_folder(folder);
+  return Array.isArray(res) ? res : [];
+}
+
+export async function chooseExportFolder(): Promise<string | null> {
+  const api = window.pywebview?.api;
+  if (!api?.choose_export_folder) return null;
+  return (await api.choose_export_folder()) ?? null;
+}
+
+export async function exportCopyFiles(
+  paths: string[],
+  outDir: string,
+  copyXmp = true
+): Promise<{ ok: number; fail: string[] } | null> {
+  const api = window.pywebview?.api;
+  if (!api?.export_copy_files) return null;
+  return (await api.export_copy_files(paths, outDir, copyXmp)) ?? null;
 }

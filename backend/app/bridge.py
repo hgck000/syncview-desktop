@@ -51,6 +51,102 @@ class Bridge:
         print(f"[Bridge] selected path={path}")
         return path
     
+    def open_folder_dialog(self) -> Optional[str]:
+        """Chọn 1 folder (không đệ quy). Trả về path hoặc None."""
+        try:
+            result = self.window.create_file_dialog(
+                webview.FOLDER_DIALOG,
+                directory=str(Path.home()),
+            )
+        except Exception as e:
+            print(f"[Bridge][ERROR] open_folder_dialog: {e}")
+            return None
+
+        if not result:
+            return None
+
+        # pywebview trả list
+        folder = str(Path(result[0]).resolve())
+        print(f"[Bridge] selected folder={folder}")
+        return folder
+
+    def list_images_in_folder(self, folder: str) -> List[str]:
+        """
+        List ảnh trong folder (không đệ quy), trả về danh sách full paths
+        theo thứ tự tên file (ổn định, giống “thứ tự trong folder”).
+        """
+        p = Path(folder)
+        if not p.exists() or not p.is_dir():
+            return []
+
+        # Các loại file preview được bằng Pillow/hiện tại app đang handle tốt.
+        exts = {
+            ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic"
+        }
+
+        items = []
+        try:
+            for f in p.iterdir():
+                if not f.is_file():
+                    continue
+                if f.suffix.lower() in exts:
+                    items.append(str(f.resolve()))
+        except Exception as e:
+            print(f"[Bridge][ERROR] list_images_in_folder: {e}")
+            return []
+
+        items.sort(key=lambda s: Path(s).name.lower())
+        return items
+
+    def choose_export_folder(self) -> Optional[str]:
+        """Chọn folder đích để export favourites."""
+        try:
+            result = self.window.create_file_dialog(
+                webview.FOLDER_DIALOG,
+                directory=str(Path.home()),
+            )
+        except Exception as e:
+            print(f"[Bridge][ERROR] choose_export_folder: {e}")
+            return None
+        if not result:
+            return None
+        return str(Path(result[0]).resolve())
+
+    def export_copy_files(self, paths: List[str], out_dir: str, copy_xmp: bool = True) -> Dict[str, Any]:
+        """
+        Copy nguyên file gốc (100% quality). Nếu copy_xmp=True thì copy sidecar .xmp cùng basename.
+        Trả về thống kê: ok, fail.
+        """
+        outp = Path(out_dir)
+        outp.mkdir(parents=True, exist_ok=True)
+
+        ok = 0
+        fail: List[str] = []
+
+        for src in paths or []:
+            try:
+                sp = Path(src)
+                if not sp.exists() or not sp.is_file():
+                    fail.append(src)
+                    continue
+
+                dst = outp / sp.name
+
+                # copy2 giữ metadata cơ bản (mtime, …)
+                import shutil
+                shutil.copy2(str(sp), str(dst))
+                ok += 1
+
+                if copy_xmp:
+                    xmp = sp.with_suffix(".xmp")
+                    if xmp.exists() and xmp.is_file():
+                        shutil.copy2(str(xmp), str(outp / xmp.name))
+            except Exception as e:
+                print(f"[Bridge][ERROR] export_copy_files {src}: {e}")
+                fail.append(src)
+
+        return {"ok": ok, "fail": fail}
+
     def read_image_dataurl(self, path: str) -> Optional[str]:
         """Đọc file ảnh local và trả DataURL PNG để FE load vào <img/canvas>"""
         try:
