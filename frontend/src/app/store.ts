@@ -352,6 +352,8 @@ type AppState = {
   prevQueuePage: () => void;
   nextQueuePageShow: () => void;
   prevQueuePageShow: () => void;
+  toggleFavoritePane: (pid: PaneId) => void;
+  getPaneItem: (pid: PaneId) => QueueItem | null;
 };
 
 type SavedSession = {
@@ -441,7 +443,7 @@ function paneHasImage(t: TabState, pid: PaneId) {
   return !!t.files?.[pid] || !!t.dataURL?.[pid];
 }
 
-function getPaneItem(t: TabState, pid: PaneId): QueueItem | null {
+function _getPaneItem(t: TabState, pid: PaneId): QueueItem | null {
   const fp = t.files?.[pid];
   const du = t.dataURL?.[pid];
   const nm = t.names?.[pid];
@@ -531,7 +533,7 @@ function compactAndFill(t0: TabState): TabState {
   // gom các item đang có theo thứ tự panes hiện tại
   const currentItems: QueueItem[] = [];
   for (const pid of order) {
-    const it = getPaneItem(t, pid);
+    const it = _getPaneItem(t, pid);
     if (it) currentItems.push(it);
   }
 
@@ -590,7 +592,7 @@ function sortFav(t: TabState): QueueItem[] {
 function itemsFromPanes(t: TabState): QueueItem[] {
   const out: QueueItem[] = [];
   for (const pid of t.panes) {
-    const it = getPaneItem(t, pid); // bạn đã có helper này
+    const it = _getPaneItem(t, pid); // bạn đã có helper này
     if (it) out.push(it);
   }
   return out;
@@ -2119,7 +2121,7 @@ export const useApp = create<AppState>()(
         if (!tab) return state;
         if (!paneHasImage(tab, pane)) return state;
 
-        const it = getPaneItem(tab, pane);
+        const it = _getPaneItem(tab, pane);
         if (!it) return state;
 
         let t: TabState = tab;
@@ -2151,7 +2153,7 @@ export const useApp = create<AppState>()(
         if (!tab) return state;
         if (!paneHasImage(tab, pane)) return state;
 
-        const it = getPaneItem(tab, pane);
+        const it = _getPaneItem(tab, pane);
         if (!it) return state;
 
         let t: TabState = tab;
@@ -2438,6 +2440,45 @@ export const useApp = create<AppState>()(
         const st = get();
         for (const pid of ORDER) void st.hydratePaneDataURL(pid);
       });
+    },
+
+    toggleFavoritePane: (pid) => {
+      get().pushUndoPoint?.("toggleFavorite");
+
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+
+        const it = _getPaneItem(tab, pid);
+        if (!it) return state;
+
+        const fav = tab.favorites ?? [];
+        const isSame = (a: QueueItem, b: QueueItem) =>
+          a.kind === b.kind &&
+          (a.kind === "file"
+            ? a.path === (b as any).path &&
+              a.originIndex === (b as any).originIndex
+            : a.name === (b as any).name);
+
+        const exists = fav.some((x) => isSame(x, it));
+
+        const nextFav = exists
+          ? fav.filter((x) => !isSame(x, it))
+          : [...fav, it];
+
+        const t: TabState = { ...tab, favorites: nextFav };
+
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      });
+    },
+
+    getPaneItem: (pid) => {
+      const tab = get().getActiveSafe();
+      if (!tab) return null;
+      return _getPaneItem(tab, pid);
     },
   }))
 );

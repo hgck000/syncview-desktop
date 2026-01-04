@@ -3,7 +3,7 @@ import { useApp } from "../app/store";
 import { useAnnotCanvas } from "../app/useAnnotCanvas";
 import { basename } from "../app/path";
 import { useImageCanvas } from "../app/useImageCanvas";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { readExifFromPath, readExifFromDataURL } from "../app/bridge";
 import {
   ChevronDown,
@@ -25,6 +25,23 @@ import { cursorSet, cursorClear } from "../app/cursorManager";
 type Props = { id: "A" | "B" | "C" | "D" };
 
 export default function Pane({ id }: Props) {
+  const tab = useApp((s) => s.getActiveSafe());
+  const it = useApp.getState().getPaneItem(id);
+
+  const isStarred = useMemo(() => {
+    if (!it) return false;
+    const fav = tab.favorites ?? [];
+    if (it.kind === "file") {
+      return fav.some(
+        (x) =>
+          x.kind === "file" &&
+          x.path === it.path &&
+          x.originIndex === it.originIndex
+      );
+    }
+    return fav.some((x) => x.kind === "dataURL" && x.name === it.name);
+  }, [tab.favorites, it]);
+
   const panes = useApp((s) => s.getActiveSafe().panes);
   const focusIndex = useApp((s) => s.getActiveSafe().focusIndex);
 
@@ -869,22 +886,29 @@ export default function Pane({ id }: Props) {
         {(path || data) && (
           <div className="absolute top-1.5 right-1.5 pointer-events-auto flex flex-row gap-1.5">
             <div
-              title="Keep"
+              title={isStarred ? "Unstar" : "Star"}
               onMouseDown={(e) => {
                 if (e.button !== 0) return;
                 e.preventDefault();
                 e.stopPropagation();
-                useApp.getState().favoritePane(id);
+                useApp.getState().toggleFavoritePane(id);
               }}
-              className="w-5 h-5 rounded-full flex items-center justify-center
-           bg-neutral-800/90 text-neutral-300
-           border border-neutral-700/60 shadow-sm
-           hover:bg-neutral-700 hover:text-white
-           active:scale-95 cursor-pointer transition
-           backdrop-blur-sm"
+              className={`w-5 h-5 rounded-full flex items-center justify-center
+    bg-neutral-800/90 text-neutral-300
+    border border-neutral-700/60 shadow-sm
+    hover:bg-neutral-700 hover:text-white
+    active:scale-95 cursor-pointer transition
+    backdrop-blur-sm
+    ${isStarred ? "bg-blue-700/60 text-blue-100 border-blue-600/60" : ""}`}
             >
-              <Star className="w-4 h-4" strokeWidth={2.2} />
+              <Star
+                className={`w-4 h-4 ${
+                  isStarred ? "fill-current" : "fill-transparent"
+                }`}
+                strokeWidth={2.2}
+              />
             </div>
+
             <div
               title="Discard"
               onMouseDown={(e) => {
