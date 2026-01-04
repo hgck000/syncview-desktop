@@ -156,6 +156,7 @@ const SAFE_EMPTY_TAB: TabState = {
   rejected: [],
   sourceFolder: undefined,
   preview: { on: false, page: 0, stash: null },
+  queuePage: 0,
 };
 
 type ReviewStash = {
@@ -207,6 +208,7 @@ type TabState = {
     page: number;
     stash: ReviewStash | null;
   };
+  queuePage: number;
 };
 
 type AppState = {
@@ -346,6 +348,10 @@ type AppState = {
   togglePreviewKept: () => void;
   nextKeptPage: () => void;
   prevKeptPage: () => void;
+  nextQueuePage: () => void;
+  prevQueuePage: () => void;
+  nextQueuePageShow: () => void;
+  prevQueuePageShow: () => void;
 };
 
 type SavedSession = {
@@ -401,6 +407,7 @@ function makeEmptyTab(name = "Untitled"): TabState {
     rejected: [],
     sourceFolder: undefined,
     preview: { on: false, page: 0, stash: null },
+    queuePage: 0,
   };
 }
 
@@ -608,6 +615,28 @@ function setPanesFromItems(t0: TabState, items: QueueItem[]): TabState {
     panes: order.slice(0, n),
     focusIndex: 0,
   };
+}
+
+function setUnclassifiedPage(t0: TabState, nextPage: number): TabState {
+  // full list = (4 ảnh đang hiện trên panes) + queue
+  const paneItems = itemsFromPanes(t0);
+  const full = [...paneItems, ...(t0.queue ?? [])];
+
+  if (full.length === 0) {
+    return { ...t0, queue: [], panes: [], focusIndex: 0, queuePage: 0 };
+  }
+
+  const totalPages = Math.max(1, Math.ceil(full.length / 4));
+  const page = Math.min(totalPages - 1, Math.max(0, nextPage | 0));
+  const start = page * 4;
+
+  const selected = full.slice(start, start + 4);
+  const rest = [...full.slice(0, start), ...full.slice(start + 4)];
+
+  // set panes = selected, queue = rest
+  let t: TabState = { ...t0, queuePage: page, queue: rest };
+  t = setPanesFromItems(t, selected);
+  return t;
 }
 
 function favPageSlice(t: TabState): QueueItem[] {
@@ -2322,6 +2351,83 @@ export const useApp = create<AppState>()(
         let t: TabState = { ...tab, preview: { ...tab.preview, page } };
         t = setPanesFromItems(t, favPageSlice(t));
 
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      });
+
+      queueMicrotask(() => {
+        const st = get();
+        for (const pid of ORDER) void st.hydratePaneDataURL(pid);
+      });
+    },
+
+    nextQueuePage: () =>
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+
+        const total = Math.max(1, Math.ceil((tab.queue?.length ?? 0) / 4));
+        const page = Math.min(total - 1, (tab.queuePage ?? 0) + 1);
+
+        const t: TabState = { ...tab, queuePage: page };
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      }),
+
+    prevQueuePage: () =>
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+
+        const page = Math.max(0, (tab.queuePage ?? 0) - 1);
+        const t: TabState = { ...tab, queuePage: page };
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      }),
+
+    prevQueuePageShow: () => {
+      get().pushUndoPoint?.("prevQueuePageShow");
+
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+        if (tab.preview?.on) return state; // đang xem kept thì không dùng queue pager
+
+        const page = Math.max(0, (tab.queuePage ?? 0) - 1);
+        const t = setUnclassifiedPage(tab, page);
+
+        return {
+          ...state,
+          tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),
+        };
+      });
+
+      queueMicrotask(() => {
+        const st = get();
+        for (const pid of ORDER) void st.hydratePaneDataURL(pid);
+      });
+    },
+
+    nextQueuePageShow: () => {
+      get().pushUndoPoint?.("nextQueuePageShow");
+
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (!tab) return state;
+        if (tab.preview?.on) return state;
+
+        // tính total page dựa trên (paneItems + queue)
+        const fullLen = itemsFromPanes(tab).length + (tab.queue?.length ?? 0);
+        const total = Math.max(1, Math.ceil(fullLen / 4));
+        const page = Math.min(total - 1, (tab.queuePage ?? 0) + 1);
+
+        const t = setUnclassifiedPage(tab, page);
         return {
           ...state,
           tabs: state.tabs.map((x) => (x.id === tab.id ? t : x)),

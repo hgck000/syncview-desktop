@@ -9,6 +9,9 @@ import {
   ChevronsLeft,
   ChevronsRight,
   AppWindow,
+  Star,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import React, { useState } from "react";
 import {
@@ -27,6 +30,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+const ROW_H = 34;
+const LIST_H = ROW_H * 4;
 
 function SortableTabRow({
   t,
@@ -211,6 +217,36 @@ function SortablePaneRow({
   );
 }
 
+function FourRows({
+  rows,
+  renderRow,
+  className,
+}: {
+  rows: any[];
+  renderRow: (row: any, idx: number) => React.ReactNode;
+  className: string;
+}) {
+  const items = rows.slice(0, 4);
+  return (
+    <div style={{ height: LIST_H }} className="space-y-1 overflow-hidden">
+      {Array.from({ length: 4 }).map((_, i) => {
+        const row = items[i];
+        if (row !== undefined) return <div key={i}>{renderRow(row, i)}</div>;
+
+        // placeholder (giữ chỗ)
+        return (
+          <div
+            key={i}
+            className={`px-2 py-1 rounded text-[11px] leading-4 ${className} opacity-30`}
+          >
+            &nbsp;
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Sidebar({
   compact = false,
   showFull = true,
@@ -257,6 +293,28 @@ export default function Sidebar({
   // trạng thái kéo để ẩn nút sửa/xóa toàn bộ trong lúc kéo
   const [dragging, setDragging] = React.useState(false);
   const items = tabs.map((tt) => String(tt.id));
+
+  const showingKept = !!tab?.preview?.on;
+  const stash = tab?.preview?.stash;
+
+  // Queue source: nếu đang show Kept thì lấy từ stash (đúng unclassified set trước khi swap)
+  const uQueue = (showingKept && stash ? stash.queue : tab?.queue) ?? [];
+
+  // Panes chỉ xuất hiện khi đang show Kept (lấy từ stash)
+  const uPanes = (showingKept && stash ? stash.panes : []) ?? [];
+
+  // Names: khi show kept thì lấy stash.names, còn lại lấy tab.names
+  const uNames = (showingKept && stash ? stash.names : tab?.names) ?? {};
+
+  // Count: unstar chỉ tính queue; star thì tính panes + queue (đúng như bạn muốn nhét 4 pane lên đầu)
+  const uTotal = showingKept
+    ? (uPanes.length ?? 0) + (uQueue.length ?? 0)
+    : uQueue.length ?? 0;
+
+  const LIST_ACTIVE =
+    "border border-neutral-700/70 bg-neutral-800/70 text-neutral-200";
+  const LIST_MUTED =
+    "border border-neutral-800 bg-neutral-900/30 text-neutral-300/60";
 
   const compactUI = (
     <div className="h-full bg-neutral-900 border-r border-neutral-800 flex flex-col">
@@ -420,8 +478,36 @@ export default function Sidebar({
         {/* IMAGE PANEL CONTROL BOX */}
         <Panel minSize={20}>
           <div className="h-full p-3 border-t border-neutral-800">
-            <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">
-              Images in this tab
+            <div className="py-1 pb-3 flex items-center justify-between select-none">
+              <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">
+                Images in this tab
+              </div>
+
+              {/* nút swap list (kept/unclassified) */}
+              <div
+                className={`px-2 py-0.5 rounded text-xs transition cursor-pointer select-none group
+    ${tab?.preview?.on ? "text-white" : "text-neutral-300"}
+  `}
+                title="Show star list"
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  useApp.getState().togglePreviewKept();
+                }}
+              >
+                <Star
+                  className={`w-4 h-4 transition-all
+    ${
+      tab?.preview?.on
+        ? "scale-110 fill-blue-600 stroke-blue-600 " +
+          "group-hover:scale-125 group-hover:fill-blue-600"
+        : "fill-transparent stroke-neutral-400 " +
+          "group-hover:stroke-blue-600 group-hover:scale-110"
+    }`}
+                  strokeWidth={2.2}
+                />
+              </div>
             </div>
             {!tab && (
               <div className="p-3 rounded border border-dashed border-neutral-800/70 bg-neutral-900/30 text-neutral-600 text-sm">
@@ -455,27 +541,22 @@ export default function Sidebar({
                       items={paneIds}
                       strategy={verticalListSortingStrategy}
                     >
-                      <div className="space-y-1 overflow-y-hidden overflow-x-hidden pr-1">
+                      <div
+                        className="space-y-1 overflow-hidden pr-1"
+                        style={{ height: LIST_H }}
+                      >
                         {paneIds.map((pid, i) => {
-                          const hasFile = !!tab?.files?.[pid];
-                          const hasData = !!tab?.dataURL?.[pid];
-                          const hasImage = hasFile || hasData;
+                          const file = tab?.files?.[pid];
+                          const dataURL = tab?.dataURL?.[pid];
+                          const hasImage = !!(file || dataURL);
 
-                          const filePath = tab?.files?.[pid] ?? "";
-                          const fileName =
-                            filePath.split(/[/\\]/).pop() ||
-                            filePath ||
-                            `${pid}: Empty`;
-
-                          const name =
+                          const name: string =
                             tab?.names?.[pid] ??
-                            (hasFile
-                              ? fileName
-                              : hasData
-                              ? "(dropped image)"
-                              : `${pid}: Empty`);
+                            (file ? file.split(/[\\/]/).pop() : undefined) ??
+                            (hasImage ? "(image)" : "(empty)");
 
-                          const focused = i === tab?.focusIndex;
+                          const focused =
+                            tab?.panes?.[tab?.focusIndex ?? 0] === pid;
 
                           return (
                             <SortablePaneRow
@@ -483,91 +564,265 @@ export default function Sidebar({
                               pid={pid}
                               name={name}
                               hasImage={hasImage}
-                              focused={!!focused}
+                              focused={focused}
                               onFocus={() => useApp.getState().setFocusIndex(i)}
                               onRemove={() => useApp.getState().clearPane(pid)}
                             />
                           );
                         })}
+
+                        {/* placeholders để luôn đủ 4 hàng (tránh nhảy layout) */}
+                        {Array.from({
+                          length: Math.max(0, 4 - paneIds.length),
+                        }).map((_, k) => (
+                          <div
+                            key={`pane-ph-${k}`}
+                            className={`w-full px-2 py-1 rounded border text-left text-xs select-none transition opacity-30 ${
+                              showingKept ? LIST_MUTED : LIST_ACTIVE
+                            }`}
+                          >
+                            &nbsp;
+                          </div>
+                        ))}
+
+                        {/* Pager row (under panes) */}
                       </div>
                     </SortableContext>
                   </DndContext>
                 );
               })()}
-            {/* Queue */}
-            <div className="mt-2 px-2 text-[11px] text-neutral-500 select-none">
-              Queue ({tab?.queue?.length ?? 0})
-            </div>
+            {(() => {
+              // Kept pages
+              const keptCount = tab?.favorites?.length ?? 0;
+              const keptPages = Math.max(1, Math.ceil(keptCount / 4));
+              const keptPage = Math.min(
+                keptPages - 1,
+                Math.max(0, tab?.preview?.page ?? 0)
+              );
 
-            <div className="mt-1 space-y-1 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain min-w-0">
-              {(tab?.queue ?? []).slice(0, 200).map((it, idx) => {
-                const key =
-                  it.kind === "file"
-                    ? `q-file-${it.path}-${it.originIndex}`
-                    : `q-data-${idx}`;
-                return (
+              // Unclassified pages: dựa trên (paneItems + queue)
+              const fullLen =
+                (tab?.panes?.length ?? 0) + (tab?.queue?.length ?? 0);
+              const qPages = Math.max(1, Math.ceil(fullLen / 4));
+              const qPage = Math.min(
+                qPages - 1,
+                Math.max(0, tab?.queuePage ?? 0)
+              );
+
+              const canPrev = showingKept ? keptPage > 0 : qPage > 0;
+              const canNext = showingKept
+                ? keptPage < keptPages - 1
+                : qPage < qPages - 1;
+
+              const label = showingKept
+                ? `${keptPage + 1}/${keptPages}`
+                : `${qPage + 1}/${qPages}`;
+
+              return (
+                <div className="mt-2 px-2 flex items-center justify-evenly pr-4 gap-1 select-none">
                   <div
-                    key={key}
-                    className="px-2 py-1 rounded border border-neutral-800 bg-neutral-900/40
-                   text-neutral-300/70 text-[11px] leading-4 truncate"
-                    title={it.kind === "file" ? it.path : it.name}
+                    className={`group inline-flex items-center justify-center
+    p-1 rounded transition-all duration-150
+    bg-transparent cursor-pointer
+    text-neutral-400 hover:text-neutral-200
+    hover:scale-110 active:scale-100
+    ${!canPrev ? "opacity-40 pointer-events-none" : ""}`}
+                    title="Previous"
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (showingKept) useApp.getState().prevKeptPage();
+                      else useApp.getState().prevQueuePageShow();
+                    }}
                   >
-                    {idx + 1}. {it.name}
+                    <ArrowLeft className="w-3.5 h-3.5 stroke-current" />
                   </div>
-                );
-              })}
 
-              {(tab?.queue?.length ?? 0) > 200 && (
-                <div className="px-2 text-[11px] text-neutral-500">
-                  …{(tab!.queue.length - 200).toLocaleString()} more
+                  <div className="px-2 py-0.5 rounded text-[11px] text-neutral-400">
+                    {label}
+                  </div>
+
+                  <div
+                    className={`group inline-flex items-center justify-center
+    p-1 rounded transition-all duration-150
+    bg-transparent cursor-pointer
+    text-neutral-400 hover:text-neutral-200
+    hover:scale-110 active:scale-100
+    ${!canNext ? "opacity-40 pointer-events-none" : ""}`}
+                    title="Next"
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (showingKept) useApp.getState().nextKeptPage();
+                      else useApp.getState().nextQueuePageShow();
+                    }}
+                  >
+                    <ArrowRight className="w-3.5 h-3.5 stroke-current" />
+                  </div>
                 </div>
-              )}
-            </div>
-            {/* Kept */}
-            <div className="mt-3 flex items-center justify-between px-2 select-none">
-              <div className="text-[11px] text-neutral-500">
-                Kept ({tab?.favorites?.length ?? 0})
-              </div>
-
+              );
+            })()}
+            {/* Unclassified list (chỉ khi đang show unclassified) */}
+            <div className="mt-2 px-2 text-[11px] select-none flex items-center justify-between">
               <div
-                className="px-2 py-0.5 rounded text-[11px]
-               bg-neutral-800 hover:bg-neutral-700 text-neutral-300
-               cursor-pointer transition"
-                title="Load kept photos into panes for review"
-                onMouseDown={(e) => {
-                  if (e.button !== 0) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  useApp.getState().togglePreviewKept();
-                }}
+                className={
+                  showingKept ? "text-neutral-500" : "text-neutral-300"
+                }
               >
-                Review
+                Queue ({uTotal})
               </div>
             </div>
 
-            <div className="mt-1 space-y-1 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain min-w-0">
-              {(tab?.favorites ?? []).slice(0, 200).map((it, idx) => {
-                const key =
-                  it.kind === "file"
-                    ? `k-file-${it.path}-${it.originIndex}`
-                    : `k-data-${idx}`;
-                return (
-                  <div
-                    key={key}
-                    className="px-2 py-1 rounded border border-neutral-800 bg-neutral-900/40
-                   text-neutral-300/70 text-[11px] leading-4 truncate"
-                    title={it.kind === "file" ? it.path : it.name}
-                  >
-                    {idx + 1}. {it.name}
-                  </div>
+            <div className="mt-1 px-2 pr-4">
+              {(() => {
+                // queue page (chỉ dùng khi KHÔNG showingKept)
+                const qPages = Math.max(1, Math.ceil(uQueue.length / 4));
+                const qPage = Math.min(
+                  qPages - 1,
+                  Math.max(0, tab?.queuePage ?? 0)
                 );
-              })}
+                const start = qPage * 4;
+                const qItems = uQueue.slice(start, start + 4);
 
-              {(tab?.favorites?.length ?? 0) > 200 && (
-                <div className="px-2 text-[11px] text-neutral-500">
-                  …{(tab!.favorites.length - 200).toLocaleString()} more
-                </div>
-              )}
+                // Khi showingKept: Unclassified list chỉ hiển thị 4 “uPanes” (để không dính ảnh starred)
+                // Khi không showingKept: Unclassified list hiển thị page queue (4 items)
+                const rows = (showingKept ? uPanes : qItems) as any[];
+
+                // Nếu rỗng thì show 1 dòng “Empty” + 3 dòng placeholder
+                const rowsOrEmpty =
+                  rows.length > 0 ? rows : [{ __kind: "__empty__" }];
+
+                return (
+                  <FourRows
+                    rows={rowsOrEmpty}
+                    className={showingKept ? LIST_MUTED : LIST_ACTIVE}
+                    renderRow={(row: any, i: number) => {
+                      // empty sentinel
+                      if (row?.__kind === "__empty__") {
+                        return (
+                          <div
+                            className={`px-2 py-1 rounded text-[11px] leading-4 ${
+                              showingKept ? LIST_MUTED : LIST_ACTIVE
+                            }`}
+                          >
+                            Empty
+                          </div>
+                        );
+                      }
+
+                      // showingKept => row là pid ("A"|"B"|"C"|"D")
+                      if (showingKept) {
+                        const pid = row as "A" | "B" | "C" | "D";
+                        const name = uNames[pid] || "(image)";
+                        return (
+                          <div
+                            className={`px-2 py-1 rounded text-[11px] leading-4 truncate ${
+                              showingKept ? LIST_MUTED : LIST_ACTIVE
+                            }`}
+                            title={name}
+                          >
+                            {i + 1}. {name}
+                          </div>
+                        );
+                      }
+
+                      // unclassified queue item
+                      const it = row as {
+                        kind: string;
+                        name: string;
+                        path?: string;
+                      };
+                      return (
+                        <div
+                          className={`px-2 py-1 rounded text-[11px] leading-4 truncate ${
+                            showingKept ? LIST_MUTED : LIST_ACTIVE
+                          }`}
+                          title={it.kind === "file" ? it.path : it.name}
+                        >
+                          {start + i + 1}. {it.name}
+                        </div>
+                      );
+                    }}
+                  />
+                );
+              })()}
+            </div>
+
+            {/* Kept list (chỉ khi đang show kept) */}
+            <div className="mt-3 px-2 text-[11px] select-none flex items-center justify-between">
+              <div
+                className={
+                  showingKept ? "text-neutral-300" : "text-neutral-500"
+                }
+              >
+                Starred ({tab?.favorites?.length ?? 0})
+              </div>
+            </div>
+
+            <div className="mt-1 px-2 pr-4">
+              {(() => {
+                const fav = (tab?.favorites ?? []).slice().sort((a, b) => {
+                  const ai = a.originIndex ?? 1e15;
+                  const bi = b.originIndex ?? 1e15;
+                  return ai - bi;
+                });
+
+                const pages = Math.max(1, Math.ceil(fav.length / 4));
+                const page = Math.min(
+                  pages - 1,
+                  Math.max(0, tab?.preview?.page ?? 0)
+                );
+                const start = page * 4;
+                const items = fav.slice(start, start + 4);
+
+                const rowsOrEmpty = items.length
+                  ? items
+                  : [{ __kind: "__empty__" }];
+
+                return (
+                  <FourRows
+                    rows={rowsOrEmpty}
+                    className={showingKept ? LIST_ACTIVE : LIST_MUTED}
+                    renderRow={(row: any, i: number) => {
+                      if (row?.__kind === "__empty__") {
+                        return (
+                          <div
+                            className={`px-2 py-1 rounded text-[11px] ${
+                              showingKept ? LIST_ACTIVE : LIST_MUTED
+                            }`}
+                          >
+                            Empty
+                          </div>
+                        );
+                      }
+
+                      const it = row as {
+                        kind: string;
+                        name: string;
+                        path?: string;
+                        originIndex?: number;
+                      };
+                      return (
+                        <div
+                          key={
+                            it.kind === "file"
+                              ? `k-${it.path}-${it.originIndex}`
+                              : `k-${start + i}`
+                          }
+                          className={`px-2 py-1 rounded text-[11px] leading-4 truncate ${
+                            showingKept ? LIST_ACTIVE : LIST_MUTED
+                          }`}
+                          title={it.kind === "file" ? it.path : it.name}
+                        >
+                          {start + i + 1}. {it.name}
+                        </div>
+                      );
+                    }}
+                  />
+                );
+              })()}
             </div>
           </div>
         </Panel>

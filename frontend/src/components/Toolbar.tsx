@@ -4,7 +4,6 @@ import {
   Maximize,
   Search,
   Trash2,
-  ImageIcon,
   Pencil,
   Eraser,
   Download,
@@ -15,6 +14,7 @@ import {
   Underline,
   Folder,
   File,
+  ExternalLink,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
@@ -739,7 +739,7 @@ export default function Toolbar() {
               bg-neutral-800 hover:bg-neutral-700 text-neutral-300
               cursor-pointer select-none transition btn-width justify-center"
         >
-          <ImageIcon size={16} /> Open
+          <ExternalLink size={16} /> Open
         </div>
 
         {openMenu && (
