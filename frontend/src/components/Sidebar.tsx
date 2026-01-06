@@ -677,7 +677,6 @@ export default function Sidebar({
 
             <div className="mt-1 px-2 pr-4">
               {(() => {
-                // queue page (chỉ dùng khi KHÔNG showingKept)
                 const qPages = Math.max(1, Math.ceil(uQueue.length / 4));
                 const qPage = Math.min(
                   qPages - 1,
@@ -686,11 +685,8 @@ export default function Sidebar({
                 const start = qPage * 4;
                 const qItems = uQueue.slice(start, start + 4);
 
-                // Khi showingKept: Unclassified list chỉ hiển thị 4 “uPanes” (để không dính ảnh starred)
-                // Khi không showingKept: Unclassified list hiển thị page queue (4 items)
                 const rows = (showingKept ? uPanes : qItems) as any[];
 
-                // Nếu rỗng thì show 1 dòng “Empty” + 3 dòng placeholder
                 const rowsOrEmpty =
                   rows.length > 0 ? rows : [{ __kind: "__empty__" }];
 

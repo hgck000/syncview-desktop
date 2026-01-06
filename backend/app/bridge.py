@@ -483,12 +483,6 @@ class Bridge:
             "errors": [],
         }
 
-        # parent = self.choose_export_folder("Select export destination")
-        # parent = self.choose_export_folder
-        # if not parent:
-        #     out["errors"].append("cancelled")
-        #     return out
-        
         parent = self.choose_export_folder()
         if not parent:
             out["errors"].append("cancelled")
@@ -572,4 +566,20 @@ class Bridge:
         out["ok"] = True
         out["out_dir"] = str(out_dir)
         print(f"[Bridge] export_starred_dialog -> {out['out_dir']} copied={out['copied']} skipped={out['skipped']}")
+        try:
+            log_path = out_dir / "export_log.txt"
+            lines = []
+            lines.append(f"ok: {out['ok']}")
+            lines.append(f"out_dir: {out['out_dir']}")
+            lines.append(f"copied: {out['copied']}")
+            lines.append(f"skipped: {out['skipped']}")
+            if out["errors"]:
+                lines.append("")
+                lines.append("errors:")
+                for e in out["errors"]:
+                    lines.append(f"- {e}")
+            log_path.write_text("\n".join(lines), encoding="utf-8")
+        except Exception as e:
+            print(f"[Bridge][WARN] write export_log failed: {e}")
+
         return out
