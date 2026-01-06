@@ -133,15 +133,22 @@ export default function ViewerGrid() {
       ? `${gridBase} grid-cols-4 grid-rows-1`
       : `${gridBase} grid-cols-2 grid-rows-2`;
 
-  const needsTab = !has || n === 0;
-
   return (
     <DropZone>
       <div ref={rootRef} className="h-full relative">
-        {needsTab ? (
+        {!has ? (
           <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-1">
             <div className="text-neutral-500 text-[17px]">
-              Drop photos to add to workspace
+              Create a new tab first
+            </div>
+            <div className="text-neutral-400 text-sm text-[13px]">
+              Press <Keycap>H</Keycap> for guide
+            </div>
+          </div>
+        ) : n === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-1">
+            <div className="text-neutral-500 text-[17px]">
+              Drop images to add to workspace
             </div>
             <div className="text-neutral-400 text-sm text-[13px]">
               Press <Keycap>H</Keycap> for guide

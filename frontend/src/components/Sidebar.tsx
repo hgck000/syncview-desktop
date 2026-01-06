@@ -266,7 +266,7 @@ export default function Sidebar({
 }) {
   const { tabs, setLeftSplit } = useApp();
   const tab = useApp((s) => s.getActiveSafe());
-  const leftSplit = tab?.sizes?.leftSplit ?? 60;
+  const leftSplit = tab?.sizes?.leftSplit ?? 42;
   const paneIds = tab?.panes ?? [];
   const activeId = useApp((s) => s.activeTabId);
   const setActive = useApp((s) => s.setActiveTab);
@@ -515,8 +515,8 @@ export default function Sidebar({
               </div>
             )}
             {tab && paneIds.length === 0 && (
-              <div className="p-3 rounded border border-neutral-800 bg-neutral-900/50 text-neutral-300 text-sm">
-                No images in this tab yet
+              <div className="p-3 rounded border border-neutral-800 bg-neutral-900/50 text-neutral-300 text-sm text-center">
+                No images in this tab
               </div>
             )}
             {tab &&
