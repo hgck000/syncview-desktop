@@ -354,6 +354,7 @@ type AppState = {
   prevQueuePageShow: () => void;
   toggleFavoritePane: (pid: PaneId) => void;
   getPaneItem: (pid: PaneId) => QueueItem | null;
+  exportStarred: () => Promise<void>;
 };
 
 type SavedSession = {
@@ -2479,6 +2480,33 @@ export const useApp = create<AppState>()(
       const tab = get().getActiveSafe();
       if (!tab) return null;
       return _getPaneItem(tab, pid);
+    },
+
+    exportStarred: async () => {
+      const tab = get().getActiveSafe();
+      if (!tab) return;
+
+      const fav = tab.favorites ?? [];
+      if (fav.length === 0) {
+        alert("No starred photos to export.");
+        return;
+      }
+
+      const { exportStarredDialog } = await import("./bridge");
+      const res = await exportStarredDialog(fav, "SyncView_Starred");
+
+      if (!res) return; // bridge already alerted (not ready / cancelled)
+
+      if (!res.ok) {
+        alert(`Export failed.\n${(res.errors ?? []).slice(0, 5).join("\n")}`);
+        return;
+      }
+
+      const msg =
+        `Exported ${res.copied} item(s)` +
+        (res.skipped ? `, skipped ${res.skipped}` : "") +
+        (res.out_dir ? `\n\n${res.out_dir}` : "");
+      alert(msg);
     },
   }))
 );

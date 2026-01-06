@@ -15,6 +15,7 @@ import {
   Folder,
   File,
   ExternalLink,
+  ImageDown,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
@@ -813,7 +814,20 @@ export default function Toolbar() {
       {/* Export */}
       <div
         onClick={onExport}
-        title="Export workspace as PNG"
+        title="Snapshot workspace"
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center transition
+    ${
+      hasAnyImage
+        ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+        : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
+    }`}
+      >
+        <ImageDown size={16} /> Snap
+      </div>
+
+      <div
+        onClick={() => void useApp.getState().exportStarred()}
+        title="Export folder"
         className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center transition
     ${
       hasAnyImage
