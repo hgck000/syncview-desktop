@@ -21,6 +21,16 @@ declare global {
           out_dir: string,
           copy_xmp?: boolean
         ) => Promise<{ ok: number; fail: string[] } | null>;
+        export_starred_dialog?: (
+          items: any[],
+          folder_name?: string
+        ) => Promise<{
+          ok: boolean;
+          out_dir: string | null;
+          copied: number;
+          skipped: number;
+          errors: string[];
+        }>;
       };
     };
     api?: {
@@ -163,6 +173,15 @@ export async function savePngDialog(
     return null;
   }
   return (await api.save_png_dialog(dataurl, suggestedName)) ?? null;
+}
+
+export async function exportStarredDialog(items: any[], folderName = "") {
+  const api = await waitForPywebviewApi();
+  if (!api?.export_starred_dialog) {
+    alert("Export chưa sẵn sàng. Hãy chạy bằng backend (pywebview).");
+    return null;
+  }
+  return (await api.export_starred_dialog(items, folderName)) ?? null;
 }
 
 export async function openFolderDialog(): Promise<string | null> {

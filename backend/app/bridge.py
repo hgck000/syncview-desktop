@@ -1,8 +1,11 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-import webview
 from PIL import Image, ExifTags
+from datetime import datetime
+import webview
+import shutil
+import re
 import io, base64, json, os, sys, mimetypes
 
 def default_app_data() -> Path:
@@ -458,3 +461,115 @@ class Bridge:
         except Exception as e:
             print(f"[Bridge][ERROR] save_png_dialog: {e}")
             return None
+
+    def _sanitize_filename(self, name: str) -> str:
+        name = (name or "image").strip()
+        # bỏ ký tự cấm trên Windows
+        name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "_", name)
+        name = re.sub(r"\s+", " ", name).strip()
+        return name[:180] if len(name) > 180 else name
+
+    def export_starred_dialog(self, items: List[Dict[str, Any]], folder_name: str = "") -> Dict[str, Any]:
+        """
+        items: list các QueueItem từ FE (kind=file/dataURL, path/name/originIndex/dataURL...)
+        - file: copy2 giữ metadata (lossless)
+        - dataURL: decode và ghi ra (best-effort)
+        """
+        out = {
+            "ok": False,
+            "out_dir": None,
+            "copied": 0,
+            "skipped": 0,
+            "errors": [],
+        }
+
+        # parent = self.choose_export_folder("Select export destination")
+        # parent = self.choose_export_folder
+        # if not parent:
+        #     out["errors"].append("cancelled")
+        #     return out
+        
+        parent = self.choose_export_folder()
+        if not parent:
+            out["errors"].append("cancelled")
+            return out
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder_name = (folder_name or "").strip()
+        if not folder_name:
+            folder_name = f"SyncView_Starred_{ts}"
+        folder_name = self._sanitize_filename(folder_name)
+
+        out_dir = (Path(parent) / folder_name).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        def unique_path(p: Path) -> Path:
+            if not p.exists():
+                return p
+            stem = p.stem
+            suf = p.suffix
+            k = 2
+            while True:
+                cand = p.with_name(f"{stem}_{k}{suf}")
+                if not cand.exists():
+                    return cand
+                k += 1
+
+        for i, it in enumerate(items or []):
+            try:
+                kind = (it.get("kind") or "").lower()
+                idx = i + 1
+
+                if kind == "file":
+                    src = Path(it.get("path") or "")
+                    if not src.exists():
+                        out["skipped"] += 1
+                        out["errors"].append(f"missing: {src}")
+                        continue
+
+                    # giữ thứ tự: prefix 0001_
+                    base = self._sanitize_filename(src.name)
+                    dst = out_dir / f"{idx:04d}_{base}"
+                    dst = unique_path(dst)
+
+                    shutil.copy2(str(src), str(dst))
+                    out["copied"] += 1
+                    continue
+
+                if kind == "dataurl":
+                    dataurl = it.get("dataURL") or it.get("dataurl") or ""
+                    if not isinstance(dataurl, str) or "," not in dataurl:
+                        out["skipped"] += 1
+                        out["errors"].append(f"bad dataURL at {idx}")
+                        continue
+
+                    head, b64 = dataurl.split(",", 1)
+                    raw = base64.b64decode(b64)
+
+                    # đoán ext từ mime
+                    ext = ".png"
+                    if "image/jpeg" in head:
+                        ext = ".jpg"
+                    elif "image/webp" in head:
+                        ext = ".webp"
+
+                    nm = self._sanitize_filename(it.get("name") or "pasted")
+                    dst = out_dir / f"{idx:04d}_{nm}{ext}"
+                    dst = unique_path(dst)
+
+                    dst.write_bytes(raw)
+                    out["copied"] += 1
+                    continue
+
+                # unknown kind
+                out["skipped"] += 1
+                out["errors"].append(f"unknown kind at {idx}: {kind}")
+
+            except Exception as e:
+                out["skipped"] += 1
+                out["errors"].append(str(e))
+
+        out["ok"] = True
+        out["out_dir"] = str(out_dir)
+        print(f"[Bridge] export_starred_dialog -> {out['out_dir']} copied={out['copied']} skipped={out['skipped']}")
+        return out
