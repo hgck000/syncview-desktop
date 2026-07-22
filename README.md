@@ -106,5 +106,9 @@ python backend/run_dev.py
 
 ### ..FOR USER..
 ```bash
-Output/SyncView-Setup.exe
+Output/Install-SyncView.cmd
 ```
+
+Double-click `Output/Install-SyncView.cmd` to download and launch the latest
+official Windows installer from GitHub Releases. Release assets also include a
+portable ZIP that can be extracted and run without installation.

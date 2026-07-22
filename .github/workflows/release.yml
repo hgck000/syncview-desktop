@@ -149,6 +149,8 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm run type-check
+          npm run lint
           npm run build
 
       - name: BE deps
@@ -158,24 +160,29 @@ jobs:
           .\.venv\Scripts\python -m pip install --upgrade pip wheel setuptools
           .\.venv\Scripts\pip install -r backend/requirements.txt
           .\.venv\Scripts\pip install pyinstaller
+          .\.venv\Scripts\python -m pip check
 
       - name: PyInstaller .exe
         shell: pwsh
-        env: { PYTHONWARNINGS: ignore }
+        env:
+          PYTHONWARNINGS: ignore
+          SYNCVIEW_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name || '0.0.0' }}
         run: |
-          .\.venv\Scripts\pyinstaller `
-            --windowed `
-            --noconsole `
-            --name SyncView `
-            --add-data "frontend\dist;frontend/dist" `
-            --hidden-import h11 `
-            --collect-all uvicorn `
-            --collect-submodules anyio `
-            backend\run_prod.py
-          # In cây dist để debug đường dẫn khi cần
+          .\.venv\Scripts\pyinstaller --clean --noconfirm SyncView.spec
+
           Get-ChildItem -Recurse dist | Select-Object FullName, Length
-          if (!(Test-Path "dist\SyncView\SyncView.exe")) {
-            throw "Missing dist\SyncView\SyncView.exe"
+          $requiredFiles = @(
+            "dist\SyncView\SyncView.exe",
+            "dist\SyncView\_internal\frontend\dist\index.html"
+          )
+          foreach ($file in $requiredFiles) {
+            if (!(Test-Path $file)) {
+              throw "Missing packaged file: $file"
+            }
+          }
+          $versionInfo = (Get-Item "dist\SyncView\SyncView.exe").VersionInfo
+          if ($versionInfo.CompanyName -ne "hgck000" -or $versionInfo.ProductName -ne "SyncView") {
+            throw "SyncView.exe is missing publisher/product metadata"
           }
 
       - name: Build installer (Inno Setup)
@@ -201,6 +208,10 @@ jobs:
           if (!(Test-Path $webViewBootstrapper)) {
             throw "Missing WebView2 bootstrapper"
           }
+          $webViewSignature = Get-AuthenticodeSignature $webViewBootstrapper
+          if ($webViewSignature.Status -ne "Valid") {
+            throw "WebView2 bootstrapper signature is not valid: $($webViewSignature.Status)"
+          }
 
           # Build installer, truyền define vào installer.iss
           iscc /DMyAppVersion=$ver .\installer.iss
@@ -212,12 +223,85 @@ jobs:
             throw "Missing $setup"
           }
 
+          # Bản portable: giải nén rồi chạy SyncView.exe, không cần cài đặt.
+          # Nén nội dung bên trong thư mục để SyncView.exe nằm ngay ở gốc ZIP.
+          $portable = ".\Output\SyncView-$tag-win64.zip"
+          Compress-Archive `
+            -Path ".\dist\SyncView\*" `
+            -DestinationPath $portable `
+            -CompressionLevel Optimal `
+            -Force
+          if (!(Test-Path $portable)) {
+            throw "Missing $portable"
+          }
+
+      - name: Smoke-test installer and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
+          $ver = $tag.TrimStart('v')
+          $setup = (Resolve-Path ".\Output\SyncView-$ver-Setup.exe").Path
+          $installDir = Join-Path $env:RUNNER_TEMP "SyncView-Smoke"
+
+          Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
+          $install = Start-Process `
+            -FilePath $setup `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/TASKS=", "/DIR=$installDir" `
+            -Wait `
+            -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Installer exited with code $($install.ExitCode)"
+          }
+
+          $installedExe = Join-Path $installDir "SyncView.exe"
+          $installedFrontend = Join-Path $installDir "_internal\frontend\dist\index.html"
+          $uninstaller = Get-ChildItem $installDir -Filter "unins*.exe" | Select-Object -First 1
+          if (!(Test-Path $installedExe) -or !(Test-Path $installedFrontend) -or !$uninstaller) {
+            throw "Installed app is incomplete or has no uninstaller"
+          }
+
+          # Start the packaged app and verify its bundled backend/frontend.
+          $app = Start-Process -FilePath $installedExe -PassThru
+          $ready = $false
+          try {
+            $deadline = (Get-Date).AddSeconds(30)
+            while ((Get-Date) -lt $deadline -and !$ready) {
+              if ($app.HasExited) {
+                throw "Packaged app exited during startup with code $($app.ExitCode)"
+              }
+              try {
+                $response = Invoke-WebRequest "http://127.0.0.1:5174/" -UseBasicParsing -TimeoutSec 2
+                $ready = $response.StatusCode -eq 200
+              } catch {
+                Start-Sleep -Seconds 1
+              }
+            }
+            if (!$ready) {
+              throw "Packaged app did not serve its frontend within 30 seconds"
+            }
+          } finally {
+            if (!$app.HasExited) {
+              Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          $uninstall = Start-Process `
+            -FilePath $uninstaller.FullName `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" `
+            -Wait `
+            -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "Uninstaller exited with code $($uninstall.ExitCode)"
+          }
+
       - name: Upload win artifact
         uses: actions/upload-artifact@v4
         with:
           name: SyncView-Windows-x64
           path: |
             Output\SyncView-*-Setup.exe
+            Output\SyncView-v*-win64.zip
           if-no-files-found: error
           retention-days: 5
   # ---------- Publish single Release (needs cả 2 build) ----------
@@ -242,5 +326,6 @@ jobs:
             artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
             artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
             artifacts/SyncView-Windows-x64/SyncView-*-Setup.exe
+            artifacts/SyncView-Windows-x64/SyncView-v*-win64.zip
           generate_release_notes: true
           fail_on_unmatched_files: true

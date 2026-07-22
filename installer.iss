@@ -12,7 +12,8 @@
 
 #define MyAppName "SyncView"
 #define MyAppExeName "SyncView.exe"
-#define MyAppPublisher "SyncView"
+#define MyAppPublisher "hgck000"
+#define MyAppURL "https://github.com/hgck000/syncview-desktop"
 #define MyAppId "{{9D4C2D3F-6A90-4F9B-9D8A-0C1B2A8A3E9F}}"  ; change GUID if you cloned
 
 [Setup]
@@ -21,6 +22,12 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}/issues
+AppUpdatesURL={#MyAppURL}/releases
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription={#MyAppName} Desktop Installer
+VersionInfoProductName={#MyAppName}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=Output
@@ -28,6 +35,7 @@ OutputBaseFilename={#MyAppName}-{#MyAppVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
 DisableProgramGroupPage=yes
+PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64
 WizardStyle=modern
 
