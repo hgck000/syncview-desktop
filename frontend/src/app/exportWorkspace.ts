@@ -391,22 +391,33 @@ function placePanes(
   const gapX = Math.max(1, Math.round(Number.parseFloat(style.columnGap) || 4));
   const gapY = Math.max(1, Math.round(Number.parseFloat(style.rowGap) || 4));
 
-  const sizes = panes.map((pane, index) => ({
+  const cells = panes.map((pane, index) => ({
     pane,
     row: Math.floor(index / columnCount),
     column: index % columnCount,
-    widthPx: Math.max(1, Math.ceil(pane.sourceWidth)),
-    heightPx: Math.max(1, Math.ceil(pane.sourceHeight)),
   }));
 
-  const columnWidths = Array.from({ length: columnCount }, () => 0);
-  const rowHeights = Array.from({ length: rowCount }, () => 0);
-  for (const item of sizes) {
-    columnWidths[item.column] = Math.max(
+  // A regular collage cannot keep exact 4 px intersections if a smaller crop
+  // is centred inside a larger cell. Use the smallest crop in each column/row
+  // and trim the few excess pixels symmetrically instead. Every cell is then
+  // completely filled: no outer padding and no doubled internal separator.
+  const columnWidths = Array.from(
+    { length: columnCount },
+    () => Number.POSITIVE_INFINITY,
+  );
+  const rowHeights = Array.from(
+    { length: rowCount },
+    () => Number.POSITIVE_INFINITY,
+  );
+  for (const item of cells) {
+    columnWidths[item.column] = Math.min(
       columnWidths[item.column],
-      item.widthPx,
+      Math.max(1, Math.floor(item.pane.sourceWidth)),
     );
-    rowHeights[item.row] = Math.max(rowHeights[item.row], item.heightPx);
+    rowHeights[item.row] = Math.min(
+      rowHeights[item.row],
+      Math.max(1, Math.floor(item.pane.sourceHeight)),
+    );
   }
 
   const columnLefts: number[] = [];
@@ -422,17 +433,26 @@ function placePanes(
     y += rowHeight + gapY;
   }
 
-  const placed: PlacedPane[] = sizes.map((item) => ({
-    ...item.pane,
-    leftPx:
-      columnLefts[item.column] +
-      Math.floor((columnWidths[item.column] - item.widthPx) / 2),
-    topPx:
-      rowTops[item.row] +
-      Math.floor((rowHeights[item.row] - item.heightPx) / 2),
-    widthPx: item.widthPx,
-    heightPx: item.heightPx,
-  }));
+  const placed: PlacedPane[] = cells.map((item) => {
+    const widthPx = columnWidths[item.column];
+    const heightPx = rowHeights[item.row];
+    const trimX = Math.max(0, (item.pane.sourceWidth - widthPx) / 2);
+    const trimY = Math.max(0, (item.pane.sourceHeight - heightPx) / 2);
+
+    return {
+      ...item.pane,
+      sourceX: item.pane.sourceX + trimX,
+      sourceY: item.pane.sourceY + trimY,
+      sourceWidth: widthPx,
+      sourceHeight: heightPx,
+      visibleLeftCss: item.pane.visibleLeftCss + trimX * item.pane.total,
+      visibleTopCss: item.pane.visibleTopCss + trimY * item.pane.total,
+      leftPx: columnLefts[item.column],
+      topPx: rowTops[item.row],
+      widthPx,
+      heightPx,
+    };
+  });
 
   return {
     panes: placed,
