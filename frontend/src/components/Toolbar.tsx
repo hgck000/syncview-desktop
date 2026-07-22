@@ -307,9 +307,7 @@ export default function Toolbar() {
       if (!savedPath) return;
 
       console.log(
-        `[Export] saved ${png.width}×${png.height}px (scale ${png.pixelScale.toFixed(
-          2,
-        )}) ->`,
+        `[Export] saved ${png.width}×${png.height}px ->`,
         savedPath,
       );
     } catch (error) {

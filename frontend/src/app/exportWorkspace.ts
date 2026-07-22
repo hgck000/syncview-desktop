@@ -4,6 +4,7 @@ import type { PaneId, Stroke, TextBox, TextStyle, View } from "./store";
 
 type ExportTab = {
   panes: PaneId[];
+  layout: "auto" | "row1x4";
   files: Record<PaneId, string | undefined>;
   dataURL: Record<PaneId, string | undefined>;
   view: Record<PaneId, View>;
@@ -15,23 +16,34 @@ type ExportTab = {
 type PreparedPane = {
   id: PaneId;
   image: HTMLImageElement;
-  leftCss: number;
-  topCss: number;
   widthCss: number;
   heightCss: number;
   imageXCss: number;
   imageYCss: number;
   imageWidthCss: number;
   imageHeightCss: number;
+  visibleLeftCss: number;
+  visibleTopCss: number;
+  sourceX: number;
+  sourceY: number;
+  sourceWidth: number;
+  sourceHeight: number;
+  exportScale: number;
   total: number;
   view: View;
+};
+
+type PlacedPane = PreparedPane & {
+  leftPx: number;
+  topPx: number;
+  widthPx: number;
+  heightPx: number;
 };
 
 export type WorkspacePng = {
   dataUrl: string;
   width: number;
   height: number;
-  pixelScale: number;
 };
 
 // Chromium/WebView2 commonly rejects a canvas beyond these limits. Failing
@@ -287,7 +299,6 @@ async function preparePane(
   tab: ExportTab,
   id: PaneId,
   gridElement: HTMLElement,
-  gridRect: DOMRect,
 ): Promise<PreparedPane | null> {
   const path = tab.files[id];
   const dataURL = tab.dataURL[id];
@@ -323,20 +334,114 @@ async function preparePane(
 
   const imageWidthCss = iw * total;
   const imageHeightCss = ih * total;
+  const imageXCss = (rect.width - imageWidthCss) / 2 + view.offsetX;
+  const imageYCss = (rect.height - imageHeightCss) / 2 + view.offsetY;
+
+  // Intersection between the transformed photo and its viewport. Letterbox
+  // space never reaches the export layout.
+  const visibleLeftCss = Math.max(0, imageXCss);
+  const visibleTopCss = Math.max(0, imageYCss);
+  const visibleRightCss = Math.min(rect.width, imageXCss + imageWidthCss);
+  const visibleBottomCss = Math.min(rect.height, imageYCss + imageHeightCss);
+  const visibleWidthCss = visibleRightCss - visibleLeftCss;
+  const visibleHeightCss = visibleBottomCss - visibleTopCss;
+
+  if (visibleWidthCss <= 0 || visibleHeightCss <= 0) {
+    throw new Error(`Ảnh trong pane ${id} đang nằm ngoài vùng nhìn thấy.`);
+  }
+
+  // Convert the visible area straight back to source-image pixels. Exporting
+  // this crop at 1:1 preserves detail and completely removes pane geometry.
+  const sourceX = Math.max(0, (visibleLeftCss - imageXCss) / total);
+  const sourceY = Math.max(0, (visibleTopCss - imageYCss) / total);
+  const sourceWidth = Math.min(iw - sourceX, visibleWidthCss / total);
+  const sourceHeight = Math.min(ih - sourceY, visibleHeightCss / total);
 
   return {
     id,
     image,
-    leftCss: rect.left - gridRect.left,
-    topCss: rect.top - gridRect.top,
     widthCss: rect.width,
     heightCss: rect.height,
-    imageXCss: (rect.width - imageWidthCss) / 2 + view.offsetX,
-    imageYCss: (rect.height - imageHeightCss) / 2 + view.offsetY,
+    imageXCss,
+    imageYCss,
     imageWidthCss,
     imageHeightCss,
+    visibleLeftCss,
+    visibleTopCss,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    exportScale: 1 / total,
     total,
     view,
+  };
+}
+
+function placePanes(
+  panes: PreparedPane[],
+  tab: ExportTab,
+  gridElement: HTMLElement,
+) {
+  const columnCount =
+    panes.length === 4 && tab.layout !== "row1x4" ? 2 : panes.length;
+  const rowCount = Math.ceil(panes.length / columnCount);
+
+  const style = getComputedStyle(gridElement);
+  const gapX = Math.max(1, Math.round(Number.parseFloat(style.columnGap) || 4));
+  const gapY = Math.max(1, Math.round(Number.parseFloat(style.rowGap) || 4));
+
+  const sizes = panes.map((pane, index) => ({
+    pane,
+    row: Math.floor(index / columnCount),
+    column: index % columnCount,
+    widthPx: Math.max(1, Math.ceil(pane.sourceWidth)),
+    heightPx: Math.max(1, Math.ceil(pane.sourceHeight)),
+  }));
+
+  const columnWidths = Array.from({ length: columnCount }, () => 0);
+  const rowHeights = Array.from({ length: rowCount }, () => 0);
+  for (const item of sizes) {
+    columnWidths[item.column] = Math.max(
+      columnWidths[item.column],
+      item.widthPx,
+    );
+    rowHeights[item.row] = Math.max(rowHeights[item.row], item.heightPx);
+  }
+
+  const columnLefts: number[] = [];
+  const rowTops: number[] = [];
+  let x = 0;
+  for (const columnWidth of columnWidths) {
+    columnLefts.push(x);
+    x += columnWidth + gapX;
+  }
+  let y = 0;
+  for (const rowHeight of rowHeights) {
+    rowTops.push(y);
+    y += rowHeight + gapY;
+  }
+
+  const placed: PlacedPane[] = sizes.map((item) => ({
+    ...item.pane,
+    leftPx:
+      columnLefts[item.column] +
+      Math.floor((columnWidths[item.column] - item.widthPx) / 2),
+    topPx:
+      rowTops[item.row] +
+      Math.floor((rowHeights[item.row] - item.heightPx) / 2),
+    widthPx: item.widthPx,
+    heightPx: item.heightPx,
+  }));
+
+  return {
+    panes: placed,
+    width:
+      columnWidths.reduce((sum, value) => sum + value, 0) +
+      gapX * Math.max(0, columnCount - 1),
+    height:
+      rowHeights.reduce((sum, value) => sum + value, 0) +
+      gapY * Math.max(0, rowCount - 1),
   };
 }
 
@@ -350,18 +455,16 @@ export async function renderWorkspacePng(
   }
 
   const prepared = await Promise.all(
-    tab.panes.map((id) => preparePane(tab, id, gridElement, gridRect)),
+    tab.panes.map((id) => preparePane(tab, id, gridElement)),
   );
   const panes = prepared.filter((pane): pane is PreparedPane => !!pane);
   if (!panes.length) throw new Error("Workspace không có ảnh để export.");
 
-  // CSS pixels -> source-image pixels. Taking the largest ratio guarantees
-  // that no source is downsampled. With equally sized linked panes this makes
-  // every source pixel exactly one output pixel. Zooming in lowers the output
-  // dimensions because fewer source pixels remain visible in each viewport.
-  const pixelScale = Math.max(...panes.map((pane) => 1 / pane.total));
-  const width = Math.max(1, Math.ceil(gridRect.width * pixelScale));
-  const height = Math.max(1, Math.ceil(gridRect.height * pixelScale));
+  // Pack source crops, not panes. The output contains only photo pixels plus
+  // the same small gap used by the workspace grid.
+  const compactLayout = placePanes(panes, tab, gridElement);
+  const width = Math.max(1, compactLayout.width);
+  const height = Math.max(1, compactLayout.height);
 
   if (
     width > MAX_CANVAS_DIMENSION ||
@@ -385,25 +488,26 @@ export async function renderWorkspacePng(
   outputCtx.imageSmoothingEnabled = true;
   outputCtx.imageSmoothingQuality = "high";
 
-  for (const pane of panes) {
-    const leftPx = pane.leftCss * pixelScale;
-    const topPx = pane.topCss * pixelScale;
-    const widthPx = Math.max(1, Math.ceil(pane.widthCss * pixelScale));
-    const heightPx = Math.max(1, Math.ceil(pane.heightCss * pixelScale));
+  for (const pane of compactLayout.panes) {
+    outputCtx.drawImage(
+      pane.image,
+      pane.sourceX,
+      pane.sourceY,
+      pane.sourceWidth,
+      pane.sourceHeight,
+      pane.leftPx,
+      pane.topPx,
+      pane.widthPx,
+      pane.heightPx,
+    );
 
     outputCtx.save();
     outputCtx.beginPath();
-    outputCtx.rect(leftPx, topPx, widthPx, heightPx);
+    outputCtx.rect(pane.leftPx, pane.topPx, pane.widthPx, pane.heightPx);
     outputCtx.clip();
-    outputCtx.translate(leftPx, topPx);
-    outputCtx.scale(pixelScale, pixelScale);
-    outputCtx.drawImage(
-      pane.image,
-      pane.imageXCss,
-      pane.imageYCss,
-      pane.imageWidthCss,
-      pane.imageHeightCss,
-    );
+    outputCtx.translate(pane.leftPx, pane.topPx);
+    outputCtx.scale(pane.exportScale, pane.exportScale);
+    outputCtx.translate(-pane.visibleLeftCss, -pane.visibleTopCss);
     drawGrid(outputCtx, pane.widthCss, pane.heightCss, tab.grid);
     outputCtx.restore();
 
@@ -414,15 +518,16 @@ export async function renderWorkspacePng(
     // Eraser strokes must clear only annotations, never the photo. Render the
     // transparent annotation layer separately, then composite it over source.
     const annotation = document.createElement("canvas");
-    annotation.width = widthPx;
-    annotation.height = heightPx;
+    annotation.width = pane.widthPx;
+    annotation.height = pane.heightPx;
     const annotationCtx = annotation.getContext("2d");
     if (!annotationCtx) throw new Error("Không thể tạo lớp annotation.");
 
-    annotationCtx.scale(pixelScale, pixelScale);
+    annotationCtx.scale(pane.exportScale, pane.exportScale);
+    annotationCtx.translate(-pane.visibleLeftCss, -pane.visibleTopCss);
     drawStrokes(annotationCtx, pane, strokes);
     drawTextBoxes(annotationCtx, pane, boxes);
-    outputCtx.drawImage(annotation, leftPx, topPx);
+    outputCtx.drawImage(annotation, pane.leftPx, pane.topPx);
 
     // Release the temporary high-resolution backing store before the next pane.
     annotation.width = 1;
@@ -433,5 +538,5 @@ export async function renderWorkspacePng(
   output.width = 1;
   output.height = 1;
 
-  return { dataUrl, width, height, pixelScale };
+  return { dataUrl, width, height };
 }
