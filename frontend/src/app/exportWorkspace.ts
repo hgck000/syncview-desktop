@@ -391,78 +391,81 @@ function placePanes(
   const gapX = Math.max(1, Math.round(Number.parseFloat(style.columnGap) || 4));
   const gapY = Math.max(1, Math.round(Number.parseFloat(style.rowGap) || 4));
 
-  const cells = panes.map((pane, index) => ({
-    pane,
-    row: Math.floor(index / columnCount),
-    column: index % columnCount,
-  }));
+  const rows = Array.from({ length: rowCount }, (_, row) =>
+    panes.slice(row * columnCount, (row + 1) * columnCount),
+  ).filter((row) => row.length > 0);
 
-  // A regular collage cannot keep exact 4 px intersections if a smaller crop
-  // is centred inside a larger cell. Use the smallest crop in each column/row
-  // and trim the few excess pixels symmetrically instead. Every cell is then
-  // completely filled: no outer padding and no doubled internal separator.
-  const columnWidths = Array.from(
-    { length: columnCount },
-    () => Number.POSITIVE_INFINITY,
+  // Justified-photo layout: each row has a common height, while every image
+  // keeps its own aspect ratio and the complete visible source crop. Choose a
+  // target width large enough that no pane is downscaled; shorter rows/images
+  // are only enlarged. This removes both outer padding and destructive crop.
+  const targetWidth = Math.ceil(
+    Math.max(
+      ...rows.map((row) => {
+        const nativeRowHeight = Math.max(
+          ...row.map((pane) => pane.sourceHeight),
+        );
+        return (
+          row.reduce(
+            (sum, pane) =>
+              sum + (pane.sourceWidth / pane.sourceHeight) * nativeRowHeight,
+            0,
+          ) +
+          gapX * Math.max(0, row.length - 1)
+        );
+      }),
+    ),
   );
-  const rowHeights = Array.from(
-    { length: rowCount },
-    () => Number.POSITIVE_INFINITY,
-  );
-  for (const item of cells) {
-    columnWidths[item.column] = Math.min(
-      columnWidths[item.column],
-      Math.max(1, Math.floor(item.pane.sourceWidth)),
+
+  const placed: PlacedPane[] = [];
+  let topPx = 0;
+
+  for (const row of rows) {
+    const rowGapWidth = gapX * Math.max(0, row.length - 1);
+    const contentWidth = targetWidth - rowGapWidth;
+    const aspectSum = row.reduce(
+      (sum, pane) => sum + pane.sourceWidth / pane.sourceHeight,
+      0,
     );
-    rowHeights[item.row] = Math.min(
-      rowHeights[item.row],
-      Math.max(1, Math.floor(item.pane.sourceHeight)),
-    );
+    const heightPx = contentWidth / aspectSum;
+    let leftPx = 0;
+
+    row.forEach((pane, index) => {
+      // Give the last pane the exact remaining width. This absorbs floating
+      // point noise without introducing an outer black strip.
+      const widthPx =
+        index === row.length - 1
+          ? targetWidth - leftPx
+          : (pane.sourceWidth / pane.sourceHeight) * heightPx;
+
+      placed.push({
+        ...pane,
+        leftPx,
+        topPx,
+        widthPx,
+        heightPx,
+      });
+      leftPx += widthPx + gapX;
+    });
+
+    topPx += heightPx + gapY;
   }
 
-  const columnLefts: number[] = [];
-  const rowTops: number[] = [];
-  let x = 0;
-  for (const columnWidth of columnWidths) {
-    columnLefts.push(x);
-    x += columnWidth + gapX;
+  const rawHeight = topPx - gapY;
+  const height = Math.max(1, Math.round(rawHeight));
+  const lastRowTop = placed.at(-1)?.topPx;
+
+  // Canvas dimensions must be integers. Share the sub-pixel rounding (at most
+  // half a pixel) across the final row so it reaches the edge exactly instead
+  // of leaving a one-pixel black border or clipping the source.
+  if (lastRowTop !== undefined) {
+    const heightAdjustment = height - rawHeight;
+    for (const pane of placed) {
+      if (pane.topPx === lastRowTop) pane.heightPx += heightAdjustment;
+    }
   }
-  let y = 0;
-  for (const rowHeight of rowHeights) {
-    rowTops.push(y);
-    y += rowHeight + gapY;
-  }
 
-  const placed: PlacedPane[] = cells.map((item) => {
-    const widthPx = columnWidths[item.column];
-    const heightPx = rowHeights[item.row];
-    const trimX = Math.max(0, (item.pane.sourceWidth - widthPx) / 2);
-    const trimY = Math.max(0, (item.pane.sourceHeight - heightPx) / 2);
-
-    return {
-      ...item.pane,
-      sourceX: item.pane.sourceX + trimX,
-      sourceY: item.pane.sourceY + trimY,
-      sourceWidth: widthPx,
-      sourceHeight: heightPx,
-      visibleLeftCss: item.pane.visibleLeftCss + trimX * item.pane.total,
-      visibleTopCss: item.pane.visibleTopCss + trimY * item.pane.total,
-      leftPx: columnLefts[item.column],
-      topPx: rowTops[item.row],
-      widthPx,
-      heightPx,
-    };
-  });
-
-  return {
-    panes: placed,
-    width:
-      columnWidths.reduce((sum, value) => sum + value, 0) +
-      gapX * Math.max(0, columnCount - 1),
-    height:
-      rowHeights.reduce((sum, value) => sum + value, 0) +
-      gapY * Math.max(0, rowCount - 1),
-  };
+  return { panes: placed, width: targetWidth, height };
 }
 
 export async function renderWorkspacePng(
@@ -480,11 +483,11 @@ export async function renderWorkspacePng(
   const panes = prepared.filter((pane): pane is PreparedPane => !!pane);
   if (!panes.length) throw new Error("Workspace không có ảnh để export.");
 
-  // Pack source crops, not panes. The output contains only photo pixels plus
-  // the same small gap used by the workspace grid.
-  const compactLayout = placePanes(panes, tab, gridElement);
-  const width = Math.max(1, compactLayout.width);
-  const height = Math.max(1, compactLayout.height);
+  // Pack source crops, not panes. The justified layout contains only complete
+  // visible photos plus the same small gap used by the workspace grid.
+  const justifiedLayout = placePanes(panes, tab, gridElement);
+  const width = Math.max(1, justifiedLayout.width);
+  const height = Math.max(1, justifiedLayout.height);
 
   if (
     width > MAX_CANVAS_DIMENSION ||
@@ -508,7 +511,7 @@ export async function renderWorkspacePng(
   outputCtx.imageSmoothingEnabled = true;
   outputCtx.imageSmoothingQuality = "high";
 
-  for (const pane of compactLayout.panes) {
+  for (const pane of justifiedLayout.panes) {
     outputCtx.drawImage(
       pane.image,
       pane.sourceX,
@@ -526,7 +529,12 @@ export async function renderWorkspacePng(
     outputCtx.rect(pane.leftPx, pane.topPx, pane.widthPx, pane.heightPx);
     outputCtx.clip();
     outputCtx.translate(pane.leftPx, pane.topPx);
-    outputCtx.scale(pane.exportScale, pane.exportScale);
+    const destinationScaleX = pane.widthPx / pane.sourceWidth;
+    const destinationScaleY = pane.heightPx / pane.sourceHeight;
+    outputCtx.scale(
+      pane.exportScale * destinationScaleX,
+      pane.exportScale * destinationScaleY,
+    );
     outputCtx.translate(-pane.visibleLeftCss, -pane.visibleTopCss);
     drawGrid(outputCtx, pane.widthCss, pane.heightCss, tab.grid);
     outputCtx.restore();
@@ -536,10 +544,10 @@ export async function renderWorkspacePng(
     if (!strokes.length && !boxes.length) continue;
 
     // Eraser strokes must clear only annotations, never the photo. Render the
-    // transparent annotation layer separately, then composite it over source.
+    // transparent layer at source resolution, then scale it with the photo.
     const annotation = document.createElement("canvas");
-    annotation.width = pane.widthPx;
-    annotation.height = pane.heightPx;
+    annotation.width = Math.ceil(pane.sourceWidth);
+    annotation.height = Math.ceil(pane.sourceHeight);
     const annotationCtx = annotation.getContext("2d");
     if (!annotationCtx) throw new Error("Không thể tạo lớp annotation.");
 
@@ -547,7 +555,17 @@ export async function renderWorkspacePng(
     annotationCtx.translate(-pane.visibleLeftCss, -pane.visibleTopCss);
     drawStrokes(annotationCtx, pane, strokes);
     drawTextBoxes(annotationCtx, pane, boxes);
-    outputCtx.drawImage(annotation, pane.leftPx, pane.topPx);
+    outputCtx.drawImage(
+      annotation,
+      0,
+      0,
+      pane.sourceWidth,
+      pane.sourceHeight,
+      pane.leftPx,
+      pane.topPx,
+      pane.widthPx,
+      pane.heightPx,
+    );
 
     // Release the temporary high-resolution backing store before the next pane.
     annotation.width = 1;
