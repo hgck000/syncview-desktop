@@ -181,6 +181,7 @@ jobs:
       - name: Build installer (Inno Setup)
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           choco install innosetup -y
 
           # Lấy version từ tag v2.1.0 -> 2.1.0 (khi chạy tag) hoặc từ inputs.tag_name (khi workflow_dispatch)
@@ -188,13 +189,27 @@ jobs:
           $ver = $tag.TrimStart('v')
           echo "Tag=$tag  Version=$ver"
 
+          # Không để installer cũ đã commit trong Output lọt vào artifact mới.
+          Remove-Item -Recurse -Force .\Output -ErrorAction SilentlyContinue
+
+          # Nhúng WebView2 Evergreen Bootstrapper chính thức. Máy đã có
+          # WebView2 sẽ bỏ qua nhanh; máy chưa có sẽ tải runtime khi cài app.
+          $webViewBootstrapper = ".\assets\MicrosoftEdgeWebView2Setup.exe"
+          Invoke-WebRequest `
+            -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" `
+            -OutFile $webViewBootstrapper
+          if (!(Test-Path $webViewBootstrapper)) {
+            throw "Missing WebView2 bootstrapper"
+          }
+
           # Build installer, truyền define vào installer.iss
           iscc /DMyAppVersion=$ver .\installer.iss
 
-          # Check output
+          # Chỉ chấp nhận đúng installer của version đang phát hành.
           Get-ChildItem -Recurse .\Output | Select-Object FullName, Length
-          if (-not (Get-ChildItem .\Output -Filter *.exe -ErrorAction SilentlyContinue)) {
-            throw "Missing setup exe in .\Output"
+          $setup = ".\Output\SyncView-$ver-Setup.exe"
+          if (!(Test-Path $setup)) {
+            throw "Missing $setup"
           }
 
       - name: Upload win artifact
@@ -226,6 +241,6 @@ jobs:
           files: |
             artifacts/SyncView-mac-arm64/SyncView-mac-arm64.dmg
             artifacts/SyncView-mac-x86_64/SyncView-mac-x86_64.dmg
-            artifacts/SyncView-Windows-x64/**/Output/SyncView-*-Setup.exe
+            artifacts/SyncView-Windows-x64/SyncView-*-Setup.exe
           generate_release_notes: true
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true

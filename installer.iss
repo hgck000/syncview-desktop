@@ -45,16 +45,17 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 ; IMPORTANT: copy the WHOLE onedir output (including _internal + python libs)
 Source: "dist\SyncView\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Optional: if you ship WebView2 bootstrapper in repo, uncomment this line
-; Source: "assets\MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+; The CI downloads Microsoft's official Evergreen Bootstrapper before running
+; Inno Setup. It keeps this installer small while supporting clean machines.
+Source: "assets\MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; WorkingDir: "{app}"
 
 [Run]
-; Optional: run WebView2 bootstrapper (it self-detects, so safe to run)
-; Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated skipifdoesntexist
+; The bootstrapper self-detects an existing runtime and downloads only when needed.
+Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated runhidden
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{userappdata}\.syncview"
