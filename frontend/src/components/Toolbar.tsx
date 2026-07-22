@@ -18,6 +18,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useApp, type TextStyle, type PaneId } from "../app/store";
 import { openFileDialog, savePngDialog } from "../app/bridge";
+import { renderWorkspacePng } from "../app/exportWorkspace";
 
 export default function Toolbar() {
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
@@ -66,7 +67,7 @@ export default function Toolbar() {
         linkAll: t.linkAll,
         panes: t.panes,
       };
-    })
+    }),
   );
 
   const selection = useMemo(() => {
@@ -78,10 +79,10 @@ export default function Toolbar() {
         pane === "A"
           ? snap.boxA
           : pane === "B"
-          ? snap.boxB
-          : pane === "C"
-          ? snap.boxC
-          : snap.boxD;
+            ? snap.boxB
+            : pane === "C"
+              ? snap.boxC
+              : snap.boxD;
 
       const box = (arr ?? []).find((b) => b.id === id) ?? null;
       return box ? { pane, id, box } : null;
@@ -225,8 +226,8 @@ export default function Toolbar() {
     !hasAnyImage
       ? BTN_DISABLED
       : active
-      ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
-      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer";
+        ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
+        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer";
 
   const btnAction = () =>
     !hasAnyImage
@@ -237,7 +238,7 @@ export default function Toolbar() {
     const t0 = useApp.getState().getActiveSafe();
     const baseTarget = t0.panes.length
       ? t0.panes[t0.focusIndex]
-      : nextEmpty() ?? "D";
+      : (nextEmpty() ?? "D");
 
     console.log("[UI] Open -> base target pane =", baseTarget);
 
@@ -284,116 +285,38 @@ export default function Toolbar() {
     );
   }
 
-  function nextFrame() {
-    return new Promise<void>((r) => requestAnimationFrame(() => r()));
-  }
-
-  function canvasToDataURL(canvas: HTMLCanvasElement): Promise<string> {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return reject(new Error("toBlob failed"));
-          const fr = new FileReader();
-          fr.onloadend = () => resolve(String(fr.result));
-          fr.onerror = () => reject(new Error("FileReader failed"));
-          fr.readAsDataURL(blob);
-        },
-        "image/png",
-        1
-      );
-    });
-  }
-
   async function onExport() {
     if (!hasAnyImage) return;
 
     const t = useApp.getState().getActiveSafe();
 
     const gridEl = document.querySelector(
-      '[data-role="viewer-grid"]'
+      '[data-role="viewer-grid"]',
     ) as HTMLElement | null;
     if (!gridEl) {
       alert("Không tìm thấy viewer grid để export.");
       return;
     }
 
-    // bật exporting để canvas redraw sạch (không loupe/cursor UI)
+    // Khoá UI export trong lúc tải ảnh gốc và dựng canvas độ phân giải cao.
     setExporting(true);
     try {
-      // đợi 2 frame cho chắc redraw xong
-      await nextFrame();
-      await nextFrame();
-
-      const gridRect = gridEl.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-
-      const out = document.createElement("canvas");
-      out.width = Math.max(1, Math.floor(gridRect.width * dpr));
-      out.height = Math.max(1, Math.floor(gridRect.height * dpr));
-
-      const ctx = out.getContext("2d");
-      if (!ctx) return;
-
-      // nền giống bg-neutral-950
-      ctx.fillStyle = "#0a0a0a";
-      ctx.fillRect(0, 0, out.width, out.height);
-
-      for (const id of t.panes) {
-        if (!t.files[id] && !t.dataURL[id]) continue;
-
-        const paneWrap = gridEl.querySelector(
-          `[data-role="pane-wrap"][data-pane="${id}"]`
-        ) as HTMLElement | null;
-        if (!paneWrap) continue;
-
-        const pr = paneWrap.getBoundingClientRect();
-        const dx = Math.floor((pr.left - gridRect.left) * dpr);
-        const dy = Math.floor((pr.top - gridRect.top) * dpr);
-        const dw = Math.max(1, Math.floor(pr.width * dpr));
-        const dh = Math.max(1, Math.floor(pr.height * dpr));
-
-        const imgCanvas = paneWrap.querySelector(
-          'canvas[data-role="pane-image"]'
-        ) as HTMLCanvasElement | null;
-
-        const annCanvas = paneWrap.querySelector(
-          'canvas[data-role="pane-annot"]'
-        ) as HTMLCanvasElement | null;
-
-        if (imgCanvas) {
-          ctx.drawImage(
-            imgCanvas,
-            0,
-            0,
-            imgCanvas.width,
-            imgCanvas.height,
-            dx,
-            dy,
-            dw,
-            dh
-          );
-        }
-        if (annCanvas) {
-          ctx.drawImage(
-            annCanvas,
-            0,
-            0,
-            annCanvas.width,
-            annCanvas.height,
-            dx,
-            dy,
-            dw,
-            dh
-          );
-        }
-      }
-
+      const png = await renderWorkspacePng(t, gridEl);
       const suggested = `${sanitizeFilename(t.name)}.png`;
-      const dataUrl = await canvasToDataURL(out);
-      const savedPath = await savePngDialog(dataUrl, suggested);
+      const savedPath = await savePngDialog(png.dataUrl, suggested);
       if (!savedPath) return;
 
-      console.log("[Export] saved ->", savedPath);
+      console.log(
+        `[Export] saved ${png.width}×${png.height}px (scale ${png.pixelScale.toFixed(
+          2,
+        )}) ->`,
+        savedPath,
+      );
+    } catch (error) {
+      console.error("[Export] failed", error);
+      const message =
+        error instanceof Error ? error.message : "Lỗi export không xác định.";
+      alert(`Không thể export PNG.\n\n${message}`);
     } finally {
       setExporting(false);
     }
@@ -579,7 +502,7 @@ export default function Toolbar() {
                 onChange={(e) => {
                   const fontSizeImgPx = Math.max(
                     4,
-                    Math.min(300, Number(e.currentTarget.value) || 28)
+                    Math.min(300, Number(e.currentTarget.value) || 28),
                   );
                   applyStyle({ fontSizeImgPx });
                 }}
@@ -645,7 +568,7 @@ export default function Toolbar() {
             onClick={() => applyStyle({ italic: !shownTextStyle.italic })}
             title="Italic"
             className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition ${btnToggle(
-              !!shownTextStyle.italic
+              !!shownTextStyle.italic,
             )}`}
           >
             <Italic className="w-4 h-4" />
@@ -654,7 +577,7 @@ export default function Toolbar() {
             onClick={() => applyStyle({ underline: !shownTextStyle.underline })}
             title="Underline"
             className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition ${btnToggle(
-              !!shownTextStyle.underline
+              !!shownTextStyle.underline,
             )}`}
           >
             <Underline className="w-4 h-4" />
