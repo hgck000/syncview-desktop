@@ -148,6 +148,9 @@ jobs:
         shell: pwsh
         working-directory: frontend
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+
           npm ci
           npm run type-check
           npm run lint
@@ -156,11 +159,24 @@ jobs:
       - name: BE deps
         shell: pwsh
         run: |
-          py -m venv .venv
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+
+          # Dùng đúng Python 3.11 do actions/setup-python cung cấp.
+          python -m venv .venv
+
+          $venvVersion = .\.venv\Scripts\python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+          if ($venvVersion -ne "3.11") {
+            throw "Expected Python 3.11, got $venvVersion"
+          }
+
           .\.venv\Scripts\python -m pip install --upgrade pip wheel setuptools
-          .\.venv\Scripts\pip install -r backend/requirements.txt
-          .\.venv\Scripts\pip install pyinstaller
+          .\.venv\Scripts\python -m pip install -r backend/requirements.txt
+          .\.venv\Scripts\python -m pip install pyinstaller
           .\.venv\Scripts\python -m pip check
+
+          # Xác nhận các module quan trọng thực sự đã cài.
+          .\.venv\Scripts\python -c "import fastapi, uvicorn, webview, h11, clr; print('Backend imports OK')"
 
       - name: PyInstaller .exe
         shell: pwsh
@@ -168,6 +184,9 @@ jobs:
           PYTHONWARNINGS: ignore
           SYNCVIEW_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name || '0.0.0' }}
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+
           .\.venv\Scripts\pyinstaller --clean --noconfirm SyncView.spec
 
           Get-ChildItem -Recurse dist | Select-Object FullName, Length
@@ -189,6 +208,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           choco install innosetup -y
 
           # Lấy version từ tag v2.1.0 -> 2.1.0 (khi chạy tag) hoặc từ inputs.tag_name (khi workflow_dispatch)
