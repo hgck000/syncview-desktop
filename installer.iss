@@ -66,4 +66,5 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated runhidden
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{userappdata}\.syncview"
+Type: filesandordirs; Name: "{userprofile}\.syncview"
+Type: filesandordirs; Name: "{localappdata}\SyncView"

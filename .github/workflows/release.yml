@@ -277,9 +277,13 @@ jobs:
           $installedExe = Join-Path $installDir "SyncView.exe"
           $installedFrontend = Join-Path $installDir "_internal\frontend\dist\index.html"
           $uninstaller = Get-ChildItem $installDir -Filter "unins*.exe" | Select-Object -First 1
+          $webViewData = Join-Path $env:LOCALAPPDATA "SyncView\WebView2"
+          $forbiddenInstallData = "$($installedExe).WebView2"
           if (!(Test-Path $installedExe) -or !(Test-Path $installedFrontend) -or !$uninstaller) {
             throw "Installed app is incomplete or has no uninstaller"
           }
+
+          Remove-Item -Recurse -Force $webViewData -ErrorAction SilentlyContinue
 
           # Start the packaged app and verify its bundled backend/frontend.
           $app = Start-Process -FilePath $installedExe -PassThru
@@ -299,6 +303,25 @@ jobs:
             }
             if (!$ready) {
               throw "Packaged app did not serve its frontend within 30 seconds"
+            }
+
+            # A Program Files installation must keep WebView2 browser data in a
+            # writable per-user folder, never beside SyncView.exe.
+            $webViewReady = $false
+            $webViewDeadline = (Get-Date).AddSeconds(20)
+            while ((Get-Date) -lt $webViewDeadline -and !$webViewReady) {
+              if (Test-Path $webViewData) {
+                $webViewReady = @(Get-ChildItem $webViewData -Force -ErrorAction SilentlyContinue).Count -gt 0
+              }
+              if (!$webViewReady) {
+                Start-Sleep -Milliseconds 500
+              }
+            }
+            if (!$webViewReady) {
+              throw "WebView2 did not initialize its per-user data folder"
+            }
+            if (Test-Path $forbiddenInstallData) {
+              throw "WebView2 data was created beside the installed executable"
             }
           } finally {
             if (!$app.HasExited) {

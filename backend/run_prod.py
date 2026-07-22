@@ -1,7 +1,31 @@
 from __future__ import annotations
-import os, sys, threading, time, socket, traceback, uvicorn, webview
+
+import os
+import socket
+import sys
+import threading
+import time
+import traceback
 import urllib.request
 from pathlib import Path
+
+# WebView2 defaults to creating its browser data beside the executable. That
+# location is not writable after an installer puts SyncView in Program Files,
+# so configure a per-user folder before importing/initializing pywebview.
+APP_DATA_DIR = Path.home() / ".syncview"
+APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+if sys.platform.startswith("win"):
+    local_app_data = Path(
+        os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
+    )
+    WEBVIEW_DATA_DIR = local_app_data / "SyncView" / "WebView2"
+    WEBVIEW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    os.environ["WEBVIEW2_USER_DATA_FOLDER"] = str(WEBVIEW_DATA_DIR)
+
+import uvicorn
+import webview
+
 from app.bridge import Bridge
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -10,8 +34,6 @@ from fastapi.staticfiles import StaticFiles
 # ------------- CONFIG -------------
 API_HOST = "127.0.0.1"
 API_PORT = int(os.getenv("SYNCVIEW_API_PORT", "5174"))
-APP_DATA_DIR = Path.home() / ".syncview"
-APP_DATA_DIR.mkdir(exist_ok=True)
 LOG_FILE = APP_DATA_DIR / "syncview.log"
 # ----------------------------------
 
