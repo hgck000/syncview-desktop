@@ -75,8 +75,21 @@ def serve_local_image(path: str, token: str):
             if not cached_image.exists():
                 temporary_image = cached_image.with_suffix(".tmp")
                 with Image.open(image_path) as source:
-                    decoded = ImageOps.exif_transpose(source).convert("RGBA")
-                    decoded.save(temporary_image, format="PNG")
+                    oriented = ImageOps.exif_transpose(source)
+                    has_alpha = (
+                        "A" in oriented.getbands()
+                        or "transparency" in oriented.info
+                    )
+                    decoded = oriented.convert(
+                        "RGBA" if has_alpha else "RGB"
+                    )
+                    # Faster lossless intermediate for local display. PNG
+                    # compression level changes size/speed, never pixel data.
+                    decoded.save(
+                        temporary_image,
+                        format="PNG",
+                        compress_level=1,
+                    )
                 temporary_image.replace(cached_image)
 
         return FileResponse(

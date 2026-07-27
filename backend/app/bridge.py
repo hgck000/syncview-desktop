@@ -128,8 +128,22 @@ class Bridge:
                     temporary_path = staged_path.with_suffix(".tmp")
                     try:
                         with Image.open(io.BytesIO(raw)) as source:
-                            decoded = ImageOps.exif_transpose(source).convert("RGBA")
-                            decoded.save(temporary_path, format="PNG")
+                            oriented = ImageOps.exif_transpose(source)
+                            has_alpha = (
+                                "A" in oriented.getbands()
+                                or "transparency" in oriented.info
+                            )
+                            decoded = oriented.convert(
+                                "RGBA" if has_alpha else "RGB"
+                            )
+                            # PNG stays pixel-perfect at every compression
+                            # level. Level 1 is substantially faster to encode
+                            # than Pillow's default while remaining compact.
+                            decoded.save(
+                                temporary_path,
+                                format="PNG",
+                                compress_level=1,
+                            )
                         temporary_path.replace(staged_path)
                     finally:
                         temporary_path.unlink(missing_ok=True)

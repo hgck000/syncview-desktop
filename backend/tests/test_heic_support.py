@@ -102,6 +102,7 @@ class HeicSupportTest(unittest.TestCase):
                 with Image.open(response.path) as served:
                     self.assertEqual(served.size, (12, 8))
                     self.assertEqual(served.format, "PNG")
+                    self.assertEqual(served.mode, "RGB")
 
                 staged_response = serve_local_image(
                     str(staged_path),
@@ -110,6 +111,7 @@ class HeicSupportTest(unittest.TestCase):
                 with Image.open(staged_response.path) as staged:
                     self.assertEqual(staged.size, (12, 8))
                     self.assertEqual(staged.format, "PNG")
+                    self.assertEqual(staged.mode, "RGB")
 
                 with self.assertRaises(HTTPException) as denied:
                     serve_local_image(str(image_path), "wrong-token")
