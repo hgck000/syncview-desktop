@@ -882,45 +882,15 @@ export default function Pane({ id }: Props) {
                     />
 
                     <Row
-                      icon={<Calendar className="w-3.5 h-3.5" />}
-                      label="Date"
-                      value={dateRaw ? fmtDate(dateRaw) : "—"}
+                      icon={<Ruler className="w-3.5 h-3.5" />}
+                      label="Full-frame"
+                      value={focalLength35mm || "—"}
                     />
 
                     <Row
-                      icon={<MapPin className="w-3.5 h-3.5" />}
-                      label="Location"
-                      wrap
-                      value={
-                        resolvedLocation
-                          ? `© OSM · ${resolvedLocation.name}`
-                          : locationLoading
-                          ? "Looking up…"
-                          : gpsCoordinates || "—"
-                      }
-                      title={
-                        resolvedLocation
-                          ? [
-                              resolvedLocation.name,
-                              gpsCoordinates,
-                              resolvedLocation.attribution,
-                            ]
-                              .filter(Boolean)
-                              .join("\n")
-                          : gpsCoordinates
-                      }
-                    />
-
-                    <Row
-                      icon={<Camera className="w-3.5 h-3.5" />}
-                      label="Device"
-                      value={device !== "—" ? device : "—"}
-                    />
-
-                    <Row
-                      icon={<Timer className="w-3.5 h-3.5" />}
-                      label="Shutter"
-                      value={shutterRaw ? fmtShutter(shutterRaw) : "—"}
+                      icon={<Focus className="w-3.5 h-3.5" />}
+                      label="Focal"
+                      value={focalLength || "—"}
                     />
 
                     <Row
@@ -940,15 +910,46 @@ export default function Pane({ id }: Props) {
                     />
 
                     <Row
-                      icon={<Focus className="w-3.5 h-3.5" />}
-                      label="Focal"
-                      value={focalLength || "—"}
+                      icon={<Timer className="w-3.5 h-3.5" />}
+                      label="Shutter"
+                      value={shutterRaw ? fmtShutter(shutterRaw) : "—"}
                     />
 
                     <Row
-                      icon={<Ruler className="w-3.5 h-3.5" />}
-                      label="Full-frame"
-                      value={focalLength35mm || "—"}
+                      icon={<Calendar className="w-3.5 h-3.5" />}
+                      label="Date"
+                      value={dateRaw ? fmtDate(dateRaw) : "—"}
+                    />
+
+                    <Row
+                      icon={<Camera className="w-3.5 h-3.5" />}
+                      label="Device"
+                      wrap
+                      value={device !== "—" ? device : "—"}
+                    />
+
+                    <Row
+                      icon={<MapPin className="w-3.5 h-3.5" />}
+                      label="Location"
+                      wrap
+                      value={
+                        resolvedLocation
+                          ? resolvedLocation.name
+                          : locationLoading
+                          ? "Looking up…"
+                          : gpsCoordinates || "—"
+                      }
+                      title={
+                        resolvedLocation
+                          ? [
+                              resolvedLocation.name,
+                              gpsCoordinates,
+                              resolvedLocation.attribution,
+                            ]
+                              .filter(Boolean)
+                              .join("\n")
+                          : gpsCoordinates
+                      }
                     />
                   </div>
                 </div>
