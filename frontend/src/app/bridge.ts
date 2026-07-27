@@ -4,7 +4,7 @@ declare global {
   interface Window {
     pywebview?: {
       api: {
-        open_dialog(pane: string): Promise<string | null>;
+        open_dialog(pane: string): Promise<string[] | string | null>;
         read_image_dataurl(path: string): Promise<string | null>;
         read_image_thumbnail?(
           path: string,

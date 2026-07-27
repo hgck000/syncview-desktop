@@ -36,7 +36,7 @@ class Bridge:
     def attach_window(self, window):
         self.window = window
 
-    def open_dialog(self, pane: str) -> Optional[str]:
+    def open_dialog(self, pane: str) -> Optional[List[str]]:
         print(f"[Bridge] open_dialog pane={pane}")
         try:
             result = self.window.create_file_dialog(
@@ -51,10 +51,11 @@ class Bridge:
             return None
         if not result:
             return None
-        path = str(Path(result[0]).resolve())
-        self._remember(pane, path)
-        print(f"[Bridge] selected path={path}")
-        return path
+        paths = [str(Path(item).resolve()) for item in result]
+        for path in reversed(paths):
+            self._remember(pane, path)
+        print(f"[Bridge] selected paths={paths}")
+        return paths
     
     def read_image_dataurl(self, path: str) -> Optional[str]:
         """Đọc file ảnh local và trả DataURL PNG để FE load vào <img/canvas>"""
