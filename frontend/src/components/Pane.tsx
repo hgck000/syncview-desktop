@@ -402,19 +402,32 @@ export default function Pane({ id }: Props) {
     label,
     value,
     title,
+    wrap = false,
   }: {
     icon: React.ReactNode;
     label: string;
     value?: string;
     title?: string;
+    wrap?: boolean;
   }) {
     return (
-      <div className="flex items-center gap-1.5 py-1">
-        <div className="text-neutral-300">{icon}</div>
+      <div
+        className={`flex gap-1.5 py-1 ${
+          wrap ? "items-start" : "items-center"
+        }`}
+      >
+        <div className={`text-neutral-300 ${wrap ? "mt-0.5" : ""}`}>
+          {icon}
+        </div>
         <div className="text-neutral-400 w-20 shrink-0 text-[11px] font-medium">
           {label}
         </div>
-        <div className="text-neutral-100 truncate" title={title ?? value}>
+        <div
+          className={`text-neutral-100 min-w-0 flex-1 ${
+            wrap ? "whitespace-normal break-words leading-4" : "truncate"
+          }`}
+          title={title ?? value}
+        >
           {value ?? "—"}
         </div>
       </div>
@@ -877,6 +890,7 @@ export default function Pane({ id }: Props) {
                     <Row
                       icon={<MapPin className="w-3.5 h-3.5" />}
                       label="Location"
+                      wrap
                       value={
                         resolvedLocation
                           ? `© OSM · ${resolvedLocation.name}`
