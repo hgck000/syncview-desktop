@@ -1,7 +1,7 @@
 import {
   readExifFromDataURL,
   readExifFromPath,
-  readImageDataURL,
+  readImageSource,
 } from "./bridge";
 import { strokeUVToImgPx } from "./annotCoords";
 import { formatDeviceName, formatFocalLengths } from "./exifFormat";
@@ -66,6 +66,12 @@ const MAX_CANVAS_AREA = 268_435_456;
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    if (
+      /^https?:\/\//i.test(url) &&
+      new URL(url).origin !== window.location.origin
+    ) {
+      image.crossOrigin = "anonymous";
+    }
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error("Không thể giải mã ảnh gốc."));
     image.src = url;
@@ -76,7 +82,7 @@ async function loadPaneImage(
   path: string | undefined,
   dataURL: string | undefined,
 ): Promise<HTMLImageElement> {
-  const source = dataURL ?? (path ? await readImageDataURL(path) : null);
+  const source = dataURL ?? (path ? await readImageSource(path) : null);
   if (!source) {
     throw new Error(`Không thể đọc ảnh gốc${path ? `: ${path}` : "."}`);
   }

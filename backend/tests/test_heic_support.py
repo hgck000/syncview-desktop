@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
+from fastapi import HTTPException
 from PIL import Image
 
 from backend.app.bridge import Bridge
+from backend.app.main import serve_local_image
 
 
 class HeicSupportTest(unittest.TestCase):
@@ -48,6 +53,39 @@ class HeicSupportTest(unittest.TestCase):
             self.assertEqual(exif_data.get("Model"), "HEIC Test Camera")
             self.assertEqual(exif_data.get("ImageWidth"), 12)
             self.assertEqual(exif_data.get("ImageHeight"), 8)
+
+            with patch.dict(
+                os.environ,
+                {
+                    "SYNCVIEW_API_BASE_URL": "http://127.0.0.1:5174",
+                    "SYNCVIEW_MEDIA_TOKEN": "test-media-token",
+                },
+            ):
+                media_bridge = Bridge(Path(temp_dir) / "media-data")
+                media_url = media_bridge.get_image_url(str(image_path))
+
+            self.assertIsNotNone(media_url)
+            parsed_url = urlparse(media_url)
+            query = parse_qs(parsed_url.query)
+            self.assertEqual(parsed_url.path, "/api/image")
+            self.assertEqual(query["token"], ["test-media-token"])
+            self.assertEqual(query["path"], [str(image_path.resolve())])
+
+            with patch.dict(
+                os.environ,
+                {"SYNCVIEW_MEDIA_TOKEN": "test-media-token"},
+            ):
+                response = serve_local_image(
+                    str(image_path),
+                    "test-media-token",
+                )
+                with Image.open(response.path) as served:
+                    self.assertEqual(served.size, (12, 8))
+                    self.assertEqual(served.format, "PNG")
+
+                with self.assertRaises(HTTPException) as denied:
+                    serve_local_image(str(image_path), "wrong-token")
+                self.assertEqual(denied.exception.status_code, 403)
 
 
 if __name__ == "__main__":

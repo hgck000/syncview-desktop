@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import socket
 import sys
 import threading
@@ -54,6 +55,8 @@ def find_free_port(host: str, start: int) -> int:
 
 API_PORT = find_free_port(API_HOST, API_PORT)
 print("[Dev] API_PORT =", API_PORT)
+os.environ["SYNCVIEW_API_BASE_URL"] = f"http://{API_HOST}:{API_PORT}"
+os.environ["SYNCVIEW_MEDIA_TOKEN"] = secrets.token_urlsafe(32)
 
 def dist_dir() -> Path:
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
@@ -154,6 +157,7 @@ if __name__ == "__main__":
         bridge = Bridge(APP_DATA_DIR, window)
         window.expose(
             getattr(bridge, "open_dialog", lambda *a, **k: None),
+            getattr(bridge, "get_image_url", lambda *a, **k: None),
             getattr(bridge, "read_image_dataurl", lambda *a, **k: None),
             getattr(bridge, "read_image_thumbnail", lambda *a, **k: None),
             getattr(bridge, "read_exif_from_path", lambda *a, **k: None),

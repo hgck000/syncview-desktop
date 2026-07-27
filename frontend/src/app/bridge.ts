@@ -5,6 +5,7 @@ declare global {
     pywebview?: {
       api: {
         open_dialog(pane: string): Promise<string[] | string | null>;
+        get_image_url?(path: string): Promise<string | null>;
         read_image_dataurl(path: string): Promise<string | null>;
         read_image_thumbnail?(
           path: string,
@@ -112,6 +113,19 @@ export async function readImageDataURL(path: string) {
   const res = await window.pywebview.api.read_image_dataurl(path);
   console.log("[FE] readImageDataURL <-", res ? "ok" : "null");
   return res;
+}
+
+export async function readImageSource(path: string) {
+  try {
+    const api = await waitForPywebviewApi();
+    if (api?.get_image_url) {
+      const url = await api.get_image_url(path);
+      if (url) return url;
+    }
+  } catch (error) {
+    console.warn("[bridge] get_image_url failed, using DataURL fallback", error);
+  }
+  return readImageDataURL(path);
 }
 
 export async function readImageThumbnail(

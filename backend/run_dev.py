@@ -3,7 +3,7 @@ import threading, time
 import uvicorn, webview
 from pathlib import Path
 from app.bridge import Bridge
-import os, socket
+import os, secrets, socket
 
 API_HOST = "127.0.0.1"
 API_PORT = int(os.getenv("SYNCVIEW_API_PORT", "5174"))
@@ -28,6 +28,8 @@ def find_free_port(host: str, start: int) -> int:
 
 API_PORT = find_free_port(API_HOST, API_PORT)
 print("[Dev] API_PORT =", API_PORT)
+os.environ["SYNCVIEW_API_BASE_URL"] = f"http://{API_HOST}:{API_PORT}"
+os.environ["SYNCVIEW_MEDIA_TOKEN"] = secrets.token_urlsafe(32)
 
 def start_api():
     uvicorn.run("app.main:app", host=API_HOST, port=API_PORT, reload=False, log_level="info")
@@ -43,7 +45,8 @@ if __name__ == "__main__":
     api = Bridge(APP_DATA_DIR, window)
     window.expose(
         api.open_dialog,
-        api.recent_files, api.read_image_dataurl, api.read_image_thumbnail,
+        api.recent_files, api.get_image_url,
+        api.read_image_dataurl, api.read_image_thumbnail,
         api.read_exif_from_path, api.read_exif_from_dataurl,
         api.reverse_geocode,
         api.read_last_session, api.write_last_session,

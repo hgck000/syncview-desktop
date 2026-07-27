@@ -35,6 +35,8 @@ class Bridge:
         self.app_data_dir.mkdir(parents=True, exist_ok=True)
         self.recent: Dict[str, List[str]] = {"A": [], "B": [], "C": [], "D": []}
         self.window = window
+        self._api_base_url = os.getenv("SYNCVIEW_API_BASE_URL", "").rstrip("/")
+        self._media_token = os.getenv("SYNCVIEW_MEDIA_TOKEN", "")
         self._geocode_lock = threading.Lock()
         self._last_geocode_request = 0.0
         self._geocode_cache = self._read_geocode_cache()
@@ -64,6 +66,28 @@ class Bridge:
             self._remember(pane, path)
         print(f"[Bridge] selected paths={paths}")
         return paths
+
+    def get_image_url(self, path: str) -> Optional[str]:
+        """Return a short authenticated URL instead of bridging a huge DataURL."""
+        try:
+            if not self._api_base_url or not self._media_token:
+                return None
+
+            image_path = Path(path).resolve(strict=True)
+            if not image_path.is_file():
+                return None
+
+            query = urlencode(
+                {
+                    "path": str(image_path),
+                    "token": self._media_token,
+                    "v": image_path.stat().st_mtime_ns,
+                }
+            )
+            return f"{self._api_base_url}/api/image?{query}"
+        except Exception as e:
+            print(f"[Bridge][IMG-URL][ERROR] {path}: {e}")
+            return None
     
     def read_image_dataurl(self, path: str) -> Optional[str]:
         """Đọc file ảnh local và trả DataURL PNG để FE load vào <img/canvas>"""

@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useRef } from "react";
-import { readImageDataURL } from "./bridge";
+import { readImageSource } from "./bridge";
 
 type GridOpt = { on: boolean; size: number; opacity: number };
 type LoupeOpt = {
@@ -212,10 +212,16 @@ export function useImageCanvas(opts: Opts) {
 
     const load = async () => {
       let url = dataURL;
-      if (!url && path) url = (await readImageDataURL(path)) ?? undefined;
+      if (!url && path) url = (await readImageSource(path)) ?? undefined;
       if (cancelled || !url) return;
 
       const img = new Image();
+      if (
+        /^https?:\/\//i.test(url) &&
+        new URL(url).origin !== window.location.origin
+      ) {
+        img.crossOrigin = "anonymous";
+      }
       img.onload = () => {
         if (cancelled) return;
         imgRef.current = img;
