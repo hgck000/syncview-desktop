@@ -20,15 +20,13 @@ def is_port_free(host: str, port: int) -> bool:
         except OSError:
             return False
 
-def find_free_port(host: str, start: int) -> int:
-    p = start
-    while not is_port_free(host, p):
-        p += 1
-    return p
+if not is_port_free(API_HOST, API_PORT):
+    raise RuntimeError(
+        f"Port {API_PORT} is already in use. "
+        "Close the previous SyncView backend before starting a new one."
+    )
 
-API_PORT = find_free_port(API_HOST, API_PORT)
 print("[Dev] API_PORT =", API_PORT)
-os.environ["SYNCVIEW_API_BASE_URL"] = f"http://{API_HOST}:{API_PORT}"
 os.environ["SYNCVIEW_MEDIA_TOKEN"] = secrets.token_urlsafe(32)
 
 def start_api():

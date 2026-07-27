@@ -57,7 +57,6 @@ class HeicSupportTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "SYNCVIEW_API_BASE_URL": "http://127.0.0.1:5174",
                     "SYNCVIEW_MEDIA_TOKEN": "test-media-token",
                 },
             ):
@@ -66,6 +65,8 @@ class HeicSupportTest(unittest.TestCase):
 
             self.assertIsNotNone(media_url)
             parsed_url = urlparse(media_url)
+            self.assertFalse(parsed_url.scheme)
+            self.assertFalse(parsed_url.netloc)
             query = parse_qs(parsed_url.query)
             self.assertEqual(parsed_url.path, "/api/image")
             self.assertEqual(query["token"], ["test-media-token"])

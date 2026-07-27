@@ -35,7 +35,6 @@ class Bridge:
         self.app_data_dir.mkdir(parents=True, exist_ok=True)
         self.recent: Dict[str, List[str]] = {"A": [], "B": [], "C": [], "D": []}
         self.window = window
-        self._api_base_url = os.getenv("SYNCVIEW_API_BASE_URL", "").rstrip("/")
         self._media_token = os.getenv("SYNCVIEW_MEDIA_TOKEN", "")
         self._geocode_lock = threading.Lock()
         self._last_geocode_request = 0.0
@@ -70,7 +69,7 @@ class Bridge:
     def get_image_url(self, path: str) -> Optional[str]:
         """Return a short authenticated URL instead of bridging a huge DataURL."""
         try:
-            if not self._api_base_url or not self._media_token:
+            if not self._media_token:
                 return None
 
             image_path = Path(path).resolve(strict=True)
@@ -84,7 +83,9 @@ class Bridge:
                     "v": image_path.stat().st_mtime_ns,
                 }
             )
-            return f"{self._api_base_url}/api/image?{query}"
+            # Keep media same-origin with the page. In production FastAPI
+            # handles this path directly; Vite proxies /api during development.
+            return f"/api/image?{query}"
         except Exception as e:
             print(f"[Bridge][IMG-URL][ERROR] {path}: {e}")
             return None

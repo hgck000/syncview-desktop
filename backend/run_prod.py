@@ -55,7 +55,6 @@ def find_free_port(host: str, start: int) -> int:
 
 API_PORT = find_free_port(API_HOST, API_PORT)
 print("[Dev] API_PORT =", API_PORT)
-os.environ["SYNCVIEW_API_BASE_URL"] = f"http://{API_HOST}:{API_PORT}"
 os.environ["SYNCVIEW_MEDIA_TOKEN"] = secrets.token_urlsafe(32)
 
 def dist_dir() -> Path:
