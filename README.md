@@ -7,7 +7,7 @@ A lightweight desktop application to compare 1–4 images and synchronize operat
 ---
 
 ## Features
-- Drag and drop; auto layout: `1–3 images → 3 columns`, `4 images → 2×2`.
+- Import JPEG, PNG, WebP and HEIC/HEIF images; auto layout: `1–3 images → 3 columns`, `4 images → 2×2`.
 - Smooth pan/zoom; zoom around cursor; Double-click: Fit ↔ 2×.
 - Link-All: synchronize pan/zoom of all panes.
 - Manual Blink: stack 2–4 images and switch instantly with keys `1–4`.

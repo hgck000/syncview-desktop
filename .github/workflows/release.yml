@@ -47,6 +47,7 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           pip install -r backend/requirements.txt
           pip install pyinstaller pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz pyobjc-framework-WebKit pyobjc-framework-security
+          python -m unittest discover -s backend/tests -v
 
       - name: Build macOS icon (.icns) from PNG
         run: |
@@ -87,6 +88,7 @@ jobs:
             --add-data "frontend/dist:frontend/dist" \
             --hidden-import h11 \
             --collect-all uvicorn \
+            --collect-all pillow_heif \
             --collect-submodules anyio \
             backend/run_prod.py
 
@@ -176,7 +178,8 @@ jobs:
           .\.venv\Scripts\python -m pip check
 
           # Xác nhận các module quan trọng thực sự đã cài.
-          .\.venv\Scripts\python -c "import fastapi, uvicorn, webview, h11, clr; print('Backend imports OK')"
+          .\.venv\Scripts\python -c "import fastapi, uvicorn, webview, h11, clr, pillow_heif; print('Backend imports OK')"
+          .\.venv\Scripts\python -m unittest discover -s backend/tests -v
 
       - name: PyInstaller .exe
         shell: pwsh

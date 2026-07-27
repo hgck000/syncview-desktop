@@ -3,9 +3,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 import webview
 from PIL import Image, ExifTags, ImageOps
+from pillow_heif import register_heif_opener
 import io, base64, json, os, sys, mimetypes, threading, time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+# Register HEIF/HEIC once so every Image.open() path below (full image,
+# thumbnails and EXIF) uses the same decoder. Embedded HEIF thumbnails are not
+# needed because SyncView creates its own comparison-rail thumbnails.
+register_heif_opener(thumbnails=False)
 
 def default_app_data() -> Path:
     # Windows: %LOCALAPPDATA%\SyncView
@@ -43,7 +49,9 @@ class Bridge:
                 webview.OPEN_DIALOG,
                 directory=str(Path.home()),
                 allow_multiple=True,
-                file_types=('Images (*.jpg;*.jpeg;*.png;*.webp;*.heic)',)
+                file_types=(
+                    'Images (*.jpg;*.jpeg;*.png;*.webp;*.heic;*.heif;*.hif)',
+                )
             )
             print(f"[Bridge] dialog result={result}")
         except Exception as e:

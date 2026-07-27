@@ -6,7 +6,7 @@ const collator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: "base",
 });
-const imageExtRe = /\.(png|jpe?g|webp|gif|bmp|tiff?|heic)$/i;
+const imageExtRe = /\.(png|jpe?g|webp|gif|bmp|tiff?|heic|heif|hif)$/i;
 
 export default function DropZone({ children }: { children: React.ReactNode }) {
   const t = useApp((s) => s.getActive());

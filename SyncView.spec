@@ -58,7 +58,14 @@ hiddenimports = ['h11', 'clr']
 
 # PyWebView and Uvicorn load several Windows/backend modules dynamically.
 # Collect them explicitly so a clean machine never depends on the build PC.
-for package in ('uvicorn', 'anyio', 'webview', 'pythonnet', 'clr_loader'):
+for package in (
+    'uvicorn',
+    'anyio',
+    'webview',
+    'pythonnet',
+    'clr_loader',
+    'pillow_heif',
+):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas
     binaries += package_binaries
