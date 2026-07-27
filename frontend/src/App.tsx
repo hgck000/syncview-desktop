@@ -36,6 +36,8 @@ export default function App() {
   const loadFromSession = useApp((s) => s.loadFromSession);
   const markHydrated = useApp((s) => s.markHydrated);
   const hydrated = useApp((s) => s.hydrated);
+  const sidebarSize = useApp((s) => s.sidebarSize);
+  const leftSplit = useApp((s) => s.leftSplit);
 
   const sidebarCollapsed = useApp((s) => s.sidebarCollapsed);
   const sidebarPeek = useApp((s) => s.sidebarPeek);
@@ -46,10 +48,6 @@ export default function App() {
 
   const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
   const leaveTimerRef = useRef<number | null>(null);
-
-  const sidebarSize = normalizeSidebarSize(
-    (active as any)?.sizes?.sidebar
-  );
 
   const compact = sidebarCollapsed && !sidebarPeek;
   // const compact = sidebarCollapsed;
@@ -135,18 +133,16 @@ export default function App() {
   }, [loadFromSession, markHydrated]);
 
   useLayoutEffect(() => {
-    if (!hydrated || !activeTabId) return;
+    if (!hydrated) return;
 
     const state = useApp.getState();
-    const savedSize = normalizeSidebarSize(
-      state.getActive()?.sizes?.sidebar
-    );
+    const savedSize = normalizeSidebarSize(state.sidebarSize);
     setSidebarExpandedSize(savedSize);
 
     if (!state.sidebarCollapsed || state.sidebarPeek) {
       sidebarPanelRef.current?.resize(savedSize);
     }
-  }, [hydrated, activeTabId, setSidebarExpandedSize]);
+  }, [hydrated, setSidebarExpandedSize]);
 
   // autosave: debounce 400ms khi tabs/activeTabId đổi
   useEffect(() => {
@@ -157,7 +153,7 @@ export default function App() {
       console.log("[last-session] autosave ->", ok);
     }, 400);
     return () => clearTimeout(t);
-  }, [hydrated, tabs, activeTabId]);
+  }, [hydrated, tabs, activeTabId, sidebarSize, leftSplit]);
 
   useEffect(() => {
     function blobToDataURL(blob: Blob): Promise<string> {

@@ -281,7 +281,8 @@ export default function Sidebar({
   const { tabs, setLeftSplit } = useApp();
   const tab = useApp((s) => s.getActiveSafe());
   // const has = useApp(s => s.hasActive());
-  const leftSplit = normalizeLeftSplit(tab?.sizes?.leftSplit);
+  const leftSplit = useApp((s) => s.leftSplit);
+  const hydrated = useApp((s) => s.hydrated);
   const paneIds = tab?.panes ?? [];
   const activeId = useApp((s) => s.activeTabId);
   const setActive = useApp((s) => s.setActiveTab);
@@ -292,12 +293,12 @@ export default function Sidebar({
   const topPanelRef = React.useRef<ImperativePanelHandle>(null);
 
   React.useLayoutEffect(() => {
-    if (!showFull || !activeId) return;
+    if (!hydrated || !showFull) return;
     const savedSize = normalizeLeftSplit(
-      useApp.getState().getActive()?.sizes?.leftSplit
+      useApp.getState().leftSplit
     );
     topPanelRef.current?.resize(savedSize);
-  }, [activeId, showFull]);
+  }, [hydrated, showFull]);
 
   // tốc độ kích hoạt kéo (nhanh hơn)
   const mouse = useSensor(MouseSensor, {

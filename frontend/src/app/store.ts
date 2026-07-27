@@ -188,6 +188,7 @@ type AppState = {
   tabs: TabState[];
   activeTabId: string;
   sidebarSize: number;
+  leftSplit: number;
   newTab: (title?: string) => void;
   setActiveTab: (id: string) => void;
   renameTab: (id: string, title: string) => void;
@@ -318,6 +319,10 @@ type SavedSession = {
   version?: number;
   tabs?: any[];
   activeTabId?: string | null;
+  layout?: {
+    sidebarSize?: number;
+    leftSplit?: number;
+  };
 };
 
 function makeEmptyTab(name = "Untitled"): TabState {
@@ -391,7 +396,8 @@ export const useApp = create<AppState>()(
   subscribeWithSelector((set, get) => ({
     tabs: [],
     activeTabId: "",
-    sidebarSize: 24,
+    sidebarSize: 15,
+    leftSplit: 60,
     helpOn: false,
 
     spaceDown: false,
@@ -451,28 +457,9 @@ export const useApp = create<AppState>()(
     setSidebarSize: (pct) =>
       set((state) => {
         const nextSize = normalizeSidebarSize(pct);
-        const t = state.tabs.find((x) => x.id === state.activeTabId);
-        if (!t) {
-          return Math.abs(state.sidebarSize - nextSize) < 0.01
-            ? state
-            : { ...state, sidebarSize: nextSize };
-        }
-        const currentSize = normalizeSidebarSize(t.sizes?.sidebar);
-        if (
-          Math.abs(currentSize - nextSize) < 0.01 &&
-          Math.abs(state.sidebarSize - nextSize) < 0.01
-        ) {
-          return state;
-        }
-        const tabs = state.tabs.map((tab) =>
-          tab.id === t.id
-            ? {
-                ...tab,
-                sizes: { ...(tab.sizes || {}), sidebar: nextSize },
-              }
-            : tab
-        );
-        return { ...state, tabs, sidebarSize: nextSize };
+        return Math.abs(state.sidebarSize - nextSize) < 0.01
+          ? state
+          : { ...state, sidebarSize: nextSize };
       }),
 
     getActive: () => {
@@ -488,6 +475,7 @@ export const useApp = create<AppState>()(
         const restTab = { ...t } as any;
         delete restTab.exif;
         delete restTab.comparison;
+        delete restTab.sizes;
 
         // Blink ép Link All trong lúc sử dụng. Session phải lưu trạng thái
         // trước khi vào Blink để lần mở app sau không bị đổi thiết lập.
@@ -508,10 +496,6 @@ export const useApp = create<AppState>()(
 
         return {
           ...restTab,
-          sizes: {
-            sidebar: normalizeSidebarSize(t.sizes?.sidebar),
-            leftSplit: normalizeLeftSplit(t.sizes?.leftSplit),
-          },
           dataURL: filteredDataURL,
         };
       });
@@ -520,6 +504,10 @@ export const useApp = create<AppState>()(
         version: 1,
         tabs: tabsForSave,
         activeTabId: s.activeTabId,
+        layout: {
+          sidebarSize: normalizeSidebarSize(s.sidebarSize),
+          leftSplit: normalizeLeftSplit(s.leftSplit),
+        },
       };
     },
 
@@ -562,10 +550,6 @@ export const useApp = create<AppState>()(
               ...base,
               ...raw,
               layout,
-              sizes: {
-                sidebar: normalizeSidebarSize(raw.sizes?.sidebar),
-                leftSplit: normalizeLeftSplit(raw.sizes?.leftSplit),
-              },
               exif: {},
               comparison: EMPTY_COMPARISON,
             };
@@ -576,15 +560,25 @@ export const useApp = create<AppState>()(
               ? data.activeTabId
               : tabs[0]?.id ?? null;
           const activeTab = tabs.find((tab) => tab.id === activeTabId);
+          const savedSidebarSize =
+            typeof data.layout?.sidebarSize === "number"
+              ? data.layout.sidebarSize
+              : activeTab?.sizes?.sidebar;
+          const savedLeftSplit =
+            typeof data.layout?.leftSplit === "number"
+              ? data.layout.leftSplit
+              : activeTab?.sizes?.leftSplit;
           const sidebarSize = normalizeSidebarSize(
-            activeTab?.sizes?.sidebar
+            savedSidebarSize
           );
+          const leftSplit = normalizeLeftSplit(savedLeftSplit);
 
           return {
             ...state,
             tabs,
             activeTabId,
             sidebarSize,
+            leftSplit,
             sidebarExpandedSize: sidebarSize,
           };
         } catch (e) {
@@ -596,28 +590,9 @@ export const useApp = create<AppState>()(
     setLeftSplit: (v) =>
       set((state) => {
         const nextSize = normalizeLeftSplit(v);
-        const active = state.tabs.find(
-          (tab) => tab.id === state.activeTabId
-        );
-        if (!active) return state;
-        if (
-          Math.abs(
-            normalizeLeftSplit(active.sizes?.leftSplit) - nextSize
-          ) < 0.01
-        ) {
-          return state;
-        }
-        return {
-          ...state,
-          tabs: state.tabs.map((tab) =>
-            tab.id === state.activeTabId
-              ? {
-                  ...tab,
-                  sizes: { ...tab.sizes, leftSplit: nextSize },
-                }
-              : tab
-          ),
-        };
+        return Math.abs(state.leftSplit - nextSize) < 0.01
+          ? state
+          : { ...state, leftSplit: nextSize };
       }),
 
     toggleLinkAll: () => {
