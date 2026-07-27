@@ -44,6 +44,7 @@ if __name__ == "__main__":
     window.expose(
         api.open_dialog,
         api.recent_files, api.get_image_url,
+        api.stage_image_dataurl,
         api.read_image_dataurl, api.read_image_thumbnail,
         api.read_exif_from_path, api.read_exif_from_dataurl,
         api.reverse_geocode,

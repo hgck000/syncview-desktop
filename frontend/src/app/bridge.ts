@@ -6,6 +6,7 @@ declare global {
       api: {
         open_dialog(pane: string): Promise<string[] | string | null>;
         get_image_url?(path: string): Promise<string | null>;
+        stage_image_dataurl?(dataurl: string): Promise<string | null>;
         read_image_dataurl(path: string): Promise<string | null>;
         read_image_thumbnail?(
           path: string,
@@ -37,6 +38,11 @@ export type ReverseGeocodeResult = {
   name: string;
   attribution: string;
 };
+
+const browserImageDataUrl =
+  /^data:image\/(?:gif|jpe?g|png|webp);base64,/i;
+const stagedDataUrlSources = new Map<string, Promise<string | null>>();
+const MAX_STAGED_DATA_URL_SOURCES = 16;
 
 export async function readKeymap(): Promise<Keymap | null> {
   try {
@@ -126,6 +132,40 @@ export async function readImageSource(path: string) {
     console.warn("[bridge] get_image_url failed, using DataURL fallback", error);
   }
   return readImageDataURL(path);
+}
+
+export async function readDataUrlImageSource(
+  dataurl: string,
+): Promise<string | null> {
+  // These formats are decoded natively and should avoid backend work.
+  if (browserImageDataUrl.test(dataurl)) return dataurl;
+
+  const cached = stagedDataUrlSources.get(dataurl);
+  if (cached) return cached;
+
+  const pending = (async () => {
+    try {
+      const api = await waitForPywebviewApi();
+      if (!api?.stage_image_dataurl) {
+        console.warn("[bridge] stage_image_dataurl api not available");
+        return null;
+      }
+      return (await api.stage_image_dataurl(dataurl)) ?? null;
+    } catch (error) {
+      console.warn("[bridge] stage_image_dataurl failed", error);
+      return null;
+    }
+  })();
+
+  if (stagedDataUrlSources.size >= MAX_STAGED_DATA_URL_SOURCES) {
+    const oldest = stagedDataUrlSources.keys().next().value;
+    if (oldest) stagedDataUrlSources.delete(oldest);
+  }
+  stagedDataUrlSources.set(dataurl, pending);
+
+  const resolved = await pending;
+  if (!resolved) stagedDataUrlSources.delete(dataurl);
+  return resolved;
 }
 
 export async function readImageThumbnail(

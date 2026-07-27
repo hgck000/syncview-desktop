@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useRef } from "react";
-import { readImageSource } from "./bridge";
+import { readDataUrlImageSource, readImageSource } from "./bridge";
 import { loadHtmlImage } from "./imageLoader";
 
 type GridOpt = { on: boolean; size: number; opacity: number };
@@ -213,8 +213,11 @@ export function useImageCanvas(opts: Opts) {
     if (!canvas || (!path && !dataURL)) return;
 
     const load = async () => {
-      let url = dataURL;
-      if (!url && path) url = (await readImageSource(path)) ?? undefined;
+      const url = dataURL
+        ? await readDataUrlImageSource(dataURL)
+        : path
+          ? await readImageSource(path)
+          : null;
       if (cancelled || !url) return;
 
       try {

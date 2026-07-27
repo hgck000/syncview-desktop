@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Any
 import webview
 from PIL import Image, ExifTags, ImageOps
 from pillow_heif import register_heif_opener
-import io, base64, json, os, sys, mimetypes, threading, time
+import io, base64, hashlib, json, os, sys, mimetypes, tempfile, threading, time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -36,6 +36,11 @@ class Bridge:
         self.recent: Dict[str, List[str]] = {"A": [], "B": [], "C": [], "D": []}
         self.window = window
         self._media_token = os.getenv("SYNCVIEW_MEDIA_TOKEN", "")
+        self._staged_image_dir_handle = tempfile.TemporaryDirectory(
+            prefix="syncview-dropped-images-"
+        )
+        self._staged_image_dir = Path(self._staged_image_dir_handle.name)
+        self._staged_image_lock = threading.Lock()
         self._geocode_lock = threading.Lock()
         self._last_geocode_request = 0.0
         self._geocode_cache = self._read_geocode_cache()
@@ -88,6 +93,56 @@ class Bridge:
             return f"/api/image?{query}"
         except Exception as e:
             print(f"[Bridge][IMG-URL][ERROR] {path}: {e}")
+            return None
+
+    def stage_image_dataurl(self, dataurl: str) -> Optional[str]:
+        """Decode a dropped browser-incompatible image and return its media URL.
+
+        WebView2 does not expose a local path for every drag/drop operation.
+        FileReader then labels HEIC as application/octet-stream and Chromium
+        cannot decode that DataURL. Decode it once with Pillow and serve the
+        resulting PNG through the same local media endpoint as opened files.
+        """
+        try:
+            if not isinstance(dataurl, str) or "," not in dataurl:
+                return None
+
+            header, encoded = dataurl.split(",", 1)
+            if not header.lower().startswith("data:") or ";base64" not in header.lower():
+                return None
+
+            # Reject an unexpectedly large bridge payload before decoding it.
+            max_raw_bytes = 256 * 1024 * 1024
+            if len(encoded) > ((max_raw_bytes + 2) // 3) * 4:
+                raise ValueError("Dropped image exceeds the 256 MB limit")
+
+            raw = base64.b64decode(encoded, validate=True)
+            if not raw or len(raw) > max_raw_bytes:
+                raise ValueError("Dropped image is empty or too large")
+
+            digest = hashlib.sha256(raw).hexdigest()
+            staged_path = self._staged_image_dir / f"{digest}.png"
+
+            with self._staged_image_lock:
+                if not staged_path.exists():
+                    temporary_path = staged_path.with_suffix(".tmp")
+                    try:
+                        with Image.open(io.BytesIO(raw)) as source:
+                            decoded = ImageOps.exif_transpose(source).convert("RGBA")
+                            decoded.save(temporary_path, format="PNG")
+                        temporary_path.replace(staged_path)
+                    finally:
+                        temporary_path.unlink(missing_ok=True)
+
+            media_url = self.get_image_url(str(staged_path))
+            if media_url:
+                print(
+                    "[Bridge][DROP] staged image "
+                    f"{len(raw)} bytes -> {staged_path.name}"
+                )
+            return media_url
+        except Exception as e:
+            print(f"[Bridge][DROP][ERROR] unable to decode dropped image: {e}")
             return None
     
     def read_image_dataurl(self, path: str) -> Optional[str]:

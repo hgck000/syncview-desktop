@@ -1,4 +1,5 @@
 import {
+  readDataUrlImageSource,
   readExifFromDataURL,
   readExifFromPath,
   readImageSource,
@@ -68,7 +69,11 @@ async function loadPaneImage(
   path: string | undefined,
   dataURL: string | undefined,
 ): Promise<HTMLImageElement> {
-  const source = dataURL ?? (path ? await readImageSource(path) : null);
+  const source = dataURL
+    ? await readDataUrlImageSource(dataURL)
+    : path
+      ? await readImageSource(path)
+      : null;
   if (!source) {
     throw new Error(`Không thể đọc ảnh gốc${path ? `: ${path}` : "."}`);
   }

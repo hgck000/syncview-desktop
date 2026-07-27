@@ -63,6 +63,17 @@ class HeicSupportTest(unittest.TestCase):
                 media_bridge = Bridge(Path(temp_dir) / "media-data")
                 media_url = media_bridge.get_image_url(str(image_path))
 
+                dropped_data_url = (
+                    "data:application/octet-stream;base64,"
+                    + base64.b64encode(image_path.read_bytes()).decode("ascii")
+                )
+                staged_url = media_bridge.stage_image_dataurl(dropped_data_url)
+                self.assertIsNotNone(staged_url)
+                self.assertEqual(
+                    staged_url,
+                    media_bridge.stage_image_dataurl(dropped_data_url),
+                )
+
             self.assertIsNotNone(media_url)
             parsed_url = urlparse(media_url)
             self.assertFalse(parsed_url.scheme)
@@ -71,6 +82,14 @@ class HeicSupportTest(unittest.TestCase):
             self.assertEqual(parsed_url.path, "/api/image")
             self.assertEqual(query["token"], ["test-media-token"])
             self.assertEqual(query["path"], [str(image_path.resolve())])
+
+            parsed_staged_url = urlparse(staged_url)
+            staged_query = parse_qs(parsed_staged_url.query)
+            staged_path = Path(staged_query["path"][0])
+            self.assertEqual(parsed_staged_url.path, "/api/image")
+            self.assertEqual(staged_query["token"], ["test-media-token"])
+            self.assertEqual(staged_path.suffix, ".png")
+            self.assertTrue(staged_path.is_file())
 
             with patch.dict(
                 os.environ,
@@ -83,6 +102,14 @@ class HeicSupportTest(unittest.TestCase):
                 with Image.open(response.path) as served:
                     self.assertEqual(served.size, (12, 8))
                     self.assertEqual(served.format, "PNG")
+
+                staged_response = serve_local_image(
+                    str(staged_path),
+                    "test-media-token",
+                )
+                with Image.open(staged_response.path) as staged:
+                    self.assertEqual(staged.size, (12, 8))
+                    self.assertEqual(staged.format, "PNG")
 
                 with self.assertRaises(HTTPException) as denied:
                     serve_local_image(str(image_path), "wrong-token")

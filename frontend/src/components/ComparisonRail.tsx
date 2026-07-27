@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image as ImageIcon } from "lucide-react";
-import { readImageThumbnail } from "../app/bridge";
+import {
+  readDataUrlImageSource,
+  readImageThumbnail,
+} from "../app/bridge";
 import { useApp, type PaneId } from "../app/store";
 
 const thumbnailCache = new Map<string, string>();
@@ -91,7 +94,9 @@ function usePaneThumbnail(pane: PaneId) {
           THUMBNAIL_MAX_HEIGHT,
         )
       : dataURL
-        ? makeDataUrlThumbnail(dataURL)
+        ? readDataUrlImageSource(dataURL).then((source) =>
+            source ? makeDataUrlThumbnail(source) : null,
+          )
         : Promise.resolve(null);
 
     load.then((result) => {
