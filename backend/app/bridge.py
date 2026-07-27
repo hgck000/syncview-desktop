@@ -255,6 +255,19 @@ class Bridge:
         if "Model" in flat:
             out["Model"] = flat["Model"]
 
+        # Tiêu cự thực tế và tiêu cự quy đổi full-frame/35 mm
+        focal_length = flat.get("FocalLength")
+        if focal_length is not None:
+            out["FocalLength"] = focal_length
+
+        focal_length_35mm = (
+            flat.get("FocalLengthIn35mmFilm")
+            or flat.get("FocalLengthIn35mmFormat")
+            or flat.get("FocalLength35efl")
+        )
+        if focal_length_35mm is not None:
+            out["FocalLengthIn35mmFilm"] = focal_length_35mm
+
         # Khẩu
         fnum = flat.get("FNumber") or flat.get("ApertureValue") or flat.get("Aperture")
         if fnum is not None:

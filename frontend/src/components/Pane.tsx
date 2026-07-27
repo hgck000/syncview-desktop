@@ -16,10 +16,13 @@ import {
   Timer,
   SunMedium,
   CircleX,
+  Focus,
+  Ruler,
 } from "lucide-react";
 import { imgPxToStrokeUV, clamp } from "../app/annotCoords";
 import TextLayer from "./TextLayer";
 import { cursorSet, cursorClear } from "../app/cursorManager";
+import { formatDeviceName, formatFocalLengths } from "../app/exifFormat";
 
 type Props = { id: "A" | "B" | "C" | "D" };
 
@@ -133,10 +136,7 @@ export default function Pane({ id }: Props) {
   const displayName =
     name ?? (path ? basename(path) : data ? "(dropped image)" : "(Empty)");
 
-  const device =
-    exif?.Make && exif?.Model
-      ? `${exif.Make} ${exif.Model}`
-      : exif?.Model || exif?.Make || "—";
+  const device = formatDeviceName(exif);
 
   const sizeLabel = view.imgW && view.imgH ? `${view.imgW}×${view.imgH}` : "—";
 
@@ -214,6 +214,8 @@ export default function Pane({ id }: Props) {
     if (typeof av === "number" && isFinite(av)) return Math.pow(2, av / 2);
     return undefined;
   })();
+
+  const { focalLength, focalLength35mm } = formatFocalLengths(exif);
 
   useEffect(() => {
     if (!rdrag) return;
@@ -361,7 +363,7 @@ export default function Pane({ id }: Props) {
     return (
       <div className="flex items-center gap-1.5 py-1">
         <div className="text-neutral-300">{icon}</div>
-        <div className="text-neutral-400 w-16 shrink-0 text-[11px] font-medium">
+        <div className="text-neutral-400 w-20 shrink-0 text-[11px] font-medium">
           {label}
         </div>
         <div className="text-neutral-100 truncate" title={value}>
@@ -858,6 +860,18 @@ export default function Pane({ id }: Props) {
                           ? `f/${(+apertureRaw).toFixed(1).replace(/\.0$/, "")}`
                           : "—"
                       }
+                    />
+
+                    <Row
+                      icon={<Focus className="w-3.5 h-3.5" />}
+                      label="Focal"
+                      value={focalLength || "—"}
+                    />
+
+                    <Row
+                      icon={<Ruler className="w-3.5 h-3.5" />}
+                      label="35mm equiv."
+                      value={focalLength35mm || "—"}
                     />
                   </div>
                 </div>
