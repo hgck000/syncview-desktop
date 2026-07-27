@@ -29,9 +29,12 @@ import TextLayer from "./TextLayer";
 import { cursorSet, cursorClear } from "../app/cursorManager";
 import { formatDeviceName, formatFocalLengths } from "../app/exifFormat";
 
-type Props = { id: "A" | "B" | "C" | "D" };
+type Props = {
+  id: "A" | "B" | "C" | "D";
+  suspended?: boolean;
+};
 
-export default function Pane({ id }: Props) {
+export default function Pane({ id, suspended = false }: Props) {
   const panes = useApp((s) => s.getActiveSafe().panes);
   const focusIndex = useApp((s) => s.getActiveSafe().focusIndex);
 
@@ -58,7 +61,7 @@ export default function Pane({ id }: Props) {
   const setBrushSize = useApp((s) => s.setBrushSize);
 
   const setHoveredPane = useApp((s) => s.setHoveredPane);
-  const uiActive = useApp((s) => s.hoveredPane === id);
+  const uiActive = useApp((s) => !suspended && s.hoveredPane === id);
 
   const drawRef = useRef<null | {
     panes: ("A" | "B" | "C" | "D")[];
@@ -106,6 +109,7 @@ export default function Pane({ id }: Props) {
     pointer,
     exporting,
     uiActive,
+    suspended,
     onImageMeta: (w, h) => setMeta(id, w, h),
     onViewCompensate: (v) => setView(id, v),
   });
@@ -117,6 +121,7 @@ export default function Pane({ id }: Props) {
     pointer,
     exporting,
     uiActive,
+    suspended,
   });
 
   const exif = useApp((s) => s.getActiveSafe().exif?.[id]);
@@ -996,7 +1001,7 @@ export default function Pane({ id }: Props) {
               className="absolute inset-0 w-full h-full pointer-events-none"
             />
             {/* Text layer: DOM overlay (select/edit/resize). Text thực tế sẽ được vẽ lên canvas annot để export. */}
-            <TextLayer paneId={id} view={view} />
+            {!suspended && <TextLayer paneId={id} view={view} />}
           </div>
         ) : (
           <div className="h-full flex items-center justify-center text-neutral-500 select-none">

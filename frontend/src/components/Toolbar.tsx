@@ -15,7 +15,6 @@ import {
   Underline,
   Layers3,
   ChevronDown,
-  Check,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
@@ -677,7 +676,7 @@ export default function Toolbar() {
       </div>
 
       {/* Export + options */}
-      <div className="relative flex" ref={exportMenuRef}>
+      <div className="relative flex w-24" ref={exportMenuRef}>
         <div
           onClick={onExport}
           title={
@@ -685,7 +684,7 @@ export default function Toolbar() {
               ? "Export workspace as PNG with EXIF overlay"
               : "Export workspace as PNG"
           }
-          className={`pl-2 pr-1.5 py-1 rounded-l flex items-center gap-1 select-none justify-center transition
+          className={`min-w-0 flex-1 pl-1.5 pr-1 py-1 rounded-l flex items-center gap-1 select-none justify-center transition
             ${
               hasAnyImage
                 ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
@@ -699,33 +698,53 @@ export default function Toolbar() {
           disabled={!hasAnyImage}
           onClick={() => hasAnyImage && setExportMenuOpen((open) => !open)}
           title="Export options"
-          className={`w-6 rounded-r border-l border-neutral-700/70 flex items-center justify-center transition ${
+          className={`relative w-6 shrink-0 rounded-r border-l border-neutral-700/70 flex items-center justify-center transition ${
             hasAnyImage
               ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-400 cursor-pointer"
               : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
           }`}
         >
           <ChevronDown size={13} />
+          {embedExif && hasAnyImage && (
+            <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-blue-400" />
+          )}
         </button>
 
         {exportMenuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded border border-neutral-700/80 bg-neutral-900/95 p-1 shadow-xl">
+          <div className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-lg border border-neutral-700/80 bg-neutral-900/95 p-2 shadow-2xl backdrop-blur-md">
+            <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
+              Export options
+            </div>
             <button
               type="button"
               onClick={() => setEmbedExif((value) => !value)}
-              className="w-full h-8 px-2 rounded flex items-center gap-2 text-xs text-neutral-200 hover:bg-neutral-800 cursor-pointer"
+              role="switch"
+              aria-checked={embedExif}
+              className="w-full min-h-11 rounded-md px-2.5 flex items-center gap-3 text-left hover:bg-neutral-800/80 cursor-pointer transition"
             >
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-neutral-100">
+                  Embed EXIF
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-3.5 text-neutral-500">
+                  Add camera details to each image
+                </span>
+              </span>
               <span
                 className={[
-                  "w-4 h-4 rounded border flex items-center justify-center",
+                  "relative h-5 w-9 shrink-0 rounded-full border transition-colors",
                   embedExif
-                    ? "bg-blue-600 border-blue-500 text-white"
+                    ? "border-blue-500 bg-blue-600"
                     : "border-neutral-600 bg-neutral-950",
                 ].join(" ")}
               >
-                {embedExif && <Check size={12} strokeWidth={2.6} />}
+                <span
+                  className={[
+                    "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
+                    embedExif ? "translate-x-[17px]" : "translate-x-0.5",
+                  ].join(" ")}
+                />
               </span>
-              Embed EXIF
             </button>
           </div>
         )}

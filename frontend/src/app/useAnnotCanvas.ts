@@ -138,6 +138,7 @@ export function useAnnotCanvas(opts: {
   loupe: LoupeOpt;
   pointer: Pointer;
   uiActive?: boolean;
+  suspended?: boolean;
   exporting?: boolean;
 }) {
   const {
@@ -146,6 +147,7 @@ export function useAnnotCanvas(opts: {
     loupe,
     pointer,
     uiActive = true,
+    suspended = false,
     exporting = false,
   } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -155,6 +157,8 @@ export function useAnnotCanvas(opts: {
   );
   const uiActiveRef = useRef(uiActive);
   const exportingRef = useRef(exporting);
+  const suspendedRef = useRef(suspended);
+  suspendedRef.current = suspended;
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
@@ -314,6 +318,7 @@ export function useAnnotCanvas(opts: {
   );
 
   const draw = useCallback(() => {
+    if (suspendedRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -424,12 +429,30 @@ export function useAnnotCanvas(opts: {
   ]);
 
   const schedule = useCallback(() => {
+    if (suspendedRef.current) return;
     if (rafRef.current != null) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
       draw();
     });
   }, [draw]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (suspended) {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      if (canvas && (canvas.width !== 1 || canvas.height !== 1)) {
+        canvas.width = 1;
+        canvas.height = 1;
+      }
+      return;
+    }
+
+    schedule();
+  }, [suspended, schedule]);
 
   // redraw khi view/loupe/pointer/tool đổi
   useEffect(() => {

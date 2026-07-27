@@ -19,6 +19,7 @@ type Opts = {
   loupe: LoupeOpt;
   pointer: Pointer;
   uiActive?: boolean;
+  suspended?: boolean;
   onImageMeta?: (w: number, h: number) => void;
   onViewCompensate?: (v: {
     scale: number;
@@ -39,6 +40,7 @@ export function useImageCanvas(opts: Opts) {
     loupe,
     pointer,
     uiActive = true,
+    suspended = false,
     exporting,
   } = opts;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,8 +53,11 @@ export function useImageCanvas(opts: Opts) {
     offsetX: number;
     offsetY: number;
   }>(null);
+  const suspendedRef = useRef(suspended);
+  suspendedRef.current = suspended;
 
   function drawNow() {
+    if (suspendedRef.current) return;
     const canvas = canvasRef.current;
     const img = imgRef.current;
     if (!canvas || !img) return;
@@ -184,6 +189,7 @@ export function useImageCanvas(opts: Opts) {
   }
 
   function scheduleDraw() {
+    if (suspendedRef.current) return;
     if (!canvasRef.current || !imgRef.current) return;
     if (rafRef.current != null) return; // đã có 1 frame đang chờ
     rafRef.current = requestAnimationFrame(() => {
@@ -229,6 +235,10 @@ export function useImageCanvas(opts: Opts) {
 
       const cw = canvas.clientWidth;
       const ch = canvas.clientHeight;
+      if (suspendedRef.current) {
+        if (cw > 0 && ch > 0) lastSizeRef.current = { cw, ch };
+        return;
+      }
       const prev = lastSizeRef.current;
 
       if (cw > 0 && ch > 0 && prev.cw > 0 && prev.ch > 0 && img) {
@@ -304,6 +314,24 @@ export function useImageCanvas(opts: Opts) {
       }
     };
   }, [path, dataURL]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (suspended) {
+      pendingStoreViewRef.current = null;
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      if (canvas && (canvas.width !== 1 || canvas.height !== 1)) {
+        canvas.width = 1;
+        canvas.height = 1;
+      }
+      return;
+    }
+
+    scheduleDraw();
+  }, [suspended]);
 
   useEffect(() => {
     effectiveViewRef.current = view;

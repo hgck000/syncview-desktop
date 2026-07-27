@@ -119,7 +119,6 @@ export default function ViewerGrid() {
   const comparison = useApp((s) => s.getActiveSafe().comparison);
   const setBlinkPane = useApp((s) => s.setBlinkPane);
   const setReferenceCandidate = useApp((s) => s.setReferenceCandidate);
-  const exitComparison = useApp((s) => s.exitComparison);
   const n = panes.length;
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -194,11 +193,11 @@ export default function ViewerGrid() {
         className={[
           "absolute inset-0 [&>div]:h-full",
           visible
-            ? "z-10 opacity-100 pointer-events-auto"
-            : "z-0 opacity-0 pointer-events-none",
+            ? "visible z-10 opacity-100 pointer-events-auto"
+            : "invisible z-0 opacity-0 pointer-events-none",
         ].join(" ")}
       >
-        <Pane id={pane} />
+        <Pane id={pane} suspended={!visible} />
       </div>
     );
   }
@@ -223,12 +222,11 @@ export default function ViewerGrid() {
             </div>
           </div>
           <ComparisonRail
-            title="Blink"
             panes={panes}
             activePane={activePane}
             slotCount={4}
+            showShortcuts
             onSelect={setBlinkPane}
-            onClose={exitComparison}
           />
         </div>
       );
@@ -269,12 +267,10 @@ export default function ViewerGrid() {
           </div>
 
           <ComparisonRail
-            title="Reference"
             panes={candidates}
             activePane={candidatePane}
             slotCount={3}
             onSelect={setReferenceCandidate}
-            onClose={exitComparison}
           />
         </div>
       );
