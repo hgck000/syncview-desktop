@@ -9,9 +9,9 @@ import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import ViewerGrid from "./components/ViewerGrid";
 import HelpOverlay from "./components/HelpOverlay";
-import { useApp } from "./app/store";
+import { normalizeSidebarSize, useApp } from "./app/store";
 import Hotkeys from "./app/hotkeys";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { readLastSession, writeLastSession } from "./app/bridge";
 import AppEventDebug from "./dev/AppEventDebug";
 
@@ -47,7 +47,9 @@ export default function App() {
   const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
   const leaveTimerRef = useRef<number | null>(null);
 
-  const sidebarSize = (active as any)?.sizes?.sidebar ?? 15;
+  const sidebarSize = normalizeSidebarSize(
+    (active as any)?.sizes?.sidebar
+  );
 
   const compact = sidebarCollapsed && !sidebarPeek;
   // const compact = sidebarCollapsed;
@@ -59,7 +61,9 @@ export default function App() {
   const fadeIn = !sidebarCollapsed || sidebarPeek;
 
   const expandToSaved = () => {
-    const size = sidebarExpandedSize || sidebarSize || 15;
+    const size = normalizeSidebarSize(
+      sidebarSize || sidebarExpandedSize
+    );
     sidebarPanelRef.current?.resize(size);
   };
 
@@ -92,7 +96,9 @@ export default function App() {
   const pinOpen = () => {
     setSidebarPeek(false);
     setSidebarCollapsed(false);
-    sidebarPanelRef.current?.resize(sidebarExpandedSize || sidebarSize || 15);
+    sidebarPanelRef.current?.resize(
+      normalizeSidebarSize(sidebarSize || sidebarExpandedSize)
+    );
   };
 
   const collapsePinned = () => {
@@ -127,6 +133,20 @@ export default function App() {
       cancelled = true;
     };
   }, [loadFromSession, markHydrated]);
+
+  useLayoutEffect(() => {
+    if (!hydrated || !activeTabId) return;
+
+    const state = useApp.getState();
+    const savedSize = normalizeSidebarSize(
+      state.getActive()?.sizes?.sidebar
+    );
+    setSidebarExpandedSize(savedSize);
+
+    if (!state.sidebarCollapsed || state.sidebarPeek) {
+      sidebarPanelRef.current?.resize(savedSize);
+    }
+  }, [hydrated, activeTabId, setSidebarExpandedSize]);
 
   // autosave: debounce 400ms khi tabs/activeTabId đổi
   useEffect(() => {

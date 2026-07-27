@@ -99,6 +99,18 @@ const genId = () =>
 const clamp = (x: number, min: number, max: number) =>
   Math.max(min, Math.min(max, x));
 
+export const normalizeSidebarSize = (value: unknown) => {
+  const size =
+    typeof value === "number" && Number.isFinite(value) ? value : 15;
+  return clamp(size, 10, 20);
+};
+
+export const normalizeLeftSplit = (value: unknown) => {
+  const size =
+    typeof value === "number" && Number.isFinite(value) ? value : 60;
+  return clamp(size, 30, 80);
+};
+
 const clamp01 = (x: number) => clamp(x, 0, 1);
 const EMPTY_COMPARISON: ComparisonState = { mode: "none" };
 
@@ -107,7 +119,7 @@ const SAFE_EMPTY_TAB: TabState = {
   name: "Untitled",
   layout: "auto",
   linkAll: true,
-  sizes: { sidebar: 26, leftSplit: 70 },
+  sizes: { sidebar: 15, leftSplit: 60 },
   panes: [],
   focusIndex: 0,
   files: { A: undefined, B: undefined, C: undefined, D: undefined },
@@ -326,7 +338,7 @@ function makeEmptyTab(name = "Untitled"): TabState {
     linkAll: false,
     grid: { on: false, size: 32, opacity: 0.2 },
     loupe: { on: false, size: 220, zoom: 2, shape: "circle" },
-    sizes: { sidebar: 24, leftSplit: 60 },
+    sizes: { sidebar: 15, leftSplit: 60 },
     focusIndex: 0,
     exif: { A: undefined, B: undefined, C: undefined, D: undefined },
     pointerNorm: {
@@ -438,14 +450,29 @@ export const useApp = create<AppState>()(
 
     setSidebarSize: (pct) =>
       set((state) => {
+        const nextSize = normalizeSidebarSize(pct);
         const t = state.tabs.find((x) => x.id === state.activeTabId);
-        if (!t) return { ...state, sidebarSize: pct };
+        if (!t) {
+          return Math.abs(state.sidebarSize - nextSize) < 0.01
+            ? state
+            : { ...state, sidebarSize: nextSize };
+        }
+        const currentSize = normalizeSidebarSize(t.sizes?.sidebar);
+        if (
+          Math.abs(currentSize - nextSize) < 0.01 &&
+          Math.abs(state.sidebarSize - nextSize) < 0.01
+        ) {
+          return state;
+        }
         const tabs = state.tabs.map((tab) =>
           tab.id === t.id
-            ? { ...tab, sizes: { ...(tab.sizes || {}), sidebar: pct } }
+            ? {
+                ...tab,
+                sizes: { ...(tab.sizes || {}), sidebar: nextSize },
+              }
             : tab
         );
-        return { ...state, tabs, sidebarSize: pct };
+        return { ...state, tabs, sidebarSize: nextSize };
       }),
 
     getActive: () => {
@@ -481,6 +508,10 @@ export const useApp = create<AppState>()(
 
         return {
           ...restTab,
+          sizes: {
+            sidebar: normalizeSidebarSize(t.sizes?.sidebar),
+            leftSplit: normalizeLeftSplit(t.sizes?.leftSplit),
+          },
           dataURL: filteredDataURL,
         };
       });
@@ -531,6 +562,10 @@ export const useApp = create<AppState>()(
               ...base,
               ...raw,
               layout,
+              sizes: {
+                sidebar: normalizeSidebarSize(raw.sizes?.sidebar),
+                leftSplit: normalizeLeftSplit(raw.sizes?.leftSplit),
+              },
               exif: {},
               comparison: EMPTY_COMPARISON,
             };
@@ -540,11 +575,17 @@ export const useApp = create<AppState>()(
             data.activeTabId && tabs.some((t) => t.id === data.activeTabId)
               ? data.activeTabId
               : tabs[0]?.id ?? null;
+          const activeTab = tabs.find((tab) => tab.id === activeTabId);
+          const sidebarSize = normalizeSidebarSize(
+            activeTab?.sizes?.sidebar
+          );
 
           return {
             ...state,
             tabs,
             activeTabId,
+            sidebarSize,
+            sidebarExpandedSize: sidebarSize,
           };
         } catch (e) {
           console.error("[session] failed to load session, ignoring:", e);
@@ -552,16 +593,32 @@ export const useApp = create<AppState>()(
         }
       }),
 
-    setLeftSplit: (v) => {
-      const { tabs, activeTabId } = get();
-      set({
-        tabs: tabs.map((t) =>
-          t.id === activeTabId
-            ? { ...t, sizes: { ...t.sizes, leftSplit: v } }
-            : t
-        ),
-      });
-    },
+    setLeftSplit: (v) =>
+      set((state) => {
+        const nextSize = normalizeLeftSplit(v);
+        const active = state.tabs.find(
+          (tab) => tab.id === state.activeTabId
+        );
+        if (!active) return state;
+        if (
+          Math.abs(
+            normalizeLeftSplit(active.sizes?.leftSplit) - nextSize
+          ) < 0.01
+        ) {
+          return state;
+        }
+        return {
+          ...state,
+          tabs: state.tabs.map((tab) =>
+            tab.id === state.activeTabId
+              ? {
+                  ...tab,
+                  sizes: { ...tab.sizes, leftSplit: nextSize },
+                }
+              : tab
+          ),
+        };
+      }),
 
     toggleLinkAll: () => {
       const { tabs, activeTabId } = get();

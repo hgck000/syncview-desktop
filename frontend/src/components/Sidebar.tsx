@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { useApp } from "../app/store";
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+  type ImperativePanelHandle,
+} from "react-resizable-panels";
+import { normalizeLeftSplit, useApp } from "../app/store";
 import {
   Pencil,
   ImageUp,
@@ -276,7 +281,7 @@ export default function Sidebar({
   const { tabs, setLeftSplit } = useApp();
   const tab = useApp((s) => s.getActiveSafe());
   // const has = useApp(s => s.hasActive());
-  const leftSplit = tab?.sizes?.leftSplit ?? 60;
+  const leftSplit = normalizeLeftSplit(tab?.sizes?.leftSplit);
   const paneIds = tab?.panes ?? [];
   const activeId = useApp((s) => s.activeTabId);
   const setActive = useApp((s) => s.setActiveTab);
@@ -284,6 +289,15 @@ export default function Sidebar({
   const closeTab = useApp((s) => s.closeTab);
   const [editing, setEditing] = useState<string | null>(null);
   const [buf, setBuf] = useState("");
+  const topPanelRef = React.useRef<ImperativePanelHandle>(null);
+
+  React.useLayoutEffect(() => {
+    if (!showFull || !activeId) return;
+    const savedSize = normalizeLeftSplit(
+      useApp.getState().getActive()?.sizes?.leftSplit
+    );
+    topPanelRef.current?.resize(savedSize);
+  }, [activeId, showFull]);
 
   // tốc độ kích hoạt kéo (nhanh hơn)
   const mouse = useSensor(MouseSensor, {
@@ -403,7 +417,7 @@ export default function Sidebar({
       </div>
       <PanelGroup direction="vertical" onLayout={([top]) => setLeftSplit(top)}>
         {/* Khu TAB dọc + workspace controls */}
-        <Panel defaultSize={leftSplit} minSize={30}>
+        <Panel ref={topPanelRef} defaultSize={leftSplit} minSize={30}>
           {(() => {
             const onDragStart = (_e: DragStartEvent) => {
               void _e;
