@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useRef } from "react";
 import { readImageSource } from "./bridge";
+import { loadHtmlImage } from "./imageLoader";
 
 type GridOpt = { on: boolean; size: number; opacity: number };
 type LoupeOpt = {
@@ -207,6 +208,7 @@ export function useImageCanvas(opts: Opts) {
 
   useEffect(() => {
     let cancelled = false;
+    let releaseImage = () => undefined;
     const canvas = canvasRef.current;
     if (!canvas || (!path && !dataURL)) return;
 
@@ -215,21 +217,20 @@ export function useImageCanvas(opts: Opts) {
       if (!url && path) url = (await readImageSource(path)) ?? undefined;
       if (cancelled || !url) return;
 
-      const img = new Image();
-      if (
-        /^https?:\/\//i.test(url) &&
-        new URL(url).origin !== window.location.origin
-      ) {
-        img.crossOrigin = "anonymous";
-      }
-      img.onload = () => {
-        if (cancelled) return;
-        imgRef.current = img;
-        onImageMeta?.(img.naturalWidth, img.naturalHeight);
+      try {
+        const loaded = await loadHtmlImage(url);
+        if (cancelled) {
+          loaded.release();
+          return;
+        }
+
+        releaseImage = loaded.release;
+        imgRef.current = loaded.image;
+        onImageMeta?.(loaded.image.naturalWidth, loaded.image.naturalHeight);
         scheduleDraw();
-      };
-      img.onerror = (e) => console.warn("[canvas] load fail", e);
-      img.src = url;
+      } catch (error) {
+        console.warn("[canvas] load fail", error);
+      }
     };
 
     load();
@@ -313,6 +314,8 @@ export function useImageCanvas(opts: Opts) {
 
     return () => {
       cancelled = true;
+      releaseImage();
+      imgRef.current = null;
       ro.disconnect();
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);

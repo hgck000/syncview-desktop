@@ -3,6 +3,7 @@ import {
   readExifFromPath,
   readImageSource,
 } from "./bridge";
+import { loadHtmlImage } from "./imageLoader";
 import { strokeUVToImgPx } from "./annotCoords";
 import { formatDeviceName, formatFocalLengths } from "./exifFormat";
 import type { PaneId, Stroke, TextBox, TextStyle, View } from "./store";
@@ -63,21 +64,6 @@ export type ExportWorkspaceOptions = {
 const MAX_CANVAS_DIMENSION = 32_767;
 const MAX_CANVAS_AREA = 268_435_456;
 
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    if (
-      /^https?:\/\//i.test(url) &&
-      new URL(url).origin !== window.location.origin
-    ) {
-      image.crossOrigin = "anonymous";
-    }
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Không thể giải mã ảnh gốc."));
-    image.src = url;
-  });
-}
-
 async function loadPaneImage(
   path: string | undefined,
   dataURL: string | undefined,
@@ -86,7 +72,9 @@ async function loadPaneImage(
   if (!source) {
     throw new Error(`Không thể đọc ảnh gốc${path ? `: ${path}` : "."}`);
   }
-  return loadImage(source);
+  const loaded = await loadHtmlImage(source);
+  loaded.release();
+  return loaded.image;
 }
 
 function buildFont(style: TextStyle, fontPx: number) {
