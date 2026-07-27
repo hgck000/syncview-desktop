@@ -3,7 +3,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 import webview
 from PIL import Image, ExifTags
-import io, base64, json, os, sys, mimetypes
+import io, base64, json, os, sys, mimetypes, threading, time
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 def default_app_data() -> Path:
     # Windows: %LOCALAPPDATA%\SyncView
@@ -27,6 +29,9 @@ class Bridge:
         self.app_data_dir.mkdir(parents=True, exist_ok=True)
         self.recent: Dict[str, List[str]] = {"A": [], "B": [], "C": [], "D": []}
         self.window = window
+        self._geocode_lock = threading.Lock()
+        self._last_geocode_request = 0.0
+        self._geocode_cache = self._read_geocode_cache()
         
     def attach_window(self, window):
         self.window = window
@@ -88,6 +93,149 @@ class Bridge:
             items.remove(path)
         items.insert(0, path)
         self.recent[pane] = items[:10]
+
+    def _geocode_cache_path(self) -> Path:
+        return self.app_data_dir / "geocode_cache.json"
+
+    def _read_geocode_cache(self) -> Dict[str, Dict[str, str]]:
+        try:
+            data = json.loads(self._geocode_cache_path().read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return {
+                    str(key): value
+                    for key, value in data.items()
+                    if isinstance(value, dict) and isinstance(value.get("name"), str)
+                }
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"[Bridge][GEOCODE][WARN] read cache: {e}")
+        return {}
+
+    def _write_geocode_cache(self) -> None:
+        try:
+            path = self._geocode_cache_path()
+            temp_path = path.with_suffix(".tmp")
+            temp_path.write_text(
+                json.dumps(self._geocode_cache, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temp_path.replace(path)
+        except Exception as e:
+            print(f"[Bridge][GEOCODE][WARN] write cache: {e}")
+
+    def _format_location_name(self, result: Dict[str, Any]) -> Optional[str]:
+        address = result.get("address")
+        if not isinstance(address, dict):
+            address = {}
+
+        locality = next(
+            (
+                address.get(key)
+                for key in (
+                    "city",
+                    "town",
+                    "municipality",
+                    "village",
+                    "hamlet",
+                    "county",
+                )
+                if address.get(key)
+            ),
+            None,
+        )
+        region = address.get("state") or address.get("state_district")
+        country = address.get("country")
+
+        parts: List[str] = []
+        seen = set()
+        for value in (locality, region, country):
+            if not isinstance(value, str):
+                continue
+            text = value.strip()
+            key = text.casefold()
+            if text and key not in seen:
+                parts.append(text)
+                seen.add(key)
+
+        if parts:
+            return ", ".join(parts)
+
+        display_name = result.get("display_name")
+        return display_name.strip() if isinstance(display_name, str) else None
+
+    def reverse_geocode(self, latitude: float, longitude: float) -> Optional[Dict[str, str]]:
+        """Đổi GPS thành địa danh ngắn gọn; cache kết quả và giới hạn 1 request/giây."""
+        try:
+            lat = float(latitude)
+            lon = float(longitude)
+        except (TypeError, ValueError):
+            return None
+
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return None
+
+        cache_key = f"{lat:.5f},{lon:.5f}"
+        cached = self._geocode_cache.get(cache_key)
+        if cached:
+            return cached
+
+        with self._geocode_lock:
+            cached = self._geocode_cache.get(cache_key)
+            if cached:
+                return cached
+
+            wait_seconds = 1.05 - (time.monotonic() - self._last_geocode_request)
+            if wait_seconds > 0:
+                time.sleep(wait_seconds)
+
+            endpoint = os.getenv(
+                "SYNCVIEW_GEOCODER_URL",
+                "https://nominatim.openstreetmap.org/reverse",
+            )
+            query = urlencode(
+                {
+                    "format": "jsonv2",
+                    "lat": lat,
+                    "lon": lon,
+                    "zoom": 10,
+                    "addressdetails": 1,
+                    "accept-language": "vi,en",
+                }
+            )
+            request = Request(
+                f"{endpoint}?{query}",
+                headers={
+                    "User-Agent": (
+                        "SyncView/2.3.0 "
+                        "(https://github.com/hgck000/syncview-desktop)"
+                    ),
+                    "Accept": "application/json",
+                },
+            )
+
+            self._last_geocode_request = time.monotonic()
+            try:
+                with urlopen(request, timeout=6) as response:
+                    payload = json.loads(response.read(1024 * 1024).decode("utf-8"))
+            except Exception as e:
+                print(f"[Bridge][GEOCODE][WARN] request: {e}")
+                return None
+
+            if not isinstance(payload, dict):
+                return None
+
+            name = self._format_location_name(payload)
+            if not name:
+                return None
+
+            resolved = {
+                "name": name,
+                "attribution": "© OpenStreetMap contributors",
+            }
+            self._geocode_cache[cache_key] = resolved
+            self._write_geocode_cache()
+            return resolved
 
     def _ratio_to_float(self, v):
         try:

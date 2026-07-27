@@ -45,9 +45,9 @@ function firstExifValue(exif: any, keys: string[]) {
   return undefined;
 }
 
-function exifNumber(value: any): number | undefined {
+function exifNumberText(value: any): string | undefined {
   if (typeof value === "number") {
-    return isFinite(value) ? value : undefined;
+    return isFinite(value) ? String(value) : undefined;
   }
 
   if (Array.isArray(value)) {
@@ -55,17 +55,17 @@ function exifNumber(value: any): number | undefined {
       const numerator = Number(value[0]);
       const denominator = Number(value[1]);
       if (isFinite(numerator) && isFinite(denominator) && denominator !== 0) {
-        return numerator / denominator;
+        return String(numerator / denominator);
       }
     }
-    return value.length > 0 ? exifNumber(value[0]) : undefined;
+    return value.length > 0 ? exifNumberText(value[0]) : undefined;
   }
 
   if (value && typeof value === "object") {
     const numerator = Number(value.numerator);
     const denominator = Number(value.denominator);
     if (isFinite(numerator) && isFinite(denominator) && denominator !== 0) {
-      return numerator / denominator;
+      return String(numerator / denominator);
     }
   }
 
@@ -78,30 +78,21 @@ function exifNumber(value: any): number | undefined {
       const numerator = Number(fraction[1]);
       const denominator = Number(fraction[2]);
       if (isFinite(numerator) && isFinite(denominator) && denominator !== 0) {
-        return numerator / denominator;
+        return String(numerator / denominator);
       }
     }
 
     const number = text.match(/-?\d+(?:\.\d+)?/);
-    if (number) {
-      const parsed = Number(number[0]);
-      return isFinite(parsed) ? parsed : undefined;
-    }
+    if (number && isFinite(Number(number[0]))) return number[0];
   }
 
   return undefined;
 }
 
 function fmtMillimeters(value: any) {
-  const millimeters = exifNumber(value);
-  if (millimeters == null || millimeters <= 0) return undefined;
-
-  const decimals = millimeters >= 100 ? 0 : millimeters >= 10 ? 1 : 2;
-  const rounded = millimeters
-    .toFixed(decimals)
-    .replace(/(\.\d*?)0+$/, "$1")
-    .replace(/\.$/, "");
-  return `${rounded} mm`;
+  const millimeters = exifNumberText(value);
+  if (millimeters == null || Number(millimeters) <= 0) return undefined;
+  return `${millimeters} mm`;
 }
 
 export function formatFocalLengths(exif: any) {

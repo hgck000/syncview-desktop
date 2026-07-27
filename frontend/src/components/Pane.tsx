@@ -4,7 +4,12 @@ import { useAnnotCanvas } from "../app/useAnnotCanvas";
 import { basename } from "../app/path";
 import { useImageCanvas } from "../app/useImageCanvas";
 import { useRef, useState, useEffect } from "react";
-import { readExifFromPath, readExifFromDataURL } from "../app/bridge";
+import {
+  readExifFromPath,
+  readExifFromDataURL,
+  reverseGeocode,
+  type ReverseGeocodeResult,
+} from "../app/bridge";
 import {
   ChevronDown,
   ChevronUp,
@@ -142,6 +147,14 @@ export default function Pane({ id }: Props) {
 
   const fileSizeBytes =
     exif?.FileSize ?? (data ? dataURLByteLength(data) : undefined);
+  const fileSizeLabel =
+    fileSizeBytes != null ? fmtFileSize(fileSizeBytes) : undefined;
+  const fileDetails = [
+    fileSizeLabel,
+    sizeLabel !== "—" ? `${sizeLabel} px` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" • ");
   const dateRaw = exif?.DateTimeOriginal ?? exif?.CreateDate ?? exif?.DateTime;
 
   const shutterRaw = (() => {
@@ -216,6 +229,39 @@ export default function Pane({ id }: Props) {
   })();
 
   const { focalLength, focalLength35mm } = formatFocalLengths(exif);
+  const gpsCoordinates = fmtGps(exif);
+  const [resolvedLocation, setResolvedLocation] =
+    useState<ReverseGeocodeResult | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setResolvedLocation(null);
+
+    if (!gpsCoordinates || !detailsOpen) {
+      setLocationLoading(false);
+      return;
+    }
+
+    const [latitude, longitude] = gpsCoordinates
+      .split(",")
+      .map((value) => Number(value.trim()));
+    if (!isFinite(latitude) || !isFinite(longitude)) {
+      setLocationLoading(false);
+      return;
+    }
+
+    setLocationLoading(true);
+    reverseGeocode(latitude, longitude).then((result) => {
+      if (cancelled) return;
+      setResolvedLocation(result);
+      setLocationLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gpsCoordinates, detailsOpen]);
 
   useEffect(() => {
     if (!rdrag) return;
@@ -355,10 +401,12 @@ export default function Pane({ id }: Props) {
     icon,
     label,
     value,
+    title,
   }: {
     icon: React.ReactNode;
     label: string;
     value?: string;
+    title?: string;
   }) {
     return (
       <div className="flex items-center gap-1.5 py-1">
@@ -366,7 +414,7 @@ export default function Pane({ id }: Props) {
         <div className="text-neutral-400 w-20 shrink-0 text-[11px] font-medium">
           {label}
         </div>
-        <div className="text-neutral-100 truncate" title={value}>
+        <div className="text-neutral-100 truncate" title={title ?? value}>
           {value ?? "—"}
         </div>
       </div>
@@ -780,7 +828,7 @@ export default function Pane({ id }: Props) {
                     {displayName}
                   </div>
                   <div className="text-[11px] text-neutral-300 truncate">
-                    {device} • {sizeLabel}
+                    {device}
                   </div>
                 </div>
                 <div
@@ -817,9 +865,7 @@ export default function Pane({ id }: Props) {
                     <Row
                       icon={<HardDrive className="w-3.5 h-3.5" />}
                       label="File size"
-                      value={
-                        fileSizeBytes != null ? fmtFileSize(fileSizeBytes) : "—"
-                      }
+                      value={fileDetails || "—"}
                     />
 
                     <Row
@@ -831,7 +877,24 @@ export default function Pane({ id }: Props) {
                     <Row
                       icon={<MapPin className="w-3.5 h-3.5" />}
                       label="Location"
-                      value={fmtGps(exif) || "—"}
+                      value={
+                        resolvedLocation
+                          ? `© OSM · ${resolvedLocation.name}`
+                          : locationLoading
+                          ? "Looking up…"
+                          : gpsCoordinates || "—"
+                      }
+                      title={
+                        resolvedLocation
+                          ? [
+                              resolvedLocation.name,
+                              gpsCoordinates,
+                              resolvedLocation.attribution,
+                            ]
+                              .filter(Boolean)
+                              .join("\n")
+                          : gpsCoordinates
+                      }
                     />
 
                     <Row
@@ -870,7 +933,7 @@ export default function Pane({ id }: Props) {
 
                     <Row
                       icon={<Ruler className="w-3.5 h-3.5" />}
-                      label="35mm equiv."
+                      label="Full-frame"
                       value={focalLength35mm || "—"}
                     />
                   </div>

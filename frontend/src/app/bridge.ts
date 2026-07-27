@@ -8,6 +8,10 @@ declare global {
         read_image_dataurl(path: string): Promise<string | null>;
         read_exif_from_path(path: string): Promise<any | null>;
         read_exif_from_dataurl(dataurl: string): Promise<any | null>;
+        reverse_geocode?: (
+          latitude: number,
+          longitude: number
+        ) => Promise<ReverseGeocodeResult | null>;
         read_keymap?: () => Promise<Record<string, string> | null>;
         save_png_dialog?: (
           dataurl: string,
@@ -23,6 +27,10 @@ declare global {
 // export {};
 
 export type Keymap = Record<string, string>;
+export type ReverseGeocodeResult = {
+  name: string;
+  attribution: string;
+};
 
 export async function readKeymap(): Promise<Keymap | null> {
   try {
@@ -60,6 +68,20 @@ export async function readExifFromDataURL(dataurl: string) {
   return window.pywebview?.api?.read_exif_from_dataurl
     ? await window.pywebview.api.read_exif_from_dataurl(dataurl)
     : null;
+}
+
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number
+): Promise<ReverseGeocodeResult | null> {
+  try {
+    const api = await waitForPywebviewApi();
+    if (!api?.reverse_geocode) return null;
+    return (await api.reverse_geocode(latitude, longitude)) ?? null;
+  } catch (error) {
+    console.warn("[bridge] reverseGeocode error", error);
+    return null;
+  }
 }
 
 export async function openFileDialog(pane: string): Promise<string[] | null> {

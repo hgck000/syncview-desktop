@@ -45,6 +45,7 @@ if __name__ == "__main__":
         api.open_dialog,
         api.recent_files, api.read_image_dataurl,
         api.read_exif_from_path, api.read_exif_from_dataurl,
+        api.reverse_geocode,
         api.read_last_session, api.write_last_session,
         api.save_png_dialog,
     )
