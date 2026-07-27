@@ -615,6 +615,13 @@ export const useApp = create<AppState>()(
           return {
             ...tab,
             linkAll: true,
+            annotate: { ...tab.annotate, mode: "none" },
+            textTool: { ...tab.textTool, on: false },
+            textUI: {
+              ...tab.textUI,
+              editing: null,
+              selected: { A: null, B: null, C: null, D: null },
+            },
             comparison: {
               mode: "blink",
               activePane,
@@ -1398,6 +1405,7 @@ export const useApp = create<AppState>()(
     toggleDraw: () =>
       set((state) => {
         const t = state.getActiveSafe();
+        if (t.comparison.mode === "blink") return state;
         const nextMode = t.annotate.mode === "draw" ? "none" : "draw";
         return {
           tabs: state.tabs.map((x) =>
@@ -1421,6 +1429,7 @@ export const useApp = create<AppState>()(
     toggleErase: () =>
       set((state) => {
         const t = state.getActiveSafe();
+        if (t.comparison.mode === "blink") return state;
         const nextMode = t.annotate.mode === "erase" ? "none" : "erase";
         return {
           tabs: state.tabs.map((x) =>
@@ -1444,6 +1453,7 @@ export const useApp = create<AppState>()(
     toggleText: () =>
       set((state) => {
         const t = state.getActiveSafe();
+        if (t.comparison.mode === "blink") return state;
         const next = !t.textTool.on;
 
         const clearedSelected = {

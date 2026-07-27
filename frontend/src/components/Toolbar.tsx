@@ -156,6 +156,7 @@ export default function Toolbar() {
   const paneCount = useApp((s) => s.getActiveSafe().panes.length);
   const layout = useApp((s) => s.getActiveSafe().layout);
   const comparisonMode = useApp((s) => s.getActiveSafe().comparison.mode);
+  const blinkEditingDisabled = comparisonMode === "blink";
 
   const rafTextColor = useRef<number | null>(null);
   const pendingTextColor = useRef<string>(textStyle.color);
@@ -407,9 +408,19 @@ export default function Toolbar() {
 
       {/* Draw */}
       <div
-        onClick={() => hasAnyImage && toggleDraw()}
-        title="Draw (F)"
-        className={`${BTN_BASE} ${btnToggle(toolMode === "draw")}`}
+        onClick={() =>
+          hasAnyImage && !blinkEditingDisabled && toggleDraw()
+        }
+        title={
+          blinkEditingDisabled
+            ? "Draw is unavailable in Blink mode"
+            : "Draw (F)"
+        }
+        className={`${BTN_BASE} ${
+          blinkEditingDisabled
+            ? BTN_DISABLED
+            : btnToggle(toolMode === "draw")
+        }`}
       >
         <Pencil size={16} />
         Draw
@@ -417,18 +428,36 @@ export default function Toolbar() {
 
       {/* Erase */}
       <div
-        onClick={() => hasAnyImage && toggleErase()}
-        title="Erase (G)"
-        className={`${BTN_BASE} ${btnToggle(toolMode === "erase")}`}
+        onClick={() =>
+          hasAnyImage && !blinkEditingDisabled && toggleErase()
+        }
+        title={
+          blinkEditingDisabled
+            ? "Erase is unavailable in Blink mode"
+            : "Erase (G)"
+        }
+        className={`${BTN_BASE} ${
+          blinkEditingDisabled
+            ? BTN_DISABLED
+            : btnToggle(toolMode === "erase")
+        }`}
       >
         <Eraser size={16} /> Erase
       </div>
 
       {/* Text */}
       <div
-        onClick={() => hasAnyImage && toggleText()}
-        title="Text (T)"
-        className={`${BTN_BASE} ${btnToggle(textOn)}`}
+        onClick={() =>
+          hasAnyImage && !blinkEditingDisabled && toggleText()
+        }
+        title={
+          blinkEditingDisabled
+            ? "Text is unavailable in Blink mode"
+            : "Text (T)"
+        }
+        className={`${BTN_BASE} ${
+          blinkEditingDisabled ? BTN_DISABLED : btnToggle(textOn)
+        }`}
       >
         <Type size={16} /> Text
       </div>
@@ -676,58 +705,63 @@ export default function Toolbar() {
       </div>
 
       {/* Export + options */}
-      <div className="relative flex w-24" ref={exportMenuRef}>
-        <div
+      <div className="relative flex h-7 w-24" ref={exportMenuRef}>
+        <button
+          type="button"
+          disabled={!hasAnyImage}
           onClick={onExport}
           title={
             embedExif
               ? "Export workspace as PNG with EXIF overlay"
               : "Export workspace as PNG"
           }
-          className={`min-w-0 flex-1 pl-1.5 pr-1 py-1 rounded-l flex items-center gap-1 select-none justify-center transition
+          className={`!m-0 !min-w-0 !flex-1 !rounded-l-md !rounded-r-none !border-0 !px-1.5 !py-0 !outline-none
+            h-7 flex items-center gap-1 select-none justify-center transition
             ${
               hasAnyImage
-                ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
-                : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
+                ? "!bg-neutral-800 hover:!bg-neutral-700 text-neutral-300 cursor-pointer"
+                : "!bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
             }`}
         >
           <Download size={16} /> Export
-        </div>
+        </button>
         <button
           type="button"
           disabled={!hasAnyImage}
           onClick={() => hasAnyImage && setExportMenuOpen((open) => !open)}
           title="Export options"
-          className={`relative w-6 shrink-0 rounded-r border-l border-neutral-700/70 flex items-center justify-center transition ${
+          aria-expanded={exportMenuOpen}
+          className={`!m-0 !h-7 !w-7 !shrink-0 !rounded-l-none !rounded-r-md !border-0 !p-0 !outline-none
+            flex items-center justify-center transition
+            shadow-[inset_1px_0_0_rgba(82,82,91,0.85)] ${
             hasAnyImage
-              ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-400 cursor-pointer"
-              : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
+              ? "!bg-neutral-800 hover:!bg-neutral-700 cursor-pointer"
+              : "!bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
           }`}
         >
-          <ChevronDown size={13} />
-          {embedExif && hasAnyImage && (
-            <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-blue-400" />
-          )}
+          <ChevronDown
+            size={14}
+            className={embedExif ? "text-blue-400" : "text-neutral-400"}
+          />
         </button>
 
         {exportMenuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-lg border border-neutral-700/80 bg-neutral-900/95 p-2 shadow-2xl backdrop-blur-md">
-            <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
-              Export options
-            </div>
+          <div className="absolute right-0 top-full z-50 mt-1.5 w-60 rounded-lg border border-neutral-700/80 bg-neutral-950/95 p-2 shadow-2xl backdrop-blur-md">
             <button
               type="button"
               onClick={() => setEmbedExif((value) => !value)}
               role="switch"
               aria-checked={embedExif}
-              className="w-full min-h-11 rounded-md px-2.5 flex items-center gap-3 text-left hover:bg-neutral-800/80 cursor-pointer transition"
+              className="!m-0 !min-h-0 !w-full !rounded-md !border-0 !bg-neutral-900/80 !px-3 !py-2.5 !outline-none
+                flex items-center gap-3 text-left cursor-pointer transition
+                hover:!bg-neutral-800 focus-visible:!ring-1 focus-visible:!ring-blue-500/70"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium text-neutral-100">
-                  Embed EXIF
+                  EXIF overlay
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-3.5 text-neutral-500">
-                  Add camera details to each image
+                  Add camera details to exported images
                 </span>
               </span>
               <span

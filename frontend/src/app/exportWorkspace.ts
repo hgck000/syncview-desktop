@@ -576,11 +576,11 @@ function drawExifOverlay(
 ) {
   const lines = buildExifLines(pane);
   const shortEdge = Math.min(pane.widthPx, pane.heightPx);
-  let fontPx = Math.max(20, Math.min(56, Math.round(shortEdge * 0.018)));
+  let fontPx = Math.max(15, Math.min(42, Math.round(shortEdge * 0.0135)));
   const maxTextWidth = Math.max(160, pane.widthPx * 0.82);
 
   ctx.save();
-  while (fontPx > 16) {
+  while (fontPx > 15) {
     ctx.font = `400 ${fontPx}px Arial`;
     const widest = Math.max(
       ...lines.map((line) => ctx.measureText(line).width),
@@ -604,7 +604,7 @@ function drawExifOverlay(
   const top = pane.topPx + margin;
 
   roundedRect(ctx, left, top, width, height, Math.max(5, fontPx * 0.35));
-  ctx.fillStyle = "rgba(0,0,0,0.42)";
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.fill();
 
   ctx.fillStyle = "rgba(245,245,245,0.88)";

@@ -225,7 +225,6 @@ export default function ViewerGrid() {
             panes={panes}
             activePane={activePane}
             slotCount={4}
-            showShortcuts
             onSelect={setBlinkPane}
           />
         </div>

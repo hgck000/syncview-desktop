@@ -105,13 +105,11 @@ function ThumbnailSlot({
   pane,
   index,
   active,
-  showShortcut,
   onSelect,
 }: {
   pane: PaneId;
   index: number;
   active: boolean;
-  showShortcut: boolean;
   onSelect: () => void;
 }) {
   const thumbnail = usePaneThumbnail(pane);
@@ -128,12 +126,10 @@ function ThumbnailSlot({
       onClick={onSelect}
       title={`${index + 1}. ${name}`}
       className={[
-        "group relative min-h-0 overflow-hidden rounded-lg border text-left",
-        "bg-neutral-900/70 cursor-pointer select-none",
-        "transition-[border-color,box-shadow,opacity] duration-150",
-        active
-          ? "border-blue-400 shadow-[0_0_0_1px_rgba(96,165,250,0.25)]"
-          : "border-neutral-800 hover:border-neutral-600",
+        "!m-0 !block !min-h-0 !w-full !overflow-hidden !rounded-lg",
+        "!border-0 !bg-transparent !p-0 !outline-none",
+        "cursor-pointer select-none transition-opacity duration-150",
+        active ? "opacity-100" : "opacity-80 hover:opacity-90",
       ].join(" ")}
     >
       {thumbnail ? (
@@ -141,43 +137,13 @@ function ThumbnailSlot({
           src={thumbnail}
           alt=""
           draggable={false}
-          className={[
-            "h-full w-full object-cover bg-neutral-950 transition-[opacity,filter,transform] duration-150",
-            active
-              ? "opacity-85 grayscale-[8%]"
-              : "opacity-50 grayscale-[35%] group-hover:opacity-65 group-hover:grayscale-[20%]",
-          ].join(" ")}
+          className="h-full w-full object-cover bg-neutral-950"
         />
       ) : (
         <div className="h-full w-full flex items-center justify-center bg-neutral-900/60 text-neutral-700">
           <ImageIcon className="h-6 w-6" />
         </div>
       )}
-
-      <div className="absolute inset-x-0 bottom-0 h-11 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none" />
-      <div className="absolute inset-x-2 bottom-1.5 flex min-w-0 items-center gap-2 pointer-events-none">
-        {showShortcut && (
-          <span
-            className={[
-              "h-5 min-w-5 rounded px-1 flex shrink-0 items-center justify-center",
-              "text-[10px] font-semibold border",
-              active
-                ? "border-blue-400/80 bg-blue-500/90 text-white"
-                : "border-white/15 bg-black/55 text-neutral-300",
-            ].join(" ")}
-          >
-            {index + 1}
-          </span>
-        )}
-        <span
-          className={[
-            "truncate text-[11px]",
-            active ? "font-medium text-white" : "text-neutral-300/80",
-          ].join(" ")}
-        >
-          {name}
-        </span>
-      </div>
     </button>
   );
 }
@@ -186,13 +152,11 @@ export default function ComparisonRail({
   panes,
   activePane,
   slotCount,
-  showShortcuts = false,
   onSelect,
 }: {
   panes: PaneId[];
   activePane?: PaneId;
   slotCount: 3 | 4;
-  showShortcuts?: boolean;
   onSelect: (pane: PaneId) => void;
 }) {
   const slots = Array.from({ length: slotCount }, (_, index) => panes[index]);
@@ -212,13 +176,12 @@ export default function ComparisonRail({
               pane={pane}
               index={index}
               active={pane === activePane}
-              showShortcut={showShortcuts}
               onSelect={() => onSelect(pane)}
             />
           ) : (
             <div
               key={`empty-${index}`}
-              className="min-h-0 rounded-lg border border-neutral-900 bg-neutral-900/20"
+              className="min-h-0 rounded-lg bg-neutral-900/20"
             />
           ),
         )}
