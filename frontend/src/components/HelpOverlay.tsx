@@ -53,7 +53,8 @@ export default function HelpOverlay() {
             <Row k="R" d="Show EXIF" />
             <Row k="E" d="Link pictures" />
             <Row k="D" d="Reset view" />
-            <Row k="Ctl+num/Cmd+num" d="Switch tab" />
+            <Row k="1–4" d="Switch image in Blink mode" />
+            <Row k="Ctrl+num/Cmd+num" d="Switch tab" />
           </div>
 
           <div className="bg-neutral-800/50 rounded p-3">

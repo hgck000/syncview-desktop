@@ -9,12 +9,13 @@ const collator = new Intl.Collator(undefined, {
 const imageExtRe = /\.(png|jpe?g|webp|gif|bmp|tiff?|heic)$/i;
 
 export default function DropZone({ children }: { children: React.ReactNode }) {
-  const t = useApp((s) => s.getActive())!;
+  const t = useApp((s) => s.getActive());
   const setFileForPane = useApp((s) => s.setFileForPane);
   const setDataURLForPane = useApp((s) => s.setDataURLForPane);
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
+    if (!t) return;
     const files = Array.from(e.dataTransfer.files);
     // console.log("[DropZone] dropped", files);
     if (!files.length) return;

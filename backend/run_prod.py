@@ -155,6 +155,7 @@ if __name__ == "__main__":
         window.expose(
             getattr(bridge, "open_dialog", lambda *a, **k: None),
             getattr(bridge, "read_image_dataurl", lambda *a, **k: None),
+            getattr(bridge, "read_image_thumbnail", lambda *a, **k: None),
             getattr(bridge, "read_exif_from_path", lambda *a, **k: None),
             getattr(bridge, "read_exif_from_dataurl", lambda *a, **k: None),
             getattr(bridge, "reverse_geocode", lambda *a, **k: None),

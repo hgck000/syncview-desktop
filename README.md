@@ -10,9 +10,12 @@ A lightweight desktop application to compare 1–4 images and synchronize operat
 - Drag and drop; auto layout: `1–3 images → 3 columns`, `4 images → 2×2`.
 - Smooth pan/zoom; zoom around cursor; Double-click: Fit ↔ 2×.
 - Link-All: synchronize pan/zoom of all panes.
+- Manual Blink: stack 2–4 images and switch instantly with keys `1–4`.
+- Reference Comparison: pin one reference image and compare it against the others.
 - Loupe: change zoom and size instantly.
 - Display detailed EXIF: camera information, lens, ISO, aperture, shutter, date, location (if available).
 - Vertical tabs: New / Rename / Close; Autosave Last Session (restore session).
+- Native-resolution PNG export with an optional four-line EXIF overlay.
 - Export `.exe` installation file for end users, no need to install Python or Node.
 - Basic Hotkeys + Help overlay.
 

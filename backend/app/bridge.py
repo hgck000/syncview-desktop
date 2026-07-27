@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import webview
-from PIL import Image, ExifTags
+from PIL import Image, ExifTags, ImageOps
 import io, base64, json, os, sys, mimetypes, threading, time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -82,6 +82,43 @@ class Bridge:
                 return "data:image/png;base64," + b64
         except Exception as e:
             print(f"[Bridge][IMG][ERROR] {path}: {e}")
+            return None
+
+    def read_image_thumbnail(
+        self,
+        path: str,
+        max_width: int = 192,
+        max_height: int = 160,
+    ) -> Optional[str]:
+        """Tạo thumbnail JPEG nhẹ cho các rail so sánh, không gửi ảnh gốc sang UI."""
+        try:
+            p = Path(path)
+            if not p.exists():
+                return None
+
+            width = max(64, min(512, int(max_width)))
+            height = max(64, min(512, int(max_height)))
+
+            with Image.open(p) as source:
+                thumb = ImageOps.exif_transpose(source)
+                thumb.thumbnail((width, height), Image.Resampling.LANCZOS)
+
+                rgba = thumb.convert("RGBA")
+                background = Image.new("RGB", rgba.size, (18, 18, 18))
+                background.paste(rgba, mask=rgba.getchannel("A"))
+
+                buffer = io.BytesIO()
+                background.save(
+                    buffer,
+                    format="JPEG",
+                    quality=68,
+                    optimize=True,
+                )
+
+            encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+            return f"data:image/jpeg;base64,{encoded}"
+        except Exception as e:
+            print(f"[Bridge][THUMB][ERROR] {path}: {e}")
             return None
 
     def recent_files(self) -> Dict[str, List[str]]:

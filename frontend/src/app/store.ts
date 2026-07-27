@@ -3,6 +3,14 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
 export type PaneId = "A" | "B" | "C" | "D";
+export type ComparisonMode = "none" | "blink" | "reference";
+export type ComparisonState = {
+  mode: ComparisonMode;
+  activePane?: PaneId;
+  referencePane?: PaneId;
+  candidatePane?: PaneId;
+  restoreLinkAll?: boolean;
+};
 export type View = {
   scale: number;
   offsetX: number;
@@ -92,6 +100,7 @@ const clamp = (x: number, min: number, max: number) =>
   Math.max(min, Math.min(max, x));
 
 const clamp01 = (x: number) => clamp(x, 0, 1);
+const EMPTY_COMPARISON: ComparisonState = { mode: "none" };
 
 const SAFE_EMPTY_TAB: TabState = {
   id: "tab-1",
@@ -134,6 +143,7 @@ const SAFE_EMPTY_TAB: TabState = {
     selected: { A: null, B: null, C: null, D: null },
     editing: null,
   },
+  comparison: EMPTY_COMPARISON,
 };
 
 type TabState = {
@@ -159,6 +169,7 @@ type TabState = {
   textTool: TextToolState;
   textBoxes: Record<PaneId, TextBox[]>;
   textUI: TextUIState;
+  comparison: ComparisonState;
 };
 
 type AppState = {
@@ -181,6 +192,11 @@ type AppState = {
   setLeftSplit: (v: number) => void;
   toggleLinkAll: () => void;
   toggleLayout: () => void;
+  toggleBlinkMode: () => void;
+  setBlinkPane: (pane: PaneId) => void;
+  setReferencePane: (pane: PaneId) => void;
+  setReferenceCandidate: (pane: PaneId) => void;
+  exitComparison: () => void;
 
   focusNext: () => void;
   focusPrev: () => void;
@@ -334,6 +350,7 @@ function makeEmptyTab(name = "Untitled"): TabState {
       selected: { A: null, B: null, C: null, D: null },
       editing: null,
     },
+    comparison: EMPTY_COMPARISON,
   };
 }
 
@@ -443,6 +460,14 @@ export const useApp = create<AppState>()(
         // copy toàn bộ tab rồi bỏ trường exif
         const restTab = { ...t } as any;
         delete restTab.exif;
+        delete restTab.comparison;
+
+        // Blink ép Link All trong lúc sử dụng. Session phải lưu trạng thái
+        // trước khi vào Blink để lần mở app sau không bị đổi thiết lập.
+        restTab.linkAll =
+          t.comparison.mode === "blink"
+            ? (t.comparison.restoreLinkAll ?? t.linkAll)
+            : t.linkAll;
 
         // dataURL mới: chỉ giữ những ảnh không có path (drop image)
         const filteredDataURL: typeof t.dataURL = {} as any;
@@ -507,6 +532,7 @@ export const useApp = create<AppState>()(
               ...raw,
               layout,
               exif: {},
+              comparison: EMPTY_COMPARISON,
             };
           });
 
@@ -541,7 +567,11 @@ export const useApp = create<AppState>()(
       const { tabs, activeTabId } = get();
       set({
         tabs: tabs.map((t) =>
-          t.id === activeTabId ? { ...t, linkAll: !t.linkAll } : t
+          t.id === activeTabId
+            ? t.comparison.mode === "blink"
+              ? t
+              : { ...t, linkAll: !t.linkAll }
+            : t
         ),
       });
     },
@@ -560,13 +590,152 @@ export const useApp = create<AppState>()(
       });
     },
 
+    toggleBlinkMode: () =>
+      set((state) => {
+        const tabs = state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+
+          if (tab.comparison.mode === "blink") {
+            return {
+              ...tab,
+              linkAll: tab.comparison.restoreLinkAll ?? tab.linkAll,
+              comparison: EMPTY_COMPARISON,
+            };
+          }
+
+          if (tab.panes.length < 2) return tab;
+
+          const activePane =
+            tab.panes[tab.focusIndex] ?? tab.panes[0];
+          const linkAllBeforeBlink =
+            tab.comparison.mode === "blink"
+              ? (tab.comparison.restoreLinkAll ?? tab.linkAll)
+              : tab.linkAll;
+
+          return {
+            ...tab,
+            linkAll: true,
+            comparison: {
+              mode: "blink",
+              activePane,
+              restoreLinkAll: linkAllBeforeBlink,
+            },
+          };
+        });
+        return { ...state, tabs };
+      }),
+
+    setBlinkPane: (pane) =>
+      set((state) => {
+        const tabs = state.tabs.map((tab) => {
+          if (
+            tab.id !== state.activeTabId ||
+            tab.comparison.mode !== "blink" ||
+            !tab.panes.includes(pane)
+          ) {
+            return tab;
+          }
+
+          return {
+            ...tab,
+            focusIndex: tab.panes.indexOf(pane),
+            comparison: { ...tab.comparison, activePane: pane },
+          };
+        });
+        return { ...state, tabs };
+      }),
+
+    setReferencePane: (pane) =>
+      set((state) => {
+        const tabs = state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId || !tab.panes.includes(pane)) {
+            return tab;
+          }
+
+          if (
+            tab.comparison.mode === "reference" &&
+            tab.comparison.referencePane === pane
+          ) {
+            return { ...tab, comparison: EMPTY_COMPARISON };
+          }
+
+          const linkAll =
+            tab.comparison.mode === "blink"
+              ? (tab.comparison.restoreLinkAll ?? tab.linkAll)
+              : tab.linkAll;
+          const candidates = tab.panes.filter((id) => id !== pane);
+          const currentCandidate = tab.comparison.candidatePane;
+          const candidatePane =
+            currentCandidate && candidates.includes(currentCandidate)
+              ? currentCandidate
+              : candidates[0];
+
+          return {
+            ...tab,
+            linkAll,
+            comparison: {
+              mode: "reference",
+              referencePane: pane,
+              candidatePane,
+            },
+          };
+        });
+        return { ...state, tabs };
+      }),
+
+    setReferenceCandidate: (pane) =>
+      set((state) => {
+        const tabs = state.tabs.map((tab) => {
+          if (
+            tab.id !== state.activeTabId ||
+            tab.comparison.mode !== "reference" ||
+            tab.comparison.referencePane === pane ||
+            !tab.panes.includes(pane)
+          ) {
+            return tab;
+          }
+
+          return {
+            ...tab,
+            focusIndex: tab.panes.indexOf(pane),
+            comparison: { ...tab.comparison, candidatePane: pane },
+          };
+        });
+        return { ...state, tabs };
+      }),
+
+    exitComparison: () =>
+      set((state) => {
+        const tabs = state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const linkAll =
+            tab.comparison.mode === "blink"
+              ? (tab.comparison.restoreLinkAll ?? tab.linkAll)
+              : tab.linkAll;
+          return { ...tab, linkAll, comparison: EMPTY_COMPARISON };
+        });
+        return { ...state, tabs };
+      }),
+
     focusNext: () => {
       const t = get().getActive()!;
       const len = t.panes.length || 1;
       const idx = (t.focusIndex + 1) % len;
       set({
         tabs: get().tabs.map((x) =>
-          x.id === t.id ? { ...x, focusIndex: idx } : x
+          x.id === t.id
+            ? {
+                ...x,
+                focusIndex: idx,
+                comparison:
+                  x.comparison.mode === "blink"
+                    ? { ...x.comparison, activePane: x.panes[idx] }
+                    : x.comparison.mode === "reference" &&
+                        x.panes[idx] !== x.comparison.referencePane
+                      ? { ...x.comparison, candidatePane: x.panes[idx] }
+                      : x.comparison,
+              }
+            : x
         ),
       });
     },
@@ -577,7 +746,19 @@ export const useApp = create<AppState>()(
       const idx = (t.focusIndex - 1 + len) % len;
       set({
         tabs: get().tabs.map((x) =>
-          x.id === t.id ? { ...x, focusIndex: idx } : x
+          x.id === t.id
+            ? {
+                ...x,
+                focusIndex: idx,
+                comparison:
+                  x.comparison.mode === "blink"
+                    ? { ...x.comparison, activePane: x.panes[idx] }
+                    : x.comparison.mode === "reference" &&
+                        x.panes[idx] !== x.comparison.referencePane
+                      ? { ...x.comparison, candidatePane: x.panes[idx] }
+                      : x.comparison,
+              }
+            : x
         ),
       });
     },
@@ -992,6 +1173,29 @@ export const useApp = create<AppState>()(
             C: null,
             D: null,
           } as Record<PaneId, null>;
+          let linkAll = t.linkAll;
+          let comparison = t.comparison;
+
+          if (comparison.mode === "blink") {
+            if (panes.length < 2) {
+              linkAll = comparison.restoreLinkAll ?? linkAll;
+              comparison = EMPTY_COMPARISON;
+            } else if (comparison.activePane === pane) {
+              comparison = { ...comparison, activePane: panes[0] };
+            }
+          } else if (comparison.mode === "reference") {
+            if (comparison.referencePane === pane) {
+              comparison = EMPTY_COMPARISON;
+            } else if (comparison.candidatePane === pane) {
+              comparison = {
+                ...comparison,
+                candidatePane: panes.find(
+                  (id) => id !== comparison.referencePane,
+                ),
+              };
+            }
+          }
+
           console.log("[store] clearPane", pane, "->", panes);
           return {
             ...t,
@@ -1010,6 +1214,8 @@ export const useApp = create<AppState>()(
               selected: clearedSelected as any,
               editing: null,
             },
+            linkAll,
+            comparison,
             annotate: t.annotate,
           };
         }),
@@ -1067,6 +1273,11 @@ export const useApp = create<AppState>()(
             loupe: { ...t.loupe, on: false },
             annotate: { ...t.annotate, mode: "none" },
             textTool: { ...t.textTool, on: false },
+            linkAll:
+              t.comparison.mode === "blink"
+                ? (t.comparison.restoreLinkAll ?? t.linkAll)
+                : t.linkAll,
+            comparison: EMPTY_COMPARISON,
           };
         }),
       });
@@ -1081,8 +1292,22 @@ export const useApp = create<AppState>()(
       set((state) => {
         const t = state.getActive?.() as any;
         if (!t) return state;
+        const pane = t.panes[i] as PaneId | undefined;
         const tabs = state.tabs.map((tab) =>
-          tab.id === state.activeTabId ? { ...tab, focusIndex: i } : tab
+          tab.id === state.activeTabId
+            ? {
+                ...tab,
+                focusIndex: i,
+                comparison:
+                  pane && tab.comparison.mode === "blink"
+                    ? { ...tab.comparison, activePane: pane }
+                    : pane &&
+                        tab.comparison.mode === "reference" &&
+                        pane !== tab.comparison.referencePane
+                      ? { ...tab.comparison, candidatePane: pane }
+                      : tab.comparison,
+              }
+            : tab
         );
         return { ...state, tabs };
       }),

@@ -9,6 +9,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   AppWindow,
+  Target,
 } from "lucide-react";
 import React, { useState } from "react";
 import {
@@ -147,14 +148,18 @@ function SortablePaneRow({
   name,
   hasImage,
   focused,
+  reference,
   onFocus,
+  onSetReference,
   onRemove,
 }: {
   pid: "A" | "B" | "C" | "D";
   name: string;
   hasImage: boolean;
   focused: boolean;
+  reference: boolean;
   onFocus: () => void;
+  onSetReference: () => void;
   onRemove: () => void;
 }) {
   const {
@@ -194,16 +199,56 @@ function SortablePaneRow({
         </span>
 
         {hasImage && (
-          <div
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="w-5 h-5 flex items-center jusity-center bg-none rounded hover:bg-neutral-700 p-1"
-            title="Remove image"
-          >
-            <X className="w-3.5 h-3.5" strokeWidth={2.4} />
+          <div className="flex items-center gap-0.5 shrink-0">
+            <div
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSetReference();
+              }}
+              className={[
+                "w-5 h-5 flex items-center justify-center rounded p-1",
+                "cursor-pointer transition-colors",
+                reference
+                  ? "bg-blue-600/70 text-white hover:bg-blue-600"
+                  : "bg-none text-neutral-400 hover:bg-neutral-700 hover:text-white",
+              ].join(" ")}
+              title={
+                reference
+                  ? "Exit reference comparison"
+                  : "Use as reference image"
+              }
+            >
+              <Target className="w-3.5 h-3.5" strokeWidth={2.2} />
+            </div>
+
+            <div
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="w-5 h-5 flex items-center justify-center bg-none rounded hover:bg-neutral-700 p-1 cursor-pointer"
+              title="Remove image"
+            >
+              <X className="w-3.5 h-3.5" strokeWidth={2.4} />
+            </div>
           </div>
         )}
       </div>
@@ -477,6 +522,9 @@ export default function Sidebar({
                               : `${pid}: Empty`);
 
                           const focused = i === tab?.focusIndex;
+                          const reference =
+                            tab.comparison.mode === "reference" &&
+                            tab.comparison.referencePane === pid;
 
                           return (
                             <SortablePaneRow
@@ -485,7 +533,11 @@ export default function Sidebar({
                               name={name}
                               hasImage={hasImage}
                               focused={!!focused}
+                              reference={reference}
                               onFocus={() => useApp.getState().setFocusIndex(i)}
+                              onSetReference={() =>
+                                useApp.getState().setReferencePane(pid)
+                              }
                               onRemove={() => useApp.getState().clearPane(pid)}
                             />
                           );

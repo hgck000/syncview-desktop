@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import Pane from "./Pane";
-import { useApp } from "../app/store";
+import { useApp, type PaneId } from "../app/store";
 import DropZone from "./DropZone";
+import ComparisonRail from "./ComparisonRail";
 
 function Keycap({ children }: { children: React.ReactNode }) {
   return (
@@ -115,6 +116,10 @@ export default function ViewerGrid() {
   const has = useApp((s) => s.hasActive());
   const panes = useApp((s) => s.getActiveSafe().panes);
   const layout = useApp((s) => s.getActiveSafe().layout);
+  const comparison = useApp((s) => s.getActiveSafe().comparison);
+  const setBlinkPane = useApp((s) => s.setBlinkPane);
+  const setReferenceCandidate = useApp((s) => s.setReferenceCandidate);
+  const exitComparison = useApp((s) => s.exitComparison);
   const n = panes.length;
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -136,20 +141,157 @@ export default function ViewerGrid() {
       ? `${gridBase} grid-cols-4 grid-rows-1`
       : `${gridBase} grid-cols-2 grid-rows-2`;
 
-  const needsTab = !has || n === 0;
+  useEffect(() => {
+    if (comparison.mode !== "blink") return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const editable =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable ||
+        target?.getAttribute("role") === "textbox";
+      if (editable || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (!/^[1-4]$/.test(event.key)) return;
+
+      const pane = panes[Number(event.key) - 1];
+      if (!pane) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setBlinkPane(pane);
+    };
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [comparison.mode, panes, setBlinkPane]);
+
+  const emptyState = !has ? (
+    <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-1">
+      <div className="text-neutral-500 text-[17px]">
+        Create a new tab first
+      </div>
+      <div className="text-neutral-400 text-sm text-[13px]">
+        Press <Keycap>H</Keycap> for guide
+      </div>
+    </div>
+  ) : (
+    <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-1">
+      <div className="text-neutral-400 text-[17px]">
+        Drag/Drop or Open to import images
+      </div>
+      <div className="text-neutral-500 text-sm text-[13px]">
+        Supports up to four images in each tab
+      </div>
+    </div>
+  );
+
+  function stackedPane(pane: PaneId, visible: boolean) {
+    return (
+      <div
+        key={pane}
+        aria-hidden={!visible}
+        className={[
+          "absolute inset-0 [&>div]:h-full",
+          visible
+            ? "z-10 opacity-100 pointer-events-auto"
+            : "z-0 opacity-0 pointer-events-none",
+        ].join(" ")}
+      >
+        <Pane id={pane} />
+      </div>
+    );
+  }
+
+  function comparisonContent() {
+    if (comparison.mode === "blink" && panes.length >= 2) {
+      const activePane =
+        comparison.activePane && panes.includes(comparison.activePane)
+          ? comparison.activePane
+          : panes[0];
+
+      return (
+        <div className="h-full min-h-0 flex bg-neutral-950">
+          <div className="min-w-0 flex-1 p-1">
+            <div
+              className="relative h-full min-h-0"
+              data-role="viewer-grid"
+            >
+              {panes.map((pane) =>
+                stackedPane(pane, pane === activePane),
+              )}
+            </div>
+          </div>
+          <ComparisonRail
+            title="Blink"
+            panes={panes}
+            activePane={activePane}
+            slotCount={4}
+            onSelect={setBlinkPane}
+            onClose={exitComparison}
+          />
+        </div>
+      );
+    }
+
+    if (comparison.mode === "reference") {
+      const referencePane = comparison.referencePane;
+      if (!referencePane || !panes.includes(referencePane)) return null;
+
+      const candidates = panes.filter((pane) => pane !== referencePane);
+      const candidatePane =
+        comparison.candidatePane &&
+        candidates.includes(comparison.candidatePane)
+          ? comparison.candidatePane
+          : candidates[0];
+
+      return (
+        <div className="h-full min-h-0 flex bg-neutral-950">
+          <div
+            className="min-w-0 flex-1 grid grid-cols-2 gap-1 p-1"
+            data-role="viewer-grid"
+          >
+            <div className="relative min-h-0 [&>div]:h-full">
+              <Pane id={referencePane} />
+            </div>
+
+            <div className="relative min-h-0">
+              {candidates.length ? (
+                candidates.map((pane) =>
+                  stackedPane(pane, pane === candidatePane),
+                )
+              ) : (
+                <div className="absolute inset-0 rounded border border-dashed border-neutral-800 bg-neutral-900 flex items-center justify-center text-sm text-neutral-500">
+                  No image available for comparison
+                </div>
+              )}
+            </div>
+          </div>
+
+          <ComparisonRail
+            title="Reference"
+            panes={candidates}
+            activePane={candidatePane}
+            slotCount={3}
+            onSelect={setReferenceCandidate}
+            onClose={exitComparison}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  const activeComparison = comparisonContent();
 
   return (
     <DropZone>
       <div ref={rootRef} className="h-full relative">
-        {needsTab ? (
-          <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-1">
-            <div className="text-neutral-500 text-[17px]">
-              Create a new tab first
-            </div>
-            <div className="text-neutral-400 text-sm text-[13px]">
-              Press <Keycap>H</Keycap> for guide
-            </div>
-          </div>
+        {!has || n === 0 ? (
+          emptyState
+        ) : activeComparison ? (
+          activeComparison
         ) : (
           <div className={gridClass} data-role="viewer-grid">
             {panes.map((id) => (

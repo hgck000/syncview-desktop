@@ -1,5 +1,10 @@
-import { readImageDataURL } from "./bridge";
+import {
+  readExifFromDataURL,
+  readExifFromPath,
+  readImageDataURL,
+} from "./bridge";
 import { strokeUVToImgPx } from "./annotCoords";
+import { formatDeviceName, formatFocalLengths } from "./exifFormat";
 import type { PaneId, Stroke, TextBox, TextStyle, View } from "./store";
 
 type ExportTab = {
@@ -11,6 +16,7 @@ type ExportTab = {
   grid: { on: boolean; size: number; opacity: number };
   strokes: Record<PaneId, Stroke[]>;
   textBoxes: Record<PaneId, TextBox[]>;
+  exif?: Record<PaneId, Record<string, unknown> | undefined>;
 };
 
 type PreparedPane = {
@@ -31,6 +37,8 @@ type PreparedPane = {
   exportScale: number;
   total: number;
   view: View;
+  exif?: Record<string, unknown>;
+  dataURL?: string;
 };
 
 type PlacedPane = PreparedPane & {
@@ -44,6 +52,10 @@ export type WorkspacePng = {
   dataUrl: string;
   width: number;
   height: number;
+};
+
+export type ExportWorkspaceOptions = {
+  embedExif?: boolean;
 };
 
 // Chromium/WebView2 commonly rejects a canvas beyond these limits. Failing
@@ -299,6 +311,7 @@ async function preparePane(
   tab: ExportTab,
   id: PaneId,
   gridElement: HTMLElement,
+  embedExif: boolean,
 ): Promise<PreparedPane | null> {
   const path = tab.files[id];
   const dataURL = tab.dataURL[id];
@@ -356,6 +369,16 @@ async function preparePane(
   const sourceY = Math.max(0, (visibleTopCss - imageYCss) / total);
   const sourceWidth = Math.min(iw - sourceX, visibleWidthCss / total);
   const sourceHeight = Math.min(ih - sourceY, visibleHeightCss / total);
+  let exif = tab.exif?.[id];
+  if (embedExif && !exif) {
+    exif = path
+      ? ((await readExifFromPath(path)) as Record<string, unknown> | undefined)
+      : dataURL
+        ? ((await readExifFromDataURL(dataURL)) as
+            | Record<string, unknown>
+            | undefined)
+        : undefined;
+  }
 
   return {
     id,
@@ -375,7 +398,225 @@ async function preparePane(
     exportScale: 1 / total,
     total,
     view,
+    exif,
+    dataURL,
   };
+}
+
+function dataURLByteLength(value?: string) {
+  if (!value) return undefined;
+  const separator = value.indexOf(",");
+  const base64 = separator >= 0 ? value.slice(separator + 1) : value;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, (base64.length * 3) / 4 - padding);
+}
+
+function formatFileSize(value: unknown) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "—";
+  const units = ["B", "KB", "MB", "GB"];
+  let amount = bytes;
+  let unit = 0;
+  while (amount >= 1024 && unit < units.length - 1) {
+    amount /= 1024;
+    unit += 1;
+  }
+  const text =
+    unit > 0 && amount < 10 ? amount.toFixed(1) : Math.round(amount).toString();
+  return `${text} ${units[unit]}`;
+}
+
+function firstExifValue(exif: Record<string, unknown>, keys: string[]) {
+  const nested = ["Exif", "Photo", "SubIFD", "tags", "ExifIFD", "Image"];
+  const containers: Array<Record<string, unknown>> = [exif];
+  for (const key of nested) {
+    const value = exif[key];
+    if (value && typeof value === "object") {
+      containers.push(value as Record<string, unknown>);
+    }
+  }
+
+  for (const container of containers) {
+    for (const key of keys) {
+      const value = container[key];
+      if (value != null && value !== "") return value;
+    }
+  }
+  return undefined;
+}
+
+function exifNumber(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (Array.isArray(value) && value.length >= 2) {
+    const numerator = Number(value[0]);
+    const denominator = Number(value[1]);
+    return Number.isFinite(numerator) &&
+      Number.isFinite(denominator) &&
+      denominator !== 0
+      ? numerator / denominator
+      : undefined;
+  }
+  if (value && typeof value === "object") {
+    const rational = value as { numerator?: unknown; denominator?: unknown };
+    const numerator = Number(rational.numerator);
+    const denominator = Number(rational.denominator);
+    if (
+      Number.isFinite(numerator) &&
+      Number.isFinite(denominator) &&
+      denominator !== 0
+    ) {
+      return numerator / denominator;
+    }
+  }
+  if (typeof value === "string") {
+    const fraction = value
+      .trim()
+      .match(/^(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)/);
+    if (fraction) {
+      const denominator = Number(fraction[2]);
+      if (denominator !== 0) return Number(fraction[1]) / denominator;
+    }
+    const number = Number.parseFloat(value);
+    return Number.isFinite(number) ? number : undefined;
+  }
+  return undefined;
+}
+
+function formatIso(exif: Record<string, unknown>) {
+  const value = firstExifValue(exif, [
+    "ISO",
+    "ISOSpeedRatings",
+    "PhotographicSensitivity",
+  ]);
+  if (Array.isArray(value)) return value.join("/");
+  return value != null && String(value).trim() ? String(value).trim() : undefined;
+}
+
+function formatAperture(exif: Record<string, unknown>) {
+  const fNumber = exifNumber(
+    firstExifValue(exif, ["FNumber", "Aperture"]),
+  );
+  if (fNumber && fNumber > 0) {
+    return `f/${fNumber.toFixed(1).replace(/\.0$/, "")}`;
+  }
+
+  const apertureValue = exifNumber(firstExifValue(exif, ["ApertureValue"]));
+  if (!apertureValue && apertureValue !== 0) return undefined;
+  const converted = Math.pow(2, apertureValue / 2);
+  return `f/${converted.toFixed(1).replace(/\.0$/, "")}`;
+}
+
+function formatShutter(exif: Record<string, unknown>) {
+  let seconds = exifNumber(
+    firstExifValue(exif, ["ExposureTime", "ShutterSpeed"]),
+  );
+  if (!seconds) {
+    const shutterValue = exifNumber(
+      firstExifValue(exif, ["ShutterSpeedValue"]),
+    );
+    if (shutterValue != null) seconds = Math.pow(2, -shutterValue);
+  }
+  if (!seconds || seconds <= 0) return undefined;
+  return seconds < 1
+    ? `1/${Math.max(1, Math.round(1 / seconds))}`
+    : `${seconds < 10 ? seconds.toFixed(2).replace(/\.?0+$/, "") : Math.round(seconds)}s`;
+}
+
+function buildExifLines(pane: PreparedPane) {
+  const exif = pane.exif ?? {};
+  const device = formatDeviceName(exif);
+  const { focalLength, focalLength35mm } = formatFocalLengths(exif);
+  const fileSize = formatFileSize(
+    firstExifValue(exif, ["FileSize"]) ?? dataURLByteLength(pane.dataURL),
+  );
+  const exposure = [
+    focalLength35mm,
+    formatIso(exif) ? `ISO ${formatIso(exif)}` : undefined,
+    formatAperture(exif),
+    formatShutter(exif),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return [
+    device || "—",
+    fileSize,
+    focalLength || "—",
+    exposure || "—",
+  ];
+}
+
+function roundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawExifOverlay(
+  ctx: CanvasRenderingContext2D,
+  pane: PlacedPane,
+) {
+  const lines = buildExifLines(pane);
+  const shortEdge = Math.min(pane.widthPx, pane.heightPx);
+  let fontPx = Math.max(10, Math.min(28, Math.round(shortEdge * 0.009)));
+  const maxTextWidth = Math.max(80, pane.widthPx * 0.72);
+
+  ctx.save();
+  while (fontPx > 8) {
+    ctx.font = `400 ${fontPx}px Arial`;
+    const widest = Math.max(
+      ...lines.map((line) => ctx.measureText(line).width),
+    );
+    if (widest <= maxTextWidth) break;
+    fontPx -= 1;
+  }
+
+  const lineHeight = Math.round(fontPx * 1.28);
+  const paddingX = Math.max(7, Math.round(fontPx * 0.55));
+  const paddingY = Math.max(6, Math.round(fontPx * 0.45));
+  const margin = Math.max(6, Math.round(shortEdge * 0.005));
+
+  ctx.font = `400 ${fontPx}px Arial`;
+  const textWidth = Math.max(
+    ...lines.map((line) => ctx.measureText(line).width),
+  );
+  const width = textWidth + paddingX * 2;
+  const height = lineHeight * lines.length + paddingY * 2;
+  const left = pane.leftPx + margin;
+  const top = pane.topPx + margin;
+
+  roundedRect(ctx, left, top, width, height, Math.max(5, fontPx * 0.35));
+  ctx.fillStyle = "rgba(0,0,0,0.50)";
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(245,245,245,0.88)";
+  ctx.textBaseline = "top";
+  lines.forEach((line, index) => {
+    ctx.fillText(
+      line,
+      left + paddingX,
+      top + paddingY + index * lineHeight,
+    );
+  });
+  ctx.restore();
 }
 
 function placePanes(
@@ -471,6 +712,7 @@ function placePanes(
 export async function renderWorkspacePng(
   tab: ExportTab,
   gridElement: HTMLElement,
+  options: ExportWorkspaceOptions = {},
 ): Promise<WorkspacePng> {
   const gridRect = gridElement.getBoundingClientRect();
   if (gridRect.width <= 0 || gridRect.height <= 0) {
@@ -478,7 +720,9 @@ export async function renderWorkspacePng(
   }
 
   const prepared = await Promise.all(
-    tab.panes.map((id) => preparePane(tab, id, gridElement)),
+    tab.panes.map((id) =>
+      preparePane(tab, id, gridElement, !!options.embedExif),
+    ),
   );
   const panes = prepared.filter((pane): pane is PreparedPane => !!pane);
   if (!panes.length) throw new Error("Workspace không có ảnh để export.");
@@ -541,35 +785,37 @@ export async function renderWorkspacePng(
 
     const strokes = tab.strokes[pane.id] ?? [];
     const boxes = tab.textBoxes[pane.id] ?? [];
-    if (!strokes.length && !boxes.length) continue;
+    if (strokes.length || boxes.length) {
+      // Eraser strokes must clear only annotations, never the photo. Render the
+      // transparent layer at source resolution, then scale it with the photo.
+      const annotation = document.createElement("canvas");
+      annotation.width = Math.ceil(pane.sourceWidth);
+      annotation.height = Math.ceil(pane.sourceHeight);
+      const annotationCtx = annotation.getContext("2d");
+      if (!annotationCtx) throw new Error("Không thể tạo lớp annotation.");
 
-    // Eraser strokes must clear only annotations, never the photo. Render the
-    // transparent layer at source resolution, then scale it with the photo.
-    const annotation = document.createElement("canvas");
-    annotation.width = Math.ceil(pane.sourceWidth);
-    annotation.height = Math.ceil(pane.sourceHeight);
-    const annotationCtx = annotation.getContext("2d");
-    if (!annotationCtx) throw new Error("Không thể tạo lớp annotation.");
+      annotationCtx.scale(pane.exportScale, pane.exportScale);
+      annotationCtx.translate(-pane.visibleLeftCss, -pane.visibleTopCss);
+      drawStrokes(annotationCtx, pane, strokes);
+      drawTextBoxes(annotationCtx, pane, boxes);
+      outputCtx.drawImage(
+        annotation,
+        0,
+        0,
+        pane.sourceWidth,
+        pane.sourceHeight,
+        pane.leftPx,
+        pane.topPx,
+        pane.widthPx,
+        pane.heightPx,
+      );
 
-    annotationCtx.scale(pane.exportScale, pane.exportScale);
-    annotationCtx.translate(-pane.visibleLeftCss, -pane.visibleTopCss);
-    drawStrokes(annotationCtx, pane, strokes);
-    drawTextBoxes(annotationCtx, pane, boxes);
-    outputCtx.drawImage(
-      annotation,
-      0,
-      0,
-      pane.sourceWidth,
-      pane.sourceHeight,
-      pane.leftPx,
-      pane.topPx,
-      pane.widthPx,
-      pane.heightPx,
-    );
+      // Release the temporary high-resolution backing store before the next pane.
+      annotation.width = 1;
+      annotation.height = 1;
+    }
 
-    // Release the temporary high-resolution backing store before the next pane.
-    annotation.width = 1;
-    annotation.height = 1;
+    if (options.embedExif) drawExifOverlay(outputCtx, pane);
   }
 
   const dataUrl = await canvasToPngDataURL(output);

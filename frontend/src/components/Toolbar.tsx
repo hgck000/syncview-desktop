@@ -13,6 +13,9 @@ import {
   Bold,
   Italic,
   Underline,
+  Layers3,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
@@ -29,6 +32,7 @@ export default function Toolbar() {
   const toggleLoupe = useApp((s) => s.toggleLoupe);
   const clearAllPanes = useApp((s) => s.clearAllPanes);
   const toggleLayout = useApp((s) => s.toggleLayout);
+  const toggleBlinkMode = useApp((s) => s.toggleBlinkMode);
   const toggleText = useApp((s) => s.toggleText);
   const setTextToolStyle = useApp((s) => s.setTextToolStyle);
   const patchTextBoxStyle = useApp((s) => s.patchTextBoxStyle);
@@ -152,6 +156,7 @@ export default function Toolbar() {
   const brushColor = useApp((s) => s.getActiveSafe().annotate.color);
   const paneCount = useApp((s) => s.getActiveSafe().panes.length);
   const layout = useApp((s) => s.getActiveSafe().layout);
+  const comparisonMode = useApp((s) => s.getActiveSafe().comparison.mode);
 
   const rafTextColor = useRef<number | null>(null);
   const pendingTextColor = useRef<string>(textStyle.color);
@@ -161,6 +166,9 @@ export default function Toolbar() {
 
   const [fontOpen, setFontOpen] = useState(false);
   const fontRef = useRef<HTMLDivElement | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [embedExif, setEmbedExif] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -168,6 +176,16 @@ export default function Toolbar() {
       if (!el) return;
       if (el.contains(e.target as Node)) return;
       setFontOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, []);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const el = exportMenuRef.current;
+      if (!el || el.contains(e.target as Node)) return;
+      setExportMenuOpen(false);
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
@@ -287,6 +305,7 @@ export default function Toolbar() {
 
   async function onExport() {
     if (!hasAnyImage) return;
+    setExportMenuOpen(false);
 
     const t = useApp.getState().getActiveSafe();
 
@@ -301,7 +320,7 @@ export default function Toolbar() {
     // Khoá UI export trong lúc tải ảnh gốc và dựng canvas độ phân giải cao.
     setExporting(true);
     try {
-      const png = await renderWorkspacePng(t, gridEl);
+      const png = await renderWorkspacePng(t, gridEl, { embedExif });
       const suggested = `${sanitizeFilename(t.name)}.png`;
       const savedPath = await savePngDialog(png.dataUrl, suggested);
       if (!savedPath) return;
@@ -366,6 +385,25 @@ export default function Toolbar() {
       >
         <Search size={16} />
         Loupe
+      </div>
+
+      {/* Manual multi-image blink */}
+      <div
+        onClick={() => paneCount >= 2 && toggleBlinkMode()}
+        title={
+          paneCount >= 2
+            ? "Manual Blink — switch images with keys 1–4"
+            : "Blink requires at least two images"
+        }
+        className={`${BTN_BASE} ${
+          paneCount < 2
+            ? BTN_DISABLED
+            : comparisonMode === "blink"
+              ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
+              : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+        }`}
+      >
+        <Layers3 size={16} /> Blink
       </div>
 
       {/* Draw */}
@@ -638,18 +676,59 @@ export default function Toolbar() {
         <LayoutGrid size={16} /> Layout
       </div>
 
-      {/* Export */}
-      <div
-        onClick={onExport}
-        title="Export workspace as PNG"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center transition
-    ${
-      hasAnyImage
-        ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
-        : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
-    }`}
-      >
-        <Download size={16} /> Export
+      {/* Export + options */}
+      <div className="relative flex" ref={exportMenuRef}>
+        <div
+          onClick={onExport}
+          title={
+            embedExif
+              ? "Export workspace as PNG with EXIF overlay"
+              : "Export workspace as PNG"
+          }
+          className={`pl-2 pr-1.5 py-1 rounded-l flex items-center gap-1 select-none justify-center transition
+            ${
+              hasAnyImage
+                ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+                : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
+            }`}
+        >
+          <Download size={16} /> Export
+        </div>
+        <button
+          type="button"
+          disabled={!hasAnyImage}
+          onClick={() => hasAnyImage && setExportMenuOpen((open) => !open)}
+          title="Export options"
+          className={`w-6 rounded-r border-l border-neutral-700/70 flex items-center justify-center transition ${
+            hasAnyImage
+              ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-400 cursor-pointer"
+              : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
+          }`}
+        >
+          <ChevronDown size={13} />
+        </button>
+
+        {exportMenuOpen && (
+          <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded border border-neutral-700/80 bg-neutral-900/95 p-1 shadow-xl">
+            <button
+              type="button"
+              onClick={() => setEmbedExif((value) => !value)}
+              className="w-full h-8 px-2 rounded flex items-center gap-2 text-xs text-neutral-200 hover:bg-neutral-800 cursor-pointer"
+            >
+              <span
+                className={[
+                  "w-4 h-4 rounded border flex items-center justify-center",
+                  embedExif
+                    ? "bg-blue-600 border-blue-500 text-white"
+                    : "border-neutral-600 bg-neutral-950",
+                ].join(" ")}
+              >
+                {embedExif && <Check size={12} strokeWidth={2.6} />}
+              </span>
+              Embed EXIF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Clear All */}

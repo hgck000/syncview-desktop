@@ -6,6 +6,11 @@ declare global {
       api: {
         open_dialog(pane: string): Promise<string | null>;
         read_image_dataurl(path: string): Promise<string | null>;
+        read_image_thumbnail?(
+          path: string,
+          max_width: number,
+          max_height: number
+        ): Promise<string | null>;
         read_exif_from_path(path: string): Promise<any | null>;
         read_exif_from_dataurl(dataurl: string): Promise<any | null>;
         reverse_geocode?: (
@@ -107,6 +112,23 @@ export async function readImageDataURL(path: string) {
   const res = await window.pywebview.api.read_image_dataurl(path);
   console.log("[FE] readImageDataURL <-", res ? "ok" : "null");
   return res;
+}
+
+export async function readImageThumbnail(
+  path: string,
+  maxWidth = 192,
+  maxHeight = 160
+) {
+  try {
+    const api = await waitForPywebviewApi();
+    if (!api?.read_image_thumbnail) return null;
+    return (
+      (await api.read_image_thumbnail(path, maxWidth, maxHeight)) ?? null
+    );
+  } catch (error) {
+    console.warn("[bridge] readImageThumbnail error", error);
+    return null;
+  }
 }
 
 async function waitForPywebviewApi(maxWaitMs = 3000): Promise<any | null> {
