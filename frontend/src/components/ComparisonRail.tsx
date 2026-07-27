@@ -5,6 +5,9 @@ import { useApp, type PaneId } from "../app/store";
 
 const thumbnailCache = new Map<string, string>();
 const MAX_CACHE_ITEMS = 64;
+const THUMBNAIL_MAX_WIDTH = 384;
+const THUMBNAIL_MAX_HEIGHT = 384;
+const THUMBNAIL_QUALITY = 0.76;
 
 function rememberThumbnail(key: string, value: string) {
   if (thumbnailCache.size >= MAX_CACHE_ITEMS) {
@@ -16,8 +19,8 @@ function rememberThumbnail(key: string, value: string) {
 
 function makeDataUrlThumbnail(
   source: string,
-  maxWidth = 192,
-  maxHeight = 160,
+  maxWidth = THUMBNAIL_MAX_WIDTH,
+  maxHeight = THUMBNAIL_MAX_HEIGHT,
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const image = new Image();
@@ -42,7 +45,7 @@ function makeDataUrlThumbnail(
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "medium";
       ctx.drawImage(image, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.68));
+      resolve(canvas.toDataURL("image/jpeg", THUMBNAIL_QUALITY));
       canvas.width = 1;
       canvas.height = 1;
     };
@@ -82,7 +85,11 @@ function usePaneThumbnail(pane: PaneId) {
 
     setThumbnail(null);
     const load = path
-      ? readImageThumbnail(path)
+      ? readImageThumbnail(
+          path,
+          THUMBNAIL_MAX_WIDTH,
+          THUMBNAIL_MAX_HEIGHT,
+        )
       : dataURL
         ? makeDataUrlThumbnail(dataURL)
         : Promise.resolve(null);
@@ -129,7 +136,7 @@ function ThumbnailSlot({
         "!m-0 !block !min-h-0 !w-full !overflow-hidden !rounded-lg",
         "!border-0 !bg-transparent !p-0 !outline-none",
         "cursor-pointer select-none transition-opacity duration-150",
-        active ? "opacity-100" : "opacity-80 hover:opacity-90",
+        active ? "opacity-80" : "opacity-60",
       ].join(" ")}
     >
       {thumbnail ? (

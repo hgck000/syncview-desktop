@@ -87,8 +87,8 @@ class Bridge:
     def read_image_thumbnail(
         self,
         path: str,
-        max_width: int = 192,
-        max_height: int = 160,
+        max_width: int = 384,
+        max_height: int = 384,
     ) -> Optional[str]:
         """Tạo thumbnail JPEG nhẹ cho các rail so sánh, không gửi ảnh gốc sang UI."""
         try:
@@ -111,7 +111,7 @@ class Bridge:
                 background.save(
                     buffer,
                     format="JPEG",
-                    quality=68,
+                    quality=76,
                     optimize=True,
                 )
 

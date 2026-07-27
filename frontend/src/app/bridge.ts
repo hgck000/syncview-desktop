@@ -116,8 +116,8 @@ export async function readImageDataURL(path: string) {
 
 export async function readImageThumbnail(
   path: string,
-  maxWidth = 192,
-  maxHeight = 160
+  maxWidth = 384,
+  maxHeight = 384
 ) {
   try {
     const api = await waitForPywebviewApi();

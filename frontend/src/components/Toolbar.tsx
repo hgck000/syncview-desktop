@@ -716,7 +716,7 @@ export default function Toolbar() {
               : "Export workspace as PNG"
           }
           className={`!m-0 !min-w-0 !flex-1 !rounded-l-md !rounded-r-none !border-0 !px-1.5 !py-0 !outline-none
-            h-7 flex items-center gap-1 select-none justify-center transition
+            h-7 flex items-center gap-1 !font-normal select-none justify-center transition
             ${
               hasAnyImage
                 ? "!bg-neutral-800 hover:!bg-neutral-700 text-neutral-300 cursor-pointer"
@@ -741,7 +741,7 @@ export default function Toolbar() {
         >
           <ChevronDown
             size={14}
-            className={embedExif ? "text-blue-400" : "text-neutral-400"}
+            className="text-neutral-400"
           />
         </button>
 
@@ -753,8 +753,8 @@ export default function Toolbar() {
               role="switch"
               aria-checked={embedExif}
               className="!m-0 !min-h-0 !w-full !rounded-md !border-0 !bg-neutral-900/80 !px-3 !py-2.5 !outline-none
-                flex items-center gap-3 text-left cursor-pointer transition
-                hover:!bg-neutral-800 focus-visible:!ring-1 focus-visible:!ring-blue-500/70"
+                flex items-center gap-3 text-left cursor-pointer
+                focus-visible:!ring-1 focus-visible:!ring-blue-500/70"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium text-neutral-100">
