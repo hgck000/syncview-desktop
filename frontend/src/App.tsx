@@ -23,6 +23,7 @@ import {
   useState,
 } from "react";
 import {
+  persistImageDataURL,
   prewarmImageSource,
   readLastSession,
   writeLastSession,
@@ -96,18 +97,33 @@ function StartupScreen({
 
       <div className="relative flex flex-col items-center select-none">
         <div className="relative w-[76px] h-[76px] flex items-center justify-center">
-          <div
-            className="absolute inset-0 rounded-[24px] border border-blue-400/10 bg-blue-500/5 shadow-[0_20px_70px_rgba(0,0,0,0.55)]"
+          <svg
+            className="sv-startup-spinner absolute -inset-2 w-[92px] h-[92px]"
+            viewBox="0 0 100 100"
+            fill="none"
             aria-hidden="true"
-          />
-          <div
-            className="sv-startup-spinner absolute -inset-2 rounded-[29px] border-2 border-transparent border-t-blue-400 border-r-blue-400/25"
-            aria-hidden="true"
-          />
+          >
+            <circle
+              cx="50"
+              cy="50"
+              r="46"
+              stroke="rgba(59,130,246,0.16)"
+              strokeWidth="2"
+            />
+            <circle
+              cx="50"
+              cy="50"
+              r="46"
+              stroke="#3b82f6"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeDasharray="92 198"
+            />
+          </svg>
           <img
             src="/SyncView.ico"
             alt=""
-            className="relative w-11 h-11 object-contain drop-shadow-lg"
+            className="relative w-[76px] h-[76px] object-contain drop-shadow-[0_16px_28px_rgba(0,0,0,0.5)]"
             draggable={false}
           />
         </div>
@@ -126,7 +142,8 @@ function StartupScreen({
 }
 
 export default function App() {
-  const addImageFromDataURL = useApp((s) => s.addImageFromDataURL);
+  const setFileForPane = useApp((s) => s.setFileForPane);
+  const setDataURLForPane = useApp((s) => s.setDataURLForPane);
   const tabs = useApp((s) => s.tabs);
   const active = useApp((s) => s.getActive());
   const activeTabId = useApp((s) => s.activeTabId);
@@ -410,13 +427,29 @@ export default function App() {
 
       for (const f of files) {
         const dataURL = await blobToDataURL(f);
-        if (dataURL) addImageFromDataURL(dataURL);
+        if (!dataURL) continue;
+
+        const state = useApp.getState();
+        const tab = state.getActive();
+        if (!tab) continue;
+        const targetPane =
+          state.nextEmptyPaneId() ??
+          tab.panes[tab.focusIndex] ??
+          tab.panes[0] ??
+          "A";
+
+        const persistedPath = await persistImageDataURL(dataURL, f.name);
+        if (persistedPath) {
+          setFileForPane(targetPane, persistedPath, f.name);
+        } else {
+          setDataURLForPane(targetPane, dataURL, f.name);
+        }
       }
     }
 
     window.addEventListener("paste", onPaste as any);
     return () => window.removeEventListener("paste", onPaste as any);
-  }, [addImageFromDataURL, appReady]);
+  }, [appReady, setDataURLForPane, setFileForPane]);
 
   useEffect(() => {
     if (!appReady) return;

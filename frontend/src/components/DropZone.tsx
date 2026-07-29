@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useApp } from "../app/store";
+import { persistImageDataURL } from "../app/bridge";
 
 const collator = new Intl.Collator(undefined, {
   numeric: true,
@@ -46,10 +47,15 @@ export default function DropZone({ children }: { children: React.ReactNode }) {
       } else {
         // không có path: đọc DataURL
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
           const data = reader.result as string;
-          // console.log("[DropZone] set dataURL", id, "len=", data.length);
-          setDataURLForPane(id, data, f.name);
+          const persistedPath = await persistImageDataURL(data, f.name);
+          if (persistedPath) {
+            setFileForPane(id, persistedPath, f.name);
+          } else {
+            // Browser-only development keeps the previous DataURL fallback.
+            setDataURLForPane(id, data, f.name);
+          }
         };
         // reader.onerror = (err) => console.warn("[DropZone] FileReader error", err);
         reader.readAsDataURL(f);

@@ -10,6 +10,7 @@ API_PORT = int(os.getenv("SYNCVIEW_API_PORT", "5174"))
 FRONTEND_DEV_URL = "http://localhost:5173"
 APP_DATA_DIR = Path.home() / ".syncview"
 APP_DATA_DIR.mkdir(exist_ok=True)
+os.environ["SYNCVIEW_APP_DATA_DIR"] = str(APP_DATA_DIR)
 
 def is_port_free(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -44,6 +45,7 @@ if __name__ == "__main__":
     window.expose(
         api.open_dialog,
         api.recent_files, api.get_image_url,
+        api.persist_image_dataurl,
         api.stage_image_dataurl,
         api.read_image_dataurl, api.read_image_thumbnail,
         api.read_exif_from_path, api.read_exif_from_dataurl,

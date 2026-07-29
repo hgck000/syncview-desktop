@@ -74,7 +74,9 @@
 }
 
 .sv-startup-spinner {
-  animation: sv-startup-spin 900ms linear infinite;
+  animation: sv-startup-spin 900ms linear infinite !important;
+  transform-origin: center;
+  will-change: transform;
 }
 
 .sv-startup-glow {
@@ -82,7 +84,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sv-startup-spinner,
   .sv-startup-glow {
     animation: none;
   }

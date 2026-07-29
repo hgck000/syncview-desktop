@@ -13,6 +13,41 @@ from urllib.request import Request, urlopen
 # needed because SyncView creates its own comparison-rail thumbnails.
 register_heif_opener(thumbnails=False)
 
+SESSION_IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+    ".hif",
+}
+SESSION_IMAGE_MIME_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+}
+SESSION_IMAGE_FORMAT_EXTENSIONS = {
+    "JPEG": ".jpg",
+    "PNG": ".png",
+    "WEBP": ".webp",
+    "GIF": ".gif",
+    "BMP": ".bmp",
+    "TIFF": ".tiff",
+    "HEIF": ".heic",
+    "HEIC": ".heic",
+}
+
+
 def default_app_data() -> Path:
     # Windows: %LOCALAPPDATA%\SyncView
     if sys.platform.startswith("win"):
@@ -41,6 +76,9 @@ class Bridge:
         )
         self._staged_image_dir = Path(self._staged_image_dir_handle.name)
         self._staged_image_lock = threading.Lock()
+        self._session_image_dir = self.app_data_dir / "session-images"
+        self._session_image_dir.mkdir(parents=True, exist_ok=True)
+        self._session_image_lock = threading.Lock()
         self._geocode_lock = threading.Lock()
         self._last_geocode_request = 0.0
         self._geocode_cache = self._read_geocode_cache()
@@ -95,6 +133,93 @@ class Bridge:
             print(f"[Bridge][IMG-URL][ERROR] {path}: {e}")
             return None
 
+    @staticmethod
+    def _decode_dataurl_payload(dataurl: str) -> tuple[str, bytes]:
+        if not isinstance(dataurl, str) or "," not in dataurl:
+            raise ValueError("Invalid image DataURL")
+
+        header, encoded = dataurl.split(",", 1)
+        if (
+            not header.lower().startswith("data:")
+            or ";base64" not in header.lower()
+        ):
+            raise ValueError("Only base64 image DataURLs are supported")
+
+        max_raw_bytes = 256 * 1024 * 1024
+        if len(encoded) > ((max_raw_bytes + 2) // 3) * 4:
+            raise ValueError("Image exceeds the 256 MB limit")
+
+        raw = base64.b64decode(encoded, validate=True)
+        if not raw or len(raw) > max_raw_bytes:
+            raise ValueError("Image is empty or too large")
+        return header, raw
+
+    @staticmethod
+    def _session_image_extension(
+        header: str,
+        raw: bytes,
+        suggested_name: str | None,
+    ) -> str:
+        # Trust the actual bytes first. File names and clipboard MIME types are
+        # frequently missing or inaccurate, especially for HEIC on Windows.
+        try:
+            with Image.open(io.BytesIO(raw)) as source:
+                detected = SESSION_IMAGE_FORMAT_EXTENSIONS.get(
+                    str(source.format or "").upper()
+                )
+            if detected:
+                return detected
+        except Exception:
+            pass
+
+        if suggested_name:
+            suffix = Path(suggested_name).suffix.lower()
+            if suffix in SESSION_IMAGE_EXTENSIONS:
+                return suffix
+
+        mime = header[5:].split(";", 1)[0].strip().lower()
+        mime_extension = SESSION_IMAGE_MIME_EXTENSIONS.get(mime)
+        if mime_extension:
+            return mime_extension
+
+        raise ValueError("Unsupported image format")
+
+    def persist_image_dataurl(
+        self,
+        dataurl: str,
+        suggested_name: str | None = None,
+    ) -> Optional[str]:
+        """Store the exact dropped/pasted bytes and return a stable local path."""
+        try:
+            header, raw = self._decode_dataurl_payload(dataurl)
+            extension = self._session_image_extension(
+                header,
+                raw,
+                suggested_name,
+            )
+            digest = hashlib.sha256(raw).hexdigest()
+            image_path = self._session_image_dir / f"{digest}{extension}"
+
+            with self._session_image_lock:
+                if not image_path.exists():
+                    temporary_path = image_path.with_name(
+                        f"{image_path.name}.{threading.get_ident()}.tmp"
+                    )
+                    try:
+                        temporary_path.write_bytes(raw)
+                        temporary_path.replace(image_path)
+                    finally:
+                        temporary_path.unlink(missing_ok=True)
+
+            print(
+                "[Bridge][SESSION-IMAGE] persisted "
+                f"{len(raw)} bytes -> {image_path.name}"
+            )
+            return str(image_path.resolve())
+        except Exception as e:
+            print(f"[Bridge][SESSION-IMAGE][ERROR] {e}")
+            return None
+
     def stage_image_dataurl(self, dataurl: str) -> Optional[str]:
         """Decode a dropped browser-incompatible image and return its media URL.
 
@@ -104,21 +229,7 @@ class Bridge:
         resulting PNG through the same local media endpoint as opened files.
         """
         try:
-            if not isinstance(dataurl, str) or "," not in dataurl:
-                return None
-
-            header, encoded = dataurl.split(",", 1)
-            if not header.lower().startswith("data:") or ";base64" not in header.lower():
-                return None
-
-            # Reject an unexpectedly large bridge payload before decoding it.
-            max_raw_bytes = 256 * 1024 * 1024
-            if len(encoded) > ((max_raw_bytes + 2) // 3) * 4:
-                raise ValueError("Dropped image exceeds the 256 MB limit")
-
-            raw = base64.b64decode(encoded, validate=True)
-            if not raw or len(raw) > max_raw_bytes:
-                raise ValueError("Dropped image is empty or too large")
+            _, raw = self._decode_dataurl_payload(dataurl)
 
             digest = hashlib.sha256(raw).hexdigest()
             staged_path = self._staged_image_dir / f"{digest}.png"
@@ -402,6 +513,88 @@ class Bridge:
     def _last_session_path(self) -> Path:
         return self.app_data_dir / "last_session.json"
 
+    def _write_session_data(self, data: dict) -> None:
+        path = self._last_session_path()
+        temporary_path = path.with_suffix(".tmp")
+        try:
+            temporary_path.write_text(
+                json.dumps(
+                    data,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+                encoding="utf-8",
+            )
+            temporary_path.replace(path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+    def _migrate_session_dataurls(self, data: dict) -> bool:
+        changed = False
+        tabs = data.get("tabs")
+        if not isinstance(tabs, list):
+            return False
+
+        for tab in tabs:
+            if not isinstance(tab, dict):
+                continue
+            files = tab.get("files")
+            if not isinstance(files, dict):
+                files = {}
+                tab["files"] = files
+            dataurls = tab.get("dataURL")
+            if not isinstance(dataurls, dict):
+                continue
+            names = tab.get("names")
+            if not isinstance(names, dict):
+                names = {}
+
+            for pane, dataurl in list(dataurls.items()):
+                if files.get(pane):
+                    dataurls.pop(pane, None)
+                    changed = True
+                    continue
+                if not isinstance(dataurl, str) or not dataurl:
+                    continue
+
+                image_path = self.persist_image_dataurl(
+                    dataurl,
+                    names.get(pane),
+                )
+                if image_path:
+                    files[pane] = image_path
+                    dataurls.pop(pane, None)
+                    changed = True
+
+        return changed
+
+    def _cleanup_session_images(self, data: dict) -> None:
+        referenced: set[Path] = set()
+        try:
+            session_root = self._session_image_dir.resolve()
+            for tab in data.get("tabs", []):
+                if not isinstance(tab, dict):
+                    continue
+                files = tab.get("files")
+                if not isinstance(files, dict):
+                    continue
+                for value in files.values():
+                    if not isinstance(value, str) or not value:
+                        continue
+                    try:
+                        image_path = Path(value).resolve()
+                        if image_path.parent == session_root:
+                            referenced.add(image_path)
+                    except OSError:
+                        continue
+
+            with self._session_image_lock:
+                for image_path in self._session_image_dir.iterdir():
+                    if image_path.is_file() and image_path.resolve() not in referenced:
+                        image_path.unlink(missing_ok=True)
+        except OSError as e:
+            print(f"[Bridge][SESSION-IMAGE][WARN] cleanup: {e}")
+
     def read_last_session(self) -> dict | None:
         try:
             p = self._last_session_path()
@@ -409,6 +602,10 @@ class Bridge:
                 print("[Bridge] last_session not found")
                 return None
             data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and self._migrate_session_dataurls(data):
+                self._write_session_data(data)
+                self._cleanup_session_images(data)
+                print("[Bridge] migrated session DataURLs to local files")
             print("[Bridge] read_last_session OK")
             return data
         except Exception as e:
@@ -417,9 +614,12 @@ class Bridge:
 
     def write_last_session(self, data: dict) -> bool:
         try:
-            p = self._last_session_path()
-            p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"[Bridge] write_last_session -> {p}")
+            if not isinstance(data, dict):
+                raise ValueError("Session payload must be an object")
+            self._migrate_session_dataurls(data)
+            self._write_session_data(data)
+            self._cleanup_session_images(data)
+            print(f"[Bridge] write_last_session -> {self._last_session_path()}")
             return True
         except Exception as e:
             print(f"[Bridge][ERROR] write_last_session: {e}")

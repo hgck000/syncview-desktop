@@ -15,6 +15,7 @@ from pathlib import Path
 # so configure a per-user folder before importing/initializing pywebview.
 APP_DATA_DIR = Path.home() / ".syncview"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+os.environ["SYNCVIEW_APP_DATA_DIR"] = str(APP_DATA_DIR)
 
 if sys.platform.startswith("win"):
     local_app_data = Path(
@@ -157,6 +158,7 @@ if __name__ == "__main__":
         window.expose(
             getattr(bridge, "open_dialog", lambda *a, **k: None),
             getattr(bridge, "get_image_url", lambda *a, **k: None),
+            getattr(bridge, "persist_image_dataurl", lambda *a, **k: None),
             getattr(bridge, "stage_image_dataurl", lambda *a, **k: None),
             getattr(bridge, "read_image_dataurl", lambda *a, **k: None),
             getattr(bridge, "read_image_thumbnail", lambda *a, **k: None),

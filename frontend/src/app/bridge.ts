@@ -6,6 +6,10 @@ declare global {
       api: {
         open_dialog(pane: string): Promise<string[] | string | null>;
         get_image_url?(path: string): Promise<string | null>;
+        persist_image_dataurl?(
+          dataurl: string,
+          suggested_name?: string
+        ): Promise<string | null>;
         stage_image_dataurl?(dataurl: string): Promise<string | null>;
         read_image_dataurl(path: string): Promise<string | null>;
         read_image_thumbnail?(
@@ -119,6 +123,22 @@ export async function readImageDataURL(path: string) {
   const res = await window.pywebview.api.read_image_dataurl(path);
   console.log("[FE] readImageDataURL <-", res ? "ok" : "null");
   return res;
+}
+
+export async function persistImageDataURL(
+  dataurl: string,
+  suggestedName?: string,
+): Promise<string | null> {
+  try {
+    const api = await waitForPywebviewApi();
+    if (!api?.persist_image_dataurl) return null;
+    return (
+      (await api.persist_image_dataurl(dataurl, suggestedName)) ?? null
+    );
+  } catch (error) {
+    console.warn("[bridge] persist_image_dataurl failed", error);
+    return null;
+  }
 }
 
 export async function readImageSource(path: string) {
