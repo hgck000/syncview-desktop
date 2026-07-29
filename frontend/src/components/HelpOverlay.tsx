@@ -17,11 +17,11 @@ export default function HelpOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      className="sv-overlay-enter fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
       onClick={toggleHelp}
     >
       <div
-        className="bg-black border border-neutral-700 rounded-xl p-5 w-[720px] max-w-[95%]"
+        className="sv-dialog-enter bg-black border border-neutral-700 rounded-xl p-5 w-[720px] max-w-[95%]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

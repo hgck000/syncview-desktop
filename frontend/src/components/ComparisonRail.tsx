@@ -140,10 +140,11 @@ function ThumbnailSlot({
       className={[
         "!m-0 !block !min-h-0 !w-full !overflow-hidden !rounded-lg",
         "!border-0 !bg-transparent !p-0 !outline-none",
-        "cursor-pointer select-none transition-[opacity,filter] duration-150",
+        "cursor-pointer select-none transition-[opacity,transform] duration-180 ease-out",
+        "active:scale-[0.97] motion-reduce:transition-none motion-reduce:transform-none",
         active
-          ? "opacity-100 brightness-100"
-          : "opacity-45 brightness-75 hover:opacity-60 hover:brightness-90",
+          ? "opacity-100 scale-100"
+          : "opacity-45 scale-[0.985] hover:opacity-65 hover:scale-100",
       ].join(" ")}
     >
       {thumbnail ? (
@@ -151,7 +152,7 @@ function ThumbnailSlot({
           src={thumbnail}
           alt=""
           draggable={false}
-          className="h-full w-full object-cover bg-neutral-950"
+          className="sv-thumbnail-enter h-full w-full object-cover bg-neutral-950"
         />
       ) : (
         <div className="h-full w-full flex items-center justify-center bg-neutral-900/60 text-neutral-700">

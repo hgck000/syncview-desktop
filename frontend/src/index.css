@@ -55,6 +55,81 @@
   pointer-events: none;
 }
 
+@keyframes sv-thumbnail-enter {
+  from {
+    opacity: 0;
+    transform: scale(1.015);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sv-popover-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sv-overlay-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sv-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sv-thumbnail-enter {
+  animation: sv-thumbnail-enter 160ms ease-out both;
+}
+
+.sv-popover-enter {
+  transform-origin: top;
+  animation: sv-popover-enter 140ms ease-out both;
+}
+
+.sv-export-popover {
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+
+.sv-export-popover-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.sv-export-popover-closed {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  pointer-events: none;
+}
+
+.sv-overlay-enter {
+  animation: sv-overlay-enter 150ms ease-out both;
+}
+
+.sv-dialog-enter {
+  animation: sv-dialog-enter 180ms ease-out both;
+}
+
 @keyframes sv-startup-spin {
   to {
     transform: rotate(360deg);
@@ -84,6 +159,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sv-thumbnail-enter,
+  .sv-popover-enter,
+  .sv-overlay-enter,
+  .sv-dialog-enter {
+    animation: none;
+  }
+
+  .sv-export-popover {
+    transition: none;
+  }
+
   .sv-startup-glow {
     animation: none;
   }

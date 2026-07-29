@@ -584,7 +584,7 @@ export default function App() {
             </div>
           </Panel>
 
-          <PanelResizeHandle className="w-1 bg-neutral-700/50 hover:bg-neutral-600 cursor-col-resize" />
+          <PanelResizeHandle className="w-1 bg-neutral-700/50 hover:bg-neutral-500 cursor-col-resize transition-colors duration-150" />
 
           <Panel minSize={40}>
             <div className="flex flex-col h-full">

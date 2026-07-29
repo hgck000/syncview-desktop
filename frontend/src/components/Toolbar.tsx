@@ -8,6 +8,7 @@ import {
   Pencil,
   Eraser,
   Download,
+  LoaderCircle,
   Columns4,
   Grid2X2,
   Type,
@@ -146,6 +147,7 @@ export default function Toolbar() {
   const setBrushColor = useApp((s) => s.setBrushColor);
 
   const setExporting = useApp((s) => s.setExporting);
+  const exporting = useApp((s) => s.exporting);
   const hasAnyImage = useApp((s) => {
     const t = s.getActiveSafe();
     return t.panes.some((id) => t.files[id] || t.dataURL[id]);
@@ -158,6 +160,7 @@ export default function Toolbar() {
   const layout = useApp((s) => s.getActiveSafe().layout);
   const comparisonMode = useApp((s) => s.getActiveSafe().comparison.mode);
   const blinkEditingDisabled = comparisonMode === "blink";
+  const exportAvailable = hasAnyImage && !exporting;
 
   const rafTextColor = useRef<number | null>(null);
   const pendingTextColor = useRef<string>(textStyle.color);
@@ -210,7 +213,9 @@ export default function Toolbar() {
   }, []);
 
   const BTN_BASE =
-    "px-2 py-1 rounded flex items-center gap-1 select-none transition btn-width justify-center";
+    "px-2 py-1 rounded flex items-center gap-1 select-none " +
+    "transition-[background-color,color,transform] duration-150 ease-out " +
+    "btn-width justify-center motion-reduce:transition-none motion-reduce:transform-none";
 
   // const BTN_FIELD =
   //   "relative inline-flex items-center gap-2 px-2 h-8 rounded " +
@@ -218,9 +223,11 @@ export default function Toolbar() {
   //   "border border-neutral-700/60 shadow-sm transition select-none";
 
   const BTN_FIELD =
-    "h-7 relative inline-flex items-center gap-1 px-1 rounded select-none transition justify-center " +
+    "h-7 relative inline-flex items-center gap-1 px-1 rounded select-none " +
+    "transition-[background-color,border-color,transform] duration-150 ease-out justify-center " +
     "bg-neutral-800 hover:bg-neutral-700 hover:border-neutral-700 text-neutral-200 " +
-    "border border-neutral-800 shadow-sm";
+    "border border-neutral-800 shadow-sm active:scale-[0.97] " +
+    "motion-reduce:transition-none motion-reduce:transform-none";
 
   const FIELD_INNER =
     "bg-transparent outline-none border-none text-sm text-neutral-200 " +
@@ -245,13 +252,13 @@ export default function Toolbar() {
     !hasAnyImage
       ? BTN_DISABLED
       : active
-        ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
-        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer";
+        ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer active:scale-[0.96]"
+        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]";
 
   const btnAction = () =>
     !hasAnyImage
       ? BTN_DISABLED
-      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer";
+      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]";
 
   async function onOpen() {
     const t0 = useApp.getState().getActiveSafe();
@@ -400,8 +407,8 @@ export default function Toolbar() {
           paneCount < 2
             ? BTN_DISABLED
             : comparisonMode === "blink"
-              ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
-              : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+              ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer active:scale-[0.96]"
+              : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]"
         }`}
       >
         <Layers3 size={16} /> Blink
@@ -513,7 +520,7 @@ export default function Toolbar() {
 
             {fontOpen && (
               <div
-                className="absolute z-50 mt-1 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
+                className="sv-popover-enter absolute z-50 mt-1 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
                 style={{ width: 160 }}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -585,7 +592,7 @@ export default function Toolbar() {
 
             {fsOpen && (
               <div
-                className="absolute z-50 mt-1 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
+                className="sv-popover-enter absolute z-50 mt-1 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
                 style={{ width: 50 }}
                 onMouseDown={(e) => {
                   // giữ focus input, tránh blur khi click panel
@@ -623,7 +630,9 @@ export default function Toolbar() {
           <div
             onClick={() => applyStyle({ bold: !shownTextStyle.bold })}
             title="Bold"
-            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition
+            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none
+    transition-[background-color,color,transform] duration-150 ease-out
+    motion-reduce:transition-none motion-reduce:transform-none
     ${btnToggle(!!shownTextStyle.bold)}`}
           >
             <Bold className="w-4 h-4" />
@@ -632,7 +641,9 @@ export default function Toolbar() {
           <div
             onClick={() => applyStyle({ italic: !shownTextStyle.italic })}
             title="Italic"
-            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition ${btnToggle(
+            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none
+            transition-[background-color,color,transform] duration-150 ease-out
+            motion-reduce:transition-none motion-reduce:transform-none ${btnToggle(
               !!shownTextStyle.italic,
             )}`}
           >
@@ -641,7 +652,9 @@ export default function Toolbar() {
           <div
             onClick={() => applyStyle({ underline: !shownTextStyle.underline })}
             title="Underline"
-            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition ${btnToggle(
+            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none
+            transition-[background-color,color,transform] duration-150 ease-out
+            motion-reduce:transition-none motion-reduce:transform-none ${btnToggle(
               !!shownTextStyle.underline,
             )}`}
           >
@@ -679,7 +692,10 @@ export default function Toolbar() {
         title="Open (Ctrl/Cmd+O)"
         className="px-2 py-1 rounded flex items-center gap-1
                   bg-neutral-800 hover:bg-neutral-700 text-neutral-300
-                  cursor-pointer select-none transition btn-width justify-center"
+                  cursor-pointer select-none transition-[background-color,transform]
+                  duration-150 ease-out active:scale-[0.96]
+                  motion-reduce:transition-none motion-reduce:transform-none
+                  btn-width justify-center"
       >
         <ImageIcon size={16} /> Open
       </div>
@@ -695,10 +711,12 @@ export default function Toolbar() {
         className={`px-2 py-1 rounded flex items-center gap-1
             ${
               paneCount === 4
-                ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+                ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]"
                 : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
             }
-            select-none transition btn-width justify-center`}
+            select-none transition-[background-color,transform] duration-150 ease-out
+            motion-reduce:transition-none motion-reduce:transform-none
+            btn-width justify-center`}
       >
         {layout === "row1x4" ? (
           <Columns4 size={16} />
@@ -712,92 +730,130 @@ export default function Toolbar() {
       <div className="relative flex h-7 w-24" ref={exportMenuRef}>
         <button
           type="button"
-          disabled={!hasAnyImage}
+          disabled={!exportAvailable}
           onClick={onExport}
           title={
-            embedExif
+            exporting
+              ? "Exporting workspace..."
+              : embedExif
               ? "Export workspace as PNG with EXIF overlay"
               : "Export workspace as PNG"
           }
           className={`!m-0 !min-w-0 !flex-1 !rounded-l-md !rounded-r-none !border-0 !px-1.5 !py-0 !outline-none
-            h-7 flex items-center gap-1 !font-normal select-none justify-center transition
+            group h-7 flex items-center gap-1 !font-normal select-none justify-center
+            transition-[background-color,transform] duration-150 ease-out
+            motion-reduce:transition-none motion-reduce:transform-none
             ${
-              hasAnyImage
-                ? "!bg-neutral-800 hover:!bg-neutral-700 text-neutral-300 cursor-pointer"
+              exporting
+                ? "!bg-neutral-800 text-neutral-300 cursor-wait"
+                : exportAvailable
+                ? "!bg-neutral-800 hover:!bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.98]"
                 : "!bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
             }`}
         >
-          <Download size={16} /> Export
+          {exporting ? (
+            <LoaderCircle
+              size={16}
+              className="animate-spin motion-reduce:animate-none"
+            />
+          ) : (
+            <Download
+              size={16}
+              className="transition-transform duration-150 group-hover:-translate-y-px group-active:translate-y-0 motion-reduce:transform-none"
+            />
+          )}
+          {exporting ? "Saving" : "Export"}
         </button>
         <button
           type="button"
-          disabled={!hasAnyImage}
-          onClick={() => hasAnyImage && setExportMenuOpen((open) => !open)}
+          disabled={!exportAvailable}
+          onClick={() =>
+            exportAvailable && setExportMenuOpen((open) => !open)
+          }
           title="Export options"
           aria-expanded={exportMenuOpen}
           className={`!m-0 !h-7 !w-7 !shrink-0 !rounded-l-none !rounded-r-md !border-0 !p-0 !outline-none
-            flex items-center justify-center transition
+            flex items-center justify-center transition-[background-color,transform] duration-150 ease-out
+            motion-reduce:transition-none motion-reduce:transform-none
             shadow-[inset_1px_0_0_rgba(82,82,91,0.85)] ${
-            hasAnyImage
-              ? "!bg-neutral-800 hover:!bg-neutral-700 cursor-pointer"
+            exportAvailable
+              ? "!bg-neutral-800 hover:!bg-neutral-700 cursor-pointer active:scale-[0.92]"
               : "!bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
           }`}
         >
           <ChevronDown
             size={14}
-            className="text-neutral-400"
+            className={[
+              "text-neutral-400 transition-transform duration-200 ease-out",
+              "motion-reduce:transition-none motion-reduce:transform-none",
+              exportMenuOpen ? "rotate-180" : "rotate-0",
+            ].join(" ")}
           />
         </button>
 
-        {exportMenuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1.5 w-60 rounded-lg border border-neutral-700/80 bg-neutral-950/95 p-2 shadow-2xl backdrop-blur-md">
-            <button
-              type="button"
-              onClick={() => setEmbedExif((value) => !value)}
-              role="switch"
-              aria-checked={embedExif}
-              className="!m-0 !min-h-0 !w-full !rounded-md !border-0 !bg-neutral-900/80 !px-3 !py-2.5 !outline-none
+        <div
+          aria-hidden={!exportMenuOpen}
+          className={[
+            "sv-export-popover absolute right-0 top-full z-50 mt-1.5 w-60",
+            "origin-top-right rounded-lg border border-neutral-700/80",
+            "bg-neutral-950 p-2 shadow-2xl",
+            exportMenuOpen
+              ? "sv-export-popover-open"
+              : "sv-export-popover-closed",
+          ].join(" ")}
+        >
+          <button
+            type="button"
+            onClick={() => setEmbedExif((value) => !value)}
+            role="switch"
+            aria-checked={embedExif}
+            tabIndex={exportMenuOpen ? 0 : -1}
+            className="!m-0 !min-h-0 !w-full !rounded-md !border-0 !bg-neutral-900/80 !px-3 !py-2.5 !outline-none
                 flex items-center gap-3 text-left cursor-pointer
                 focus-visible:!ring-1 focus-visible:!ring-blue-500/70"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-medium text-neutral-100">
-                  EXIF overlay
-                </span>
-                <span className="mt-0.5 block text-[10px] leading-3.5 text-neutral-500">
-                  Add camera details to exported images
-                </span>
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-medium text-neutral-100">
+                EXIF overlay
               </span>
+              <span className="mt-0.5 block text-[10px] leading-3.5 text-neutral-500">
+                Add camera details to exported images
+              </span>
+            </span>
+            <span
+              className={[
+                "relative h-5 w-9 shrink-0 rounded-full border",
+                "transition-[background-color,border-color] duration-180 ease-out",
+                embedExif
+                  ? "border-blue-500 bg-blue-600"
+                  : "border-neutral-600 bg-neutral-950",
+              ].join(" ")}
+            >
               <span
                 className={[
-                  "relative h-5 w-9 shrink-0 rounded-full border transition-colors",
-                  embedExif
-                    ? "border-blue-500 bg-blue-600"
-                    : "border-neutral-600 bg-neutral-950",
+                  "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow",
+                  "transition-transform duration-180 ease-out",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
+                  embedExif ? "translate-x-[17px]" : "translate-x-0.5",
                 ].join(" ")}
-              >
-                <span
-                  className={[
-                    "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
-                    embedExif ? "translate-x-[17px]" : "translate-x-0.5",
-                  ].join(" ")}
-                />
-              </span>
-            </button>
-          </div>
-        )}
+              />
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Clear All */}
       <div
         onClick={() => hasAnyImage && clearAllPanes()}
         title="Clear all"
-        className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center transition
+        className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center
                     ${
                       hasAnyImage
-                        ? "bg-neutral-800 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer"
+                        ? "bg-neutral-800 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer active:scale-[0.96]"
                         : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
-                    }`}
+                    }
+                    transition-[background-color,color,transform] duration-150 ease-out
+                    motion-reduce:transition-none motion-reduce:transform-none`}
       >
         <Trash2 size={16} />
         Clear
