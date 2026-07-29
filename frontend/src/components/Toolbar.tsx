@@ -8,7 +8,8 @@ import {
   Pencil,
   Eraser,
   Download,
-  LayoutGrid,
+  Columns4,
+  Grid2X2,
   Type,
   Bold,
   Italic,
@@ -688,20 +689,23 @@ export default function Toolbar() {
         onClick={() => paneCount === 4 && toggleLayout()}
         title={
           paneCount === 4
-            ? `Toggle layout (${layout === "row1x4" ? "1x4" : "2x2"})`
+            ? `Switch to ${layout === "row1x4" ? "2x2" : "1x4"} layout`
             : "Layout toggle is available when you have 4 photos"
         }
         className={`px-2 py-1 rounded flex items-center gap-1
             ${
               paneCount === 4
-                ? layout === "row1x4"
-                  ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer"
-                  : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
+                ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer"
                 : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
             }
             select-none transition btn-width justify-center`}
       >
-        <LayoutGrid size={16} /> Layout
+        {layout === "row1x4" ? (
+          <Columns4 size={16} />
+        ) : (
+          <Grid2X2 size={16} />
+        )}
+        Layout
       </div>
 
       {/* Export + options */}

@@ -121,7 +121,7 @@ const EMPTY_COMPARISON: ComparisonState = { mode: "none" };
 const SAFE_EMPTY_TAB: TabState = {
   id: "tab-1",
   name: "Untitled",
-  layout: "auto",
+  layout: "row1x4",
   linkAll: true,
   sizes: { sidebar: 15, leftSplit: 60 },
   panes: [],
@@ -374,7 +374,7 @@ function makeEmptyTab(name = "Untitled"): TabState {
       C: { cw: 0, ch: 0 },
       D: { cw: 0, ch: 0 },
     },
-    layout: "auto",
+    layout: "row1x4",
     annotate: { mode: "none", color: "#ff3b30", size: 4, eraserSize: 18 },
     strokes: { A: [], B: [], C: [], D: [] },
     textTool: { on: false, style: DEFAULT_TEXT_STYLE },
@@ -614,7 +614,7 @@ export const useApp = create<AppState>()(
             const layout =
               layoutRaw === "row1x4" || layoutRaw === "auto"
                 ? layoutRaw
-                : "auto";
+                : "row1x4";
 
             return {
               ...base,

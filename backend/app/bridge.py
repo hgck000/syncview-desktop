@@ -46,6 +46,7 @@ SESSION_IMAGE_FORMAT_EXTENSIONS = {
     "HEIF": ".heic",
     "HEIC": ".heic",
 }
+SESSION_IMAGE_CLEANUP_GRACE_SECONDS = 60 * 60
 
 
 def default_app_data() -> Path:
@@ -210,6 +211,12 @@ class Bridge:
                         temporary_path.replace(image_path)
                     finally:
                         temporary_path.unlink(missing_ok=True)
+                else:
+                    # Reusing a content-addressed image is still a fresh
+                    # import. Renew its grace period so an overlapping
+                    # autosave cannot remove it before the frontend stores
+                    # the path in the next session payload.
+                    os.utime(image_path, None)
 
             print(
                 "[Bridge][SESSION-IMAGE] persisted "
@@ -572,6 +579,7 @@ class Bridge:
         referenced: set[Path] = set()
         try:
             session_root = self._session_image_dir.resolve()
+            cleanup_before = time.time() - SESSION_IMAGE_CLEANUP_GRACE_SECONDS
             for tab in data.get("tabs", []):
                 if not isinstance(tab, dict):
                     continue
@@ -590,8 +598,18 @@ class Bridge:
 
             with self._session_image_lock:
                 for image_path in self._session_image_dir.iterdir():
-                    if image_path.is_file() and image_path.resolve() not in referenced:
-                        image_path.unlink(missing_ok=True)
+                    if (
+                        not image_path.is_file()
+                        or image_path.resolve() in referenced
+                    ):
+                        continue
+
+                    # A newly persisted clipboard/drop image may briefly be
+                    # absent from an older autosave payload. Keep recent files
+                    # long enough for the following payload to reference them.
+                    if image_path.stat().st_mtime > cleanup_before:
+                        continue
+                    image_path.unlink(missing_ok=True)
         except OSError as e:
             print(f"[Bridge][SESSION-IMAGE][WARN] cleanup: {e}")
 

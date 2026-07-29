@@ -3,13 +3,18 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 from PIL import Image
 
-from backend.app.bridge import Bridge
+from backend.app.bridge import (
+    Bridge,
+    SESSION_IMAGE_CLEANUP_GRACE_SECONDS,
+)
 
 
 class SessionImagePersistenceTest(unittest.TestCase):
@@ -65,6 +70,51 @@ class SessionImagePersistenceTest(unittest.TestCase):
                 str(persisted_path),
             )
 
+            bridge.write_last_session(
+                {
+                    "version": 1,
+                    "activeTabId": "tab-1",
+                    "tabs": [
+                        {
+                            "id": "tab-1",
+                            "panes": [],
+                            "files": {},
+                            "dataURL": {},
+                        }
+                    ],
+                }
+            )
+            self.assertTrue(persisted_path.exists())
+
+            expired = (
+                time.time() - SESSION_IMAGE_CLEANUP_GRACE_SECONDS - 1
+            )
+            os.utime(persisted_path, (expired, expired))
+
+            # Reimporting the same content reuses the same hash path but must
+            # renew its grace period before the next autosave references it.
+            reused_path = bridge.persist_image_dataurl(
+                dataurl,
+                "camera.heic",
+            )
+            self.assertEqual(reused_path, str(persisted_path))
+            bridge.write_last_session(
+                {
+                    "version": 1,
+                    "activeTabId": "tab-1",
+                    "tabs": [
+                        {
+                            "id": "tab-1",
+                            "panes": [],
+                            "files": {},
+                            "dataURL": {},
+                        }
+                    ],
+                }
+            )
+            self.assertTrue(persisted_path.exists())
+
+            os.utime(persisted_path, (expired, expired))
             bridge.write_last_session(
                 {
                     "version": 1,

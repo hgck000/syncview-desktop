@@ -38,6 +38,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm run test
           npm run build
 
       - name: BE deps
@@ -154,6 +155,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
 
           npm ci
+          npm run test
           npm run type-check
           npm run lint
           npm run build

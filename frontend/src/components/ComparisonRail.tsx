@@ -140,8 +140,10 @@ function ThumbnailSlot({
       className={[
         "!m-0 !block !min-h-0 !w-full !overflow-hidden !rounded-lg",
         "!border-0 !bg-transparent !p-0 !outline-none",
-        "cursor-pointer select-none transition-opacity duration-150",
-        active ? "opacity-80" : "opacity-60",
+        "cursor-pointer select-none transition-[opacity,filter] duration-150",
+        active
+          ? "opacity-100 brightness-100"
+          : "opacity-45 brightness-75 hover:opacity-60 hover:brightness-90",
       ].join(" ")}
     >
       {thumbnail ? (
