@@ -4,6 +4,11 @@ import Pane from "./Pane";
 import { useApp, type PaneId } from "../app/store";
 import DropZone from "./DropZone";
 import ComparisonRail from "./ComparisonRail";
+import type { ImageLoadState } from "../app/useImageCanvas";
+
+type Props = {
+  onImageLoadState?: (pane: PaneId, state: ImageLoadState) => void;
+};
 
 function Keycap({ children }: { children: React.ReactNode }) {
   return (
@@ -112,7 +117,7 @@ function DragOverlay({ show, needsTab }: { show: boolean; needsTab: boolean }) {
   );
 }
 
-export default function ViewerGrid() {
+export default function ViewerGrid({ onImageLoadState }: Props) {
   const has = useApp((s) => s.hasActive());
   const panes = useApp((s) => s.getActiveSafe().panes);
   const layout = useApp((s) => s.getActiveSafe().layout);
@@ -197,7 +202,11 @@ export default function ViewerGrid() {
             : "invisible z-0 opacity-0 pointer-events-none",
         ].join(" ")}
       >
-        <Pane id={pane} suspended={!visible} />
+        <Pane
+          id={pane}
+          suspended={!visible}
+          onImageLoadState={onImageLoadState}
+        />
       </div>
     );
   }
@@ -249,7 +258,10 @@ export default function ViewerGrid() {
             data-role="viewer-grid"
           >
             <div className="relative min-h-0 [&>div]:h-full">
-              <Pane id={referencePane} />
+              <Pane
+                id={referencePane}
+                onImageLoadState={onImageLoadState}
+              />
             </div>
 
             <div className="relative min-h-0">
@@ -290,7 +302,11 @@ export default function ViewerGrid() {
         ) : (
           <div className={gridClass} data-role="viewer-grid">
             {panes.map((id) => (
-              <Pane key={id} id={id} />
+              <Pane
+                key={id}
+                id={id}
+                onImageLoadState={onImageLoadState}
+              />
             ))}
           </div>
         )}

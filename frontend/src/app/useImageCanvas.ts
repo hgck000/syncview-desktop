@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import { readDataUrlImageSource, readImageSource } from "./bridge";
 import { loadHtmlImage } from "./imageLoader";
 
+export type ImageLoadState = "loading" | "ready" | "error";
+
 type GridOpt = { on: boolean; size: number; opacity: number };
 type LoupeOpt = {
   on: boolean;
@@ -22,6 +24,7 @@ type Opts = {
   uiActive?: boolean;
   suspended?: boolean;
   onImageMeta?: (w: number, h: number) => void;
+  onLoadStateChange?: (state: ImageLoadState) => void;
   onViewCompensate?: (v: {
     scale: number;
     offsetX: number;
@@ -36,6 +39,7 @@ export function useImageCanvas(opts: Opts) {
     dataURL,
     view,
     onImageMeta,
+    onLoadStateChange,
     onViewCompensate,
     grid,
     loupe,
@@ -210,17 +214,26 @@ export function useImageCanvas(opts: Opts) {
     let cancelled = false;
     let releaseImage = () => undefined;
     const canvas = canvasRef.current;
-    if (!canvas || (!path && !dataURL)) return;
+    if (!canvas || (!path && !dataURL)) {
+      onLoadStateChange?.("error");
+      return;
+    }
+
+    onLoadStateChange?.("loading");
 
     const load = async () => {
-      const url = dataURL
-        ? await readDataUrlImageSource(dataURL)
-        : path
-          ? await readImageSource(path)
-          : null;
-      if (cancelled || !url) return;
-
       try {
+        const url = dataURL
+          ? await readDataUrlImageSource(dataURL)
+          : path
+            ? await readImageSource(path)
+            : null;
+        if (cancelled) return;
+        if (!url) {
+          onLoadStateChange?.("error");
+          return;
+        }
+
         const loaded = await loadHtmlImage(url);
         if (cancelled) {
           loaded.release();
@@ -231,8 +244,10 @@ export function useImageCanvas(opts: Opts) {
         imgRef.current = loaded.image;
         onImageMeta?.(loaded.image.naturalWidth, loaded.image.naturalHeight);
         scheduleDraw();
+        onLoadStateChange?.("ready");
       } catch (error) {
         console.warn("[canvas] load fail", error);
+        if (!cancelled) onLoadStateChange?.("error");
       }
     };
 

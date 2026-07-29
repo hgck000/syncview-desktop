@@ -2,7 +2,10 @@
 import { useApp } from "../app/store";
 import { useAnnotCanvas } from "../app/useAnnotCanvas";
 import { basename } from "../app/path";
-import { useImageCanvas } from "../app/useImageCanvas";
+import {
+  useImageCanvas,
+  type ImageLoadState,
+} from "../app/useImageCanvas";
 import { useRef, useState, useEffect } from "react";
 import {
   readExifFromPath,
@@ -32,9 +35,17 @@ import { formatDeviceName, formatFocalLengths } from "../app/exifFormat";
 type Props = {
   id: "A" | "B" | "C" | "D";
   suspended?: boolean;
+  onImageLoadState?: (
+    pane: "A" | "B" | "C" | "D",
+    state: ImageLoadState,
+  ) => void;
 };
 
-export default function Pane({ id, suspended = false }: Props) {
+export default function Pane({
+  id,
+  suspended = false,
+  onImageLoadState,
+}: Props) {
   const panes = useApp((s) => s.getActiveSafe().panes);
   const focusIndex = useApp((s) => s.getActiveSafe().focusIndex);
 
@@ -111,6 +122,7 @@ export default function Pane({ id, suspended = false }: Props) {
     uiActive,
     suspended,
     onImageMeta: (w, h) => setMeta(id, w, h),
+    onLoadStateChange: (state) => onImageLoadState?.(id, state),
     onViewCompensate: (v) => setView(id, v),
   });
 

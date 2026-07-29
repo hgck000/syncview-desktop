@@ -55,6 +55,39 @@
   pointer-events: none;
 }
 
+@keyframes sv-startup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes sv-startup-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
+}
+
+.sv-startup-spinner {
+  animation: sv-startup-spin 900ms linear infinite;
+}
+
+.sv-startup-glow {
+  animation: sv-startup-glow 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-startup-spinner,
+  .sv-startup-glow {
+    animation: none;
+  }
+}
+
 .custom-icon {
   color: #8c9095 !important;
 }

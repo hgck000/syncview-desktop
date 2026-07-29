@@ -168,6 +168,39 @@ export async function readDataUrlImageSource(
   return resolved;
 }
 
+export async function prewarmImageSource(
+  path?: string,
+  dataurl?: string,
+): Promise<boolean> {
+  try {
+    const source = dataurl
+      ? await readDataUrlImageSource(dataurl)
+      : path
+        ? await readImageSource(path)
+        : null;
+
+    // Native DataURLs are already in memory. Prewarming is most useful for
+    // local media URLs because it performs HEIC conversion and fills the HTTP
+    // cache without keeping another full-resolution canvas alive.
+    if (!source || source.startsWith("data:")) return false;
+
+    const response = await fetch(source, {
+      method: "GET",
+      credentials: "omit",
+      cache: "force-cache",
+    });
+    if (!response.ok) {
+      throw new Error(`Image prewarm returned HTTP ${response.status}.`);
+    }
+
+    await response.blob();
+    return true;
+  } catch (error) {
+    console.warn("[bridge] image prewarm failed", error);
+    return false;
+  }
+}
+
 export async function readImageThumbnail(
   path: string,
   maxWidth = 384,
@@ -186,28 +219,43 @@ export async function readImageThumbnail(
 }
 
 async function waitForPywebviewApi(maxWaitMs = 3000): Promise<any | null> {
-  const hasApi = () => (window as any)?.pywebview?.api;
+  const getApi = () => (window as any)?.pywebview?.api ?? null;
 
-  if (hasApi()) return hasApi();
+  const initialApi = getApi();
+  if (initialApi) return initialApi;
 
-  // Wait for event first
-  const api = await new Promise<any | null>((resolve) => {
-    const t = setTimeout(() => resolve(null), maxWaitMs);
-    const onReady = () => {
-      clearTimeout(t);
-      resolve(hasApi() || null);
+  // The ready event can fire before React installs this listener. Poll at the
+  // same time so startup never waits for a timeout after the API already exists.
+  return new Promise<any | null>((resolve) => {
+    let settled = false;
+    let pollTimer = 0;
+    let timeoutTimer = 0;
+
+    const finish = (api: any | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(pollTimer);
+      window.clearTimeout(timeoutTimer);
       window.removeEventListener("pywebviewready", onReady as any);
+      resolve(api);
     };
-    window.addEventListener("pywebviewready", onReady as any);
-  });
 
-  if (api) return api;
-  const started = Date.now();
-  while (Date.now() - started < maxWaitMs) {
-    if (hasApi()) return hasApi();
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  return null;
+    const check = () => {
+      const api = getApi();
+      if (api) finish(api);
+    };
+
+    const onReady = () => {
+      check();
+    };
+
+    window.addEventListener("pywebviewready", onReady as any);
+    pollTimer = window.setInterval(check, 50);
+    timeoutTimer = window.setTimeout(() => finish(null), maxWaitMs);
+
+    // Close the small race between the initial check and listener setup.
+    check();
+  });
 }
 
 export async function readLastSession(): Promise<any | null> {

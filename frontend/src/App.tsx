@@ -9,11 +9,32 @@ import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import ViewerGrid from "./components/ViewerGrid";
 import HelpOverlay from "./components/HelpOverlay";
-import { normalizeSidebarSize, useApp } from "./app/store";
+import {
+  normalizeSidebarSize,
+  useApp,
+  type PaneId,
+} from "./app/store";
 import Hotkeys from "./app/hotkeys";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { readLastSession, writeLastSession } from "./app/bridge";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  prewarmImageSource,
+  readLastSession,
+  writeLastSession,
+} from "./app/bridge";
+import type { ImageLoadState } from "./app/useImageCanvas";
 import AppEventDebug from "./dev/AppEventDebug";
+
+type StartupPhase = "visible" | "leaving" | "hidden";
+
+const MIN_STARTUP_VISIBLE_MS = 650;
+const STARTUP_FADE_MS = 320;
+const STARTUP_IMAGE_TIMEOUT_MS = 20_000;
 
 function isEditableTarget(e: Event): boolean {
   const el = e.target as HTMLElement | null;
@@ -24,6 +45,83 @@ function isEditableTarget(e: Event): boolean {
     tag === "TEXTAREA" ||
     (el as any).isContentEditable ||
     el.getAttribute?.("role") === "textbox"
+  );
+}
+
+function waitForBackgroundSlot(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      const requestIdle = (window as any).requestIdleCallback as
+        | ((
+            callback: () => void,
+            options?: { timeout: number },
+          ) => number)
+        | undefined;
+
+      if (requestIdle) {
+        requestIdle(() => resolve(), { timeout: 1200 });
+      } else {
+        resolve();
+      }
+    }, 180);
+  });
+}
+
+function StartupScreen({
+  phase,
+  sessionReady,
+}: {
+  phase: Exclude<StartupPhase, "hidden">;
+  sessionReady: boolean;
+}) {
+  return (
+    <div
+      className={[
+        "fixed inset-0 z-[100] overflow-hidden",
+        "bg-[#090b0f] text-neutral-100",
+        "flex items-center justify-center",
+        "transition-[opacity,transform] ease-out",
+        phase === "leaving"
+          ? "opacity-0 scale-[1.015] duration-300 pointer-events-none"
+          : "opacity-100 scale-100 duration-200",
+      ].join(" ")}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div
+        className="sv-startup-glow absolute w-72 h-72 rounded-full bg-blue-500/10 blur-3xl"
+        aria-hidden="true"
+      />
+
+      <div className="relative flex flex-col items-center select-none">
+        <div className="relative w-[76px] h-[76px] flex items-center justify-center">
+          <div
+            className="absolute inset-0 rounded-[24px] border border-blue-400/10 bg-blue-500/5 shadow-[0_20px_70px_rgba(0,0,0,0.55)]"
+            aria-hidden="true"
+          />
+          <div
+            className="sv-startup-spinner absolute -inset-2 rounded-[29px] border-2 border-transparent border-t-blue-400 border-r-blue-400/25"
+            aria-hidden="true"
+          />
+          <img
+            src="/SyncView.ico"
+            alt=""
+            className="relative w-11 h-11 object-contain drop-shadow-lg"
+            draggable={false}
+          />
+        </div>
+
+        <div className="mt-6 text-[20px] font-semibold tracking-[-0.02em]">
+          SyncView
+        </div>
+        <div className="mt-1.5 text-[12px] text-neutral-500">
+          {sessionReady
+            ? "Preparing your workspace…"
+            : "Restoring your session…"}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -46,6 +144,17 @@ export default function App() {
   const setSidebarPeek = useApp((s) => s.setSidebarPeek);
   const setSidebarExpandedSize = useApp((s) => s.setSidebarExpandedSize);
 
+  const [startupPhase, setStartupPhase] =
+    useState<StartupPhase>("visible");
+  const startupPhaseRef = useRef<StartupPhase>("visible");
+  const startupStartedAtRef = useRef(performance.now());
+  const startupTabIdRef = useRef("");
+  const settledStartupPanesRef = useRef(new Set<PaneId>());
+  const startupDismissQueuedRef = useRef(false);
+  const startupExitTimerRef = useRef<number | null>(null);
+  const startupRemoveTimerRef = useRef<number | null>(null);
+  const autosaveInitializedRef = useRef(false);
+
   const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
   const leaveTimerRef = useRef<number | null>(null);
 
@@ -57,6 +166,61 @@ export default function App() {
 
   const showFull = renderFull;
   const fadeIn = !sidebarCollapsed || sidebarPeek;
+  const appReady = hydrated && startupPhase === "hidden";
+
+  const dismissStartup = useCallback(() => {
+    if (
+      startupDismissQueuedRef.current ||
+      startupPhaseRef.current !== "visible"
+    ) {
+      return;
+    }
+
+    startupDismissQueuedRef.current = true;
+    const elapsed = performance.now() - startupStartedAtRef.current;
+    const delay = Math.max(0, MIN_STARTUP_VISIBLE_MS - elapsed);
+
+    startupExitTimerRef.current = window.setTimeout(() => {
+      startupPhaseRef.current = "leaving";
+      setStartupPhase("leaving");
+
+      startupRemoveTimerRef.current = window.setTimeout(() => {
+        startupPhaseRef.current = "hidden";
+        setStartupPhase("hidden");
+      }, STARTUP_FADE_MS);
+    }, delay);
+  }, []);
+
+  const onStartupImageLoadState = useCallback(
+    (pane: PaneId, state: ImageLoadState) => {
+      if (startupPhaseRef.current !== "visible") return;
+
+      const app = useApp.getState();
+      const startupTab = app.tabs.find(
+        (tab) => tab.id === startupTabIdRef.current,
+      );
+      if (!startupTab || app.activeTabId !== startupTab.id) return;
+
+      if (state === "loading") {
+        settledStartupPanesRef.current.delete(pane);
+      } else {
+        settledStartupPanesRef.current.add(pane);
+      }
+
+      const expectedPanes = startupTab.panes.filter(
+        (id) => startupTab.files[id] || startupTab.dataURL[id],
+      );
+      if (
+        expectedPanes.length > 0 &&
+        expectedPanes.every((id) =>
+          settledStartupPanesRef.current.has(id),
+        )
+      ) {
+        dismissStartup();
+      }
+    },
+    [dismissStartup],
+  );
 
   const expandToSaved = () => {
     const size = normalizeSidebarSize(
@@ -123,6 +287,8 @@ export default function App() {
         console.error("[session] error reading last_session:", e);
       } finally {
         if (!cancelled) {
+          startupTabIdRef.current = useApp.getState().activeTabId;
+          settledStartupPanesRef.current.clear();
           markHydrated(true);
         }
       }
@@ -131,6 +297,43 @@ export default function App() {
       cancelled = true;
     };
   }, [loadFromSession, markHydrated]);
+
+  useEffect(() => {
+    if (!hydrated || startupPhaseRef.current !== "visible") return;
+
+    const state = useApp.getState();
+    const startupTab = state.tabs.find(
+      (tab) => tab.id === startupTabIdRef.current,
+    );
+    const expectedPanes =
+      startupTab?.panes.filter(
+        (id) => startupTab.files[id] || startupTab.dataURL[id],
+      ) ?? [];
+
+    if (expectedPanes.length === 0) {
+      dismissStartup();
+      return;
+    }
+
+    // A corrupt or unavailable image must not trap the user on the splash.
+    const timeout = window.setTimeout(
+      dismissStartup,
+      STARTUP_IMAGE_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [dismissStartup, hydrated]);
+
+  useEffect(() => {
+    return () => {
+      if (startupExitTimerRef.current) {
+        window.clearTimeout(startupExitTimerRef.current);
+      }
+      if (startupRemoveTimerRef.current) {
+        window.clearTimeout(startupRemoveTimerRef.current);
+      }
+      startupDismissQueuedRef.current = false;
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!hydrated) return;
@@ -146,16 +349,26 @@ export default function App() {
 
   // autosave: debounce 400ms khi tabs/activeTabId đổi
   useEffect(() => {
-    if (!hydrated) return;
+    if (!appReady) return;
+
+    // Restoring a session is not a user edit. Avoid immediately writing the
+    // same (possibly very large) JSON back while startup is still settling.
+    if (!autosaveInitializedRef.current) {
+      autosaveInitializedRef.current = true;
+      return;
+    }
+
     const t = setTimeout(async () => {
       const payload = useApp.getState().serialize();
       const ok = await writeLastSession(payload);
       console.log("[last-session] autosave ->", ok);
     }, 400);
     return () => clearTimeout(t);
-  }, [hydrated, tabs, activeTabId, sidebarSize, leftSplit]);
+  }, [appReady, tabs, activeTabId, sidebarSize, leftSplit]);
 
   useEffect(() => {
+    if (!appReady) return;
+
     function blobToDataURL(blob: Blob): Promise<string> {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -203,7 +416,41 @@ export default function App() {
 
     window.addEventListener("paste", onPaste as any);
     return () => window.removeEventListener("paste", onPaste as any);
-  }, [addImageFromDataURL]);
+  }, [addImageFromDataURL, appReady]);
+
+  useEffect(() => {
+    if (!appReady) return;
+
+    let cancelled = false;
+    const startTimer = window.setTimeout(() => {
+      void (async () => {
+        const state = useApp.getState();
+        const queue = state.tabs
+          .filter((tab) => tab.id !== state.activeTabId)
+          .flatMap((tab) =>
+            tab.panes.map((pane) => ({
+              path: tab.files[pane],
+              dataURL: tab.dataURL[pane],
+            })),
+          )
+          .filter((item) => item.path || item.dataURL);
+
+        // Warm one source per idle slot. This performs HEIC conversion and
+        // fills the browser's compressed-image cache without retaining every
+        // full-resolution image/canvas in memory.
+        for (const item of queue) {
+          await waitForBackgroundSlot();
+          if (cancelled) return;
+          await prewarmImageSource(item.path, item.dataURL);
+        }
+      })();
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startTimer);
+    };
+  }, [appReady]);
 
   useEffect(() => {
     // Khi peek hoặc pinned → render full ngay
@@ -218,6 +465,8 @@ export default function App() {
   }, [sidebarCollapsed, sidebarPeek]);
 
   useEffect(() => {
+    if (!appReady) return;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e)) return;
 
@@ -235,13 +484,17 @@ export default function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [appReady]);
+
+  if (!hydrated) {
+    return <StartupScreen phase="visible" sessionReady={false} />;
+  }
 
   return (
     <>
       <AppEventDebug />
       <div className="sv-shell h-screen w-screen bg-neutral-950 text-neutral-800">
-        {active && <Hotkeys />}
+        {active && appReady && <Hotkeys />}
 
         <PanelGroup
           direction="horizontal"
@@ -305,13 +558,21 @@ export default function App() {
             <div className="flex flex-col h-full">
               <Toolbar />
               <div className="flex-1 overflow-hidden">
-                <ViewerGrid />
+                <ViewerGrid
+                  onImageLoadState={onStartupImageLoadState}
+                />
               </div>
             </div>
           </Panel>
         </PanelGroup>
         <HelpOverlay />
       </div>
+      {startupPhase !== "hidden" && (
+        <StartupScreen
+          phase={startupPhase}
+          sessionReady
+        />
+      )}
     </>
   );
 }
