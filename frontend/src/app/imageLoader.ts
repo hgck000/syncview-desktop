@@ -3,7 +3,23 @@ export type LoadedHtmlImage = {
   release: () => void;
 };
 
-async function materializeSource(source: string) {
+type MaterializedSource = {
+  url: string;
+  release: () => void;
+};
+
+type ImageCacheEntry = {
+  promise: Promise<HTMLImageElement>;
+  image?: HTMLImageElement;
+  releaseSource?: () => void;
+};
+
+// Decoded images live for the lifetime of the app. SyncView workspaces are
+// intentionally small and tab switching must never discard an already-ready
+// image only to decode it again later.
+const decodedImageCache = new Map<string, ImageCacheEntry>();
+
+async function materializeSource(source: string): Promise<MaterializedSource> {
   if (!/^https?:\/\//i.test(source)) {
     return { url: source, release: () => undefined };
   }
@@ -34,27 +50,53 @@ async function materializeSource(source: string) {
   };
 }
 
-export async function loadHtmlImage(source: string): Promise<LoadedHtmlImage> {
-  const materialized = await materializeSource(source);
+function createCacheEntry(source: string): ImageCacheEntry {
+  const entry: ImageCacheEntry = {
+    promise: Promise.resolve(null as unknown as HTMLImageElement),
+  };
 
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const nextImage = new Image();
-      nextImage.onload = () => resolve(nextImage);
-      nextImage.onerror = () =>
-        reject(new Error("The browser could not decode the image."));
-      nextImage.src = materialized.url;
-    });
+  entry.promise = (async () => {
+    const materialized = await materializeSource(source);
+    entry.releaseSource = materialized.release;
 
-    // WebView2 may fire load before the decoded pixels are ready for canvas.
-    // Waiting for decode keeps the first draw deterministic.
-    if (typeof image.decode === "function") {
-      await image.decode();
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const nextImage = new Image();
+        nextImage.onload = () => resolve(nextImage);
+        nextImage.onerror = () =>
+          reject(new Error("The browser could not decode the image."));
+        nextImage.src = materialized.url;
+      });
+
+      // WebView2 may fire load before the decoded pixels are ready for canvas.
+      // Waiting for decode makes a cached hit immediately drawable later.
+      if (typeof image.decode === "function") {
+        await image.decode();
+      }
+
+      entry.image = image;
+      return image;
+    } catch (error) {
+      if (decodedImageCache.get(source) === entry) {
+        decodedImageCache.delete(source);
+      }
+      entry.releaseSource?.();
+      entry.releaseSource = undefined;
+      throw error;
     }
+  })();
 
-    return { image, release: materialized.release };
-  } catch (error) {
-    materialized.release();
-    throw error;
-  }
+  decodedImageCache.set(source, entry);
+  return entry;
+}
+
+export async function loadHtmlImage(source: string): Promise<LoadedHtmlImage> {
+  const entry = decodedImageCache.get(source) ?? createCacheEntry(source);
+  const image = entry.image ?? (await entry.promise);
+  return { image, release: () => undefined };
+}
+
+export async function preloadHtmlImage(source: string): Promise<boolean> {
+  await loadHtmlImage(source);
+  return true;
 }

@@ -60,11 +60,11 @@ function waitForBackgroundSlot(): Promise<void> {
         | undefined;
 
       if (requestIdle) {
-        requestIdle(() => resolve(), { timeout: 1200 });
+        requestIdle(() => resolve(), { timeout: 600 });
       } else {
         resolve();
       }
-    }, 180);
+    }, 60);
   });
 }
 
@@ -452,7 +452,7 @@ export default function App() {
   }, [appReady, setDataURLForPane, setFileForPane]);
 
   useEffect(() => {
-    if (!appReady) return;
+    if (!hydrated) return;
 
     let cancelled = false;
     const startTimer = window.setTimeout(() => {
@@ -468,22 +468,21 @@ export default function App() {
           )
           .filter((item) => item.path || item.dataURL);
 
-        // Warm one source per idle slot. This performs HEIC conversion and
-        // fills the browser's compressed-image cache without retaining every
-        // full-resolution image/canvas in memory.
+        // Decode one source per idle slot behind the splash. Decoded images
+        // remain ready for later tab switches without mounting extra canvases.
         for (const item of queue) {
           await waitForBackgroundSlot();
           if (cancelled) return;
           await prewarmImageSource(item.path, item.dataURL);
         }
       })();
-    }, 450);
+    }, 120);
 
     return () => {
       cancelled = true;
       window.clearTimeout(startTimer);
     };
-  }, [appReady]);
+  }, [hydrated]);
 
   useEffect(() => {
     // Khi peek hoặc pinned → render full ngay

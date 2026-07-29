@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { preloadHtmlImage } from "./imageLoader";
 
 declare global {
   interface Window {
@@ -47,6 +48,7 @@ const browserImageDataUrl =
   /^data:image\/(?:gif|jpe?g|png|webp);base64,/i;
 const stagedDataUrlSources = new Map<string, Promise<string | null>>();
 const MAX_STAGED_DATA_URL_SOURCES = 16;
+const localImageSources = new Map<string, Promise<string | null>>();
 
 export async function readKeymap(): Promise<Keymap | null> {
   try {
@@ -141,17 +143,39 @@ export async function persistImageDataURL(
   }
 }
 
+export function invalidateImageSource(path?: string) {
+  if (path) localImageSources.delete(path);
+}
+
 export async function readImageSource(path: string) {
-  try {
-    const api = await waitForPywebviewApi();
-    if (api?.get_image_url) {
-      const url = await api.get_image_url(path);
-      if (url) return url;
+  const cached = localImageSources.get(path);
+  if (cached) return cached;
+
+  const pending = (async () => {
+    try {
+      const api = await waitForPywebviewApi();
+      if (api?.get_image_url) {
+        const url = await api.get_image_url(path);
+        if (url) return url;
+      }
+    } catch (error) {
+      console.warn(
+        "[bridge] get_image_url failed, using DataURL fallback",
+        error,
+      );
     }
-  } catch (error) {
-    console.warn("[bridge] get_image_url failed, using DataURL fallback", error);
+    return readImageDataURL(path);
+  })();
+
+  localImageSources.set(path, pending);
+
+  const resolved = await pending;
+  // A fallback DataURL can be hundreds of megabytes. Do not keep another copy
+  // in this short URL cache; the decoded-image cache handles its lifetime.
+  if (!resolved || resolved.startsWith("data:")) {
+    localImageSources.delete(path);
   }
-  return readImageDataURL(path);
+  return resolved;
 }
 
 export async function readDataUrlImageSource(
@@ -199,22 +223,10 @@ export async function prewarmImageSource(
         ? await readImageSource(path)
         : null;
 
-    // Native DataURLs are already in memory. Prewarming is most useful for
-    // local media URLs because it performs HEIC conversion and fills the HTTP
-    // cache without keeping another full-resolution canvas alive.
-    if (!source || source.startsWith("data:")) return false;
-
-    const response = await fetch(source, {
-      method: "GET",
-      credentials: "omit",
-      cache: "force-cache",
-    });
-    if (!response.ok) {
-      throw new Error(`Image prewarm returned HTTP ${response.status}.`);
-    }
-
-    await response.blob();
-    return true;
+    if (!source) return false;
+    // This reaches HTMLImageElement.decode(), not merely response.blob().
+    // A warmed image is therefore immediately drawable when its tab mounts.
+    return await preloadHtmlImage(source);
   } catch (error) {
     console.warn("[bridge] image prewarm failed", error);
     return false;

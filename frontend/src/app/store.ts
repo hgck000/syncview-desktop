@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
+import {
+  invalidateImageSource,
+  prewarmImageSource,
+} from "./bridge";
 
 export type PaneId = "A" | "B" | "C" | "D";
 export type ComparisonMode = "none" | "blink" | "reference";
@@ -183,6 +187,18 @@ type TabState = {
   textUI: TextUIState;
   comparison: ComparisonState;
 };
+
+let tabActivationRequest = 0;
+
+async function prepareTabImages(tab: TabState) {
+  return Promise.all(
+    tab.panes
+      .filter((pane) => tab.files[pane] || tab.dataURL[pane])
+      .map((pane) =>
+        prewarmImageSource(tab.files[pane], tab.dataURL[pane]),
+      ),
+  );
+}
 
 type AppState = {
   tabs: TabState[];
@@ -413,14 +429,42 @@ export const useApp = create<AppState>()(
     keymap: {},
 
     setKeymap: (km) => set({ keymap: km }),
-    newTab: (title) =>
+    newTab: (title) => {
+      tabActivationRequest += 1;
       set((state) => {
         const t = makeEmptyTab(title ?? `Tab ${state.tabs.length + 1}`);
         return { ...state, tabs: [...state.tabs, t], activeTabId: t.id };
-      }),
+      });
+    },
 
-    setActiveTab: (id) =>
-      set((state) => ({ ...state, activeTabId: id, hoveredPane: null })),
+    setActiveTab: (id) => {
+      const state = get();
+      const request = ++tabActivationRequest;
+      if (state.activeTabId === id) {
+        set({ hoveredPane: null });
+        return;
+      }
+
+      const target = state.tabs.find((tab) => tab.id === id);
+      if (!target) return;
+      const hasImages = target.panes.some(
+        (pane) => target.files[pane] || target.dataURL[pane],
+      );
+      if (!hasImages) {
+        set({ activeTabId: id, hoveredPane: null });
+        return;
+      }
+
+      void prepareTabImages(target).then(() => {
+        if (request !== tabActivationRequest) return;
+
+        set((current) =>
+          current.tabs.some((tab) => tab.id === id)
+            ? { activeTabId: id, hoveredPane: null }
+            : current,
+        );
+      });
+    },
 
     sidebarCollapsed: false,
     sidebarPeek: false,
@@ -442,17 +486,42 @@ export const useApp = create<AppState>()(
         ),
       })),
 
-    closeTab: (id) =>
-      set((state) => {
-        const idx = state.tabs.findIndex((x) => x.id === id);
-        if (idx === -1) return state;
-        const tabs = state.tabs.filter((x) => x.id !== id);
-        let activeTabId = state.activeTabId;
-        if (id === state.activeTabId) {
-          activeTabId = tabs.length ? tabs[Math.max(0, idx - 1)].id : "";
-        }
-        return { ...state, tabs, activeTabId };
-      }),
+    closeTab: (id) => {
+      const state = get();
+      const idx = state.tabs.findIndex((tab) => tab.id === id);
+      if (idx === -1) return;
+
+      const request = ++tabActivationRequest;
+      if (id !== state.activeTabId) {
+        set({ tabs: state.tabs.filter((tab) => tab.id !== id) });
+        return;
+      }
+
+      const remainingTabs = state.tabs.filter((tab) => tab.id !== id);
+      const target =
+        remainingTabs[Math.max(0, idx - 1)] ?? remainingTabs[0];
+      const commitClose = () => {
+        if (request !== tabActivationRequest) return;
+        set((current) => ({
+          tabs: current.tabs.filter((tab) => tab.id !== id),
+          activeTabId:
+            target && current.tabs.some((tab) => tab.id === target.id)
+              ? target.id
+              : "",
+          hoveredPane: null,
+        }));
+      };
+
+      if (
+        target?.panes.some(
+          (pane) => target.files[pane] || target.dataURL[pane],
+        )
+      ) {
+        void prepareTabImages(target).then(commitClose);
+      } else {
+        commitClose();
+      }
+    },
 
     setSidebarSize: (pct) =>
       set((state) => {
@@ -511,7 +580,8 @@ export const useApp = create<AppState>()(
       };
     },
 
-    loadFromSession: (data: SavedSession) =>
+    loadFromSession: (data: SavedSession) => {
+      tabActivationRequest += 1;
       set((state) => {
         try {
           if (!data || typeof data !== "object") {
@@ -585,7 +655,8 @@ export const useApp = create<AppState>()(
           console.error("[session] failed to load session, ignoring:", e);
           return state;
         }
-      }),
+      });
+    },
 
     setLeftSplit: (v) =>
       set((state) => {
@@ -804,6 +875,7 @@ export const useApp = create<AppState>()(
 
     setFileForPane: (pane, path, nameOverride) => {
       console.log("[store] setFileForPane", pane, path);
+      invalidateImageSource(path);
       const { tabs, activeTabId } = get();
       set({
         tabs: tabs.map((t) => {
