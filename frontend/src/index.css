@@ -89,7 +89,7 @@
 @keyframes sv-dialog-enter {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.97);
+    transform: translateY(14px) scale(0.965);
   }
   to {
     opacity: 1;
@@ -147,12 +147,35 @@
   pointer-events: none;
 }
 
+.sv-exif-details {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  transform-origin: top center;
+  transition:
+    opacity 250ms ease-out,
+    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sv-exif-details-open {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+}
+
+.sv-exif-details-closed {
+  opacity: 0;
+  transform: translateY(-6px) scaleY(0.98);
+  pointer-events: none;
+}
+
 .sv-overlay-enter {
-  animation: sv-overlay-enter 200ms ease-out both;
+  animation: sv-overlay-enter 250ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .sv-dialog-enter {
-  animation: sv-dialog-enter 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: sv-dialog-enter 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @keyframes sv-startup-spin {

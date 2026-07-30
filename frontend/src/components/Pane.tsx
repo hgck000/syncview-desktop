@@ -15,7 +15,6 @@ import {
 } from "../app/bridge";
 import {
   ChevronDown,
-  ChevronUp,
   Camera,
   Calendar,
   MapPin,
@@ -839,10 +838,11 @@ export default function Pane({
     >
       <div className="absolute top-1 left-0 right-0 z-20 pointer-events-none">
         <div className="flex items-start justify-center mt-1">
-          <div className="pointer-events-auto w-[240px] sm:w-[260px]">
+          <div className="pointer-events-auto relative w-[240px] sm:w-[260px]">
             <div
               className={
                 "px-2.5 py-1.5 bg-black border border-neutral-700/70 shadow-sm " +
+                "transition-[border-radius] duration-250 ease-out " +
                 (detailsOpen
                   ? "rounded-t-xl rounded-b-none border-b-0"
                   : "rounded-xl")
@@ -863,16 +863,20 @@ export default function Pane({
                 </div>
                 <div
                   onClick={() => toggleDetails(id)}
+                  role="button"
+                  aria-expanded={detailsOpen}
                   className="ml-1 w-5 h-5 rounded-full flex items-center justify-center
                             bg-transparent text-white cursor-pointer
-                            hover:bg-white/10 active:bg-white/20 active:scale-95 transition"
+                            hover:bg-white/10 active:bg-white/20 active:scale-95
+                            transition-[background-color,transform] duration-200 ease-out"
                   title={detailsOpen ? "Ẩn thông tin" : "Hiện thông tin"}
                 >
-                  {detailsOpen ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  )}
+                  <ChevronDown
+                    className={[
+                      "w-3.5 h-3.5 transition-transform duration-250 ease-out",
+                      detailsOpen ? "rotate-180" : "rotate-0",
+                    ].join(" ")}
+                  />
                 </div>
               </div>
             </div>
@@ -880,11 +884,10 @@ export default function Pane({
             {hasImage && (
               <div
                 className={[
-                  "overflow-hidden",
-                  "transition-[max-height,opacity,transform] duration-200 ease-out",
+                  "sv-exif-details",
                   detailsOpen
-                    ? "max-h-[320px] opacity-100 translate-y-0"
-                    : "max-h-0 opacity-0 -translate-y-1 pointer-events-none",
+                    ? "sv-exif-details-open"
+                    : "sv-exif-details-closed",
                 ].join(" ")}
               >
                 <div

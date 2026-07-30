@@ -17,11 +17,12 @@ export default function HelpOverlay() {
 
   return (
     <div
-      className="sv-overlay-enter fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      className="sv-overlay-enter fixed inset-0 z-50 bg-black/75 backdrop-blur-[2px] flex items-center justify-center"
       onClick={toggleHelp}
     >
       <div
-        className="sv-dialog-enter bg-black border border-neutral-700 rounded-xl p-5 w-[720px] max-w-[95%]"
+        className="sv-dialog-enter bg-neutral-950/95 border border-neutral-700 rounded-xl p-5 w-[720px] max-w-[95%]
+                   shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -33,7 +34,8 @@ export default function HelpOverlay() {
             className="w-7 h-7 rounded-md flex items-center justify-center
                       text-neutral-400 hover:text-neutral-100
                       hover:bg-[rgba(211,213,216,0.10)]
-                      active:scale-95 cursor-pointer transition"
+                      active:scale-90 cursor-pointer
+                      transition-[background-color,color,transform] duration-200 ease-out"
           >
             <X className="w-6 h-6" strokeWidth={2.2} />
           </div>
