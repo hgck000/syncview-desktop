@@ -130,6 +130,17 @@
   transform: scale(0.94);
 }
 
+.sv-reference-active {
+  background: radial-gradient(
+    circle at center,
+    rgba(37, 99, 235, 0.94) 0%,
+    rgba(37, 99, 235, 0.82) 38%,
+    rgba(37, 99, 235, 0.52) 64%,
+    rgba(37, 99, 235, 0.18) 84%,
+    rgba(37, 99, 235, 0) 100%
+  );
+}
+
 .sv-export-popover {
   transition: opacity 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
     transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);

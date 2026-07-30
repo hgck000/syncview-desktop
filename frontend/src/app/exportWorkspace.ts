@@ -425,6 +425,18 @@ function formatFileSize(value: unknown) {
   return `${text} ${units[unit]}`;
 }
 
+export function formatPixelDimensions(width: number, height: number) {
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return undefined;
+  }
+  return `${Math.round(width)}x${Math.round(height)}`;
+}
+
 function firstExifValue(exif: Record<string, unknown>, keys: string[]) {
   const nested = ["Exif", "Photo", "SubIFD", "tags", "ExifIFD", "Image"];
   const containers: Array<Record<string, unknown>> = [exif];
@@ -483,6 +495,15 @@ function exifNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+export function formatExportFocalLength(value: unknown) {
+  const millimeters = exifNumber(value);
+  if (millimeters == null || millimeters <= 0) return undefined;
+  const roundedValue =
+    Math.round((millimeters + Number.EPSILON) * 1000) / 1000;
+  const rounded = roundedValue.toFixed(3).replace(/\.?0+$/, "");
+  return `${rounded} mm`;
+}
+
 function formatIso(exif: Record<string, unknown>) {
   const value = firstExifValue(exif, [
     "ISO",
@@ -523,12 +544,20 @@ function formatShutter(exif: Record<string, unknown>) {
     : `${seconds < 10 ? seconds.toFixed(2).replace(/\.?0+$/, "") : Math.round(seconds)}s`;
 }
 
-function buildExifLines(pane: PreparedPane) {
+export function buildExifLines(pane: PreparedPane) {
   const exif = pane.exif ?? {};
   const device = formatDeviceName(exif);
-  const { focalLength, focalLength35mm } = formatFocalLengths(exif);
+  const { focalLength35mm } = formatFocalLengths(exif);
   const fileSize = formatFileSize(
     firstExifValue(exif, ["FileSize"]) ?? dataURLByteLength(pane.dataURL),
+  );
+  const dimensions = formatPixelDimensions(
+    pane.image.naturalWidth,
+    pane.image.naturalHeight,
+  );
+  const fileDetails = [fileSize, dimensions].filter(Boolean).join(" · ");
+  const focalLength = formatExportFocalLength(
+    firstExifValue(exif, ["FocalLength"]),
   );
   const exposure = [
     focalLength35mm,
@@ -541,8 +570,8 @@ function buildExifLines(pane: PreparedPane) {
 
   return [
     device || "—",
-    fileSize,
-    focalLength || "—",
+    fileDetails || "—",
+    focalLength ? `${focalLength} · Focal length` : "— · Focal length",
     exposure || "—",
   ];
 }
@@ -606,7 +635,9 @@ function drawExifOverlay(
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.fill();
 
-  ctx.fillStyle = "rgba(245,245,245,0.88)";
+  ctx.fillStyle = "rgba(255,255,255,0.96)";
+  ctx.shadowColor = "rgba(255,255,255,0.18)";
+  ctx.shadowBlur = Math.max(1, Math.min(2.5, fontPx * 0.06));
   ctx.textBaseline = "top";
   lines.forEach((line, index) => {
     ctx.fillText(

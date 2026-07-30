@@ -225,10 +225,10 @@ function SortablePaneRow({
               }}
               className={[
                 "w-5 h-5 flex items-center justify-center rounded p-1",
-                "cursor-pointer transition-[background-color,color,transform] duration-200",
+                "cursor-pointer transition-[color,filter,transform] duration-200",
                 "active:scale-85",
                 reference
-                  ? "bg-blue-600/70 text-white hover:bg-blue-600"
+                  ? "sv-reference-active text-white hover:brightness-110"
                   : "bg-none text-neutral-400 hover:bg-neutral-700 hover:text-white",
               ].join(" ")}
               title={
