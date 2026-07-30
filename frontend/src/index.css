@@ -58,7 +58,7 @@
 @keyframes sv-thumbnail-enter {
   from {
     opacity: 0;
-    transform: scale(1.015);
+    transform: scale(1.035);
   }
   to {
     opacity: 1;
@@ -69,7 +69,7 @@
 @keyframes sv-popover-enter {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: translateY(-7px) scale(0.96);
   }
   to {
     opacity: 1;
@@ -89,7 +89,7 @@
 @keyframes sv-dialog-enter {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.985);
+    transform: translateY(10px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -98,16 +98,41 @@
 }
 
 .sv-thumbnail-enter {
-  animation: sv-thumbnail-enter 160ms ease-out both;
+  animation: sv-thumbnail-enter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .sv-popover-enter {
   transform-origin: top;
-  animation: sv-popover-enter 140ms ease-out both;
+  animation: sv-popover-enter 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.sv-rail-item {
+  transition: opacity 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+.sv-rail-item-active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sv-rail-item-idle {
+  opacity: 0.42;
+  transform: scale(0.97);
+}
+
+.sv-rail-item-idle:hover {
+  opacity: 0.76;
+  transform: translateY(-1px) scale(0.99);
+}
+
+.sv-rail-item:active {
+  transform: scale(0.94);
 }
 
 .sv-export-popover {
-  transition: opacity 150ms ease-out, transform 150ms ease-out;
+  transition: opacity 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .sv-export-popover-open {
@@ -118,16 +143,16 @@
 
 .sv-export-popover-closed {
   opacity: 0;
-  transform: translateY(-4px) scale(0.98);
+  transform: translateY(-8px) scale(0.96);
   pointer-events: none;
 }
 
 .sv-overlay-enter {
-  animation: sv-overlay-enter 150ms ease-out both;
+  animation: sv-overlay-enter 200ms ease-out both;
 }
 
 .sv-dialog-enter {
-  animation: sv-dialog-enter 180ms ease-out both;
+  animation: sv-dialog-enter 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @keyframes sv-startup-spin {
@@ -159,17 +184,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sv-thumbnail-enter,
-  .sv-popover-enter,
-  .sv-overlay-enter,
-  .sv-dialog-enter {
-    animation: none;
-  }
-
-  .sv-export-popover {
-    transition: none;
-  }
-
   .sv-startup-glow {
     animation: none;
   }

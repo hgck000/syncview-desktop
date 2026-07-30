@@ -85,8 +85,8 @@ function SortableTabRow({
       style={style}
       {...(dragBind as any)}
       className={`group flex items-center gap-2 px-2 py-1 rounded border border-transparent cursor-pointer
-        transition-[background-color,border-color,box-shadow,transform] duration-150 ease-out
-        active:scale-[0.99] motion-reduce:transition-none motion-reduce:transform-none
+        transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out
+        active:scale-[0.97]
         ${
           active
             ? "bg-neutral-800 border-neutral-700"
@@ -113,7 +113,7 @@ function SortableTabRow({
           <div className="truncate text-sm flex-1"> {t.name}</div>
 
           <div
-            className={`flex items-center gap-1 transition-opacity duration-150 ${
+            className={`flex items-center gap-1 transition-opacity duration-200 ${
               isDragging || dragging
                 ? "opacity-0 pointer-events-none"
                 : "opacity-0 group-hover:opacity-100"
@@ -126,7 +126,7 @@ function SortableTabRow({
                 e.stopPropagation();
                 onRenameStart();
               }}
-              className="p-1 rounded hover:bg-neutral-700 active:scale-90 transition-[background-color,transform] duration-150"
+              className="p-1 rounded hover:bg-neutral-700 active:scale-85 transition-[background-color,transform] duration-200"
               title="Rename"
             >
               <Pencil className="w-3.5 h-3.5 text-white" />
@@ -138,7 +138,7 @@ function SortableTabRow({
                 e.stopPropagation();
                 onClose();
               }}
-              className="p-1 rounded hover:bg-neutral-700 active:scale-90 transition-[background-color,transform] duration-150"
+              className="p-1 rounded hover:bg-neutral-700 active:scale-85 transition-[background-color,transform] duration-200"
               title="Close"
             >
               <X className="w-4 h-4 text-white" />
@@ -193,8 +193,8 @@ function SortablePaneRow({
         title={name}
         className={[
           "w-full px-2 py-1 rounded border text-left text-xs select-none flex items-center gap-2",
-          "transition-[background-color,border-color,box-shadow,transform] duration-150 ease-out",
-          "active:scale-[0.99] motion-reduce:transition-none motion-reduce:transform-none",
+          "transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out",
+          "active:scale-[0.97]",
           hasImage
             ? "border-neutral-700 bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300"
             : "border-dashed border-neutral-700 text-neutral-500 hover:bg-neutral-800/30",
@@ -225,8 +225,8 @@ function SortablePaneRow({
               }}
               className={[
                 "w-5 h-5 flex items-center justify-center rounded p-1",
-                "cursor-pointer transition-[background-color,color,transform] duration-150",
-                "active:scale-90 motion-reduce:transition-none motion-reduce:transform-none",
+                "cursor-pointer transition-[background-color,color,transform] duration-200",
+                "active:scale-85",
                 reference
                   ? "bg-blue-600/70 text-white hover:bg-blue-600"
                   : "bg-none text-neutral-400 hover:bg-neutral-700 hover:text-white",
@@ -254,7 +254,7 @@ function SortablePaneRow({
                 e.stopPropagation();
                 onRemove();
               }}
-              className="w-5 h-5 flex items-center justify-center bg-none rounded hover:bg-neutral-700 p-1 cursor-pointer active:scale-90 transition-[background-color,transform] duration-150"
+              className="w-5 h-5 flex items-center justify-center bg-none rounded hover:bg-neutral-700 p-1 cursor-pointer active:scale-85 transition-[background-color,transform] duration-200"
               title="Remove image"
             >
               <X className="w-3.5 h-3.5" strokeWidth={2.4} />

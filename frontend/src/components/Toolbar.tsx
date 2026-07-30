@@ -214,8 +214,8 @@ export default function Toolbar() {
 
   const BTN_BASE =
     "px-2 py-1 rounded flex items-center gap-1 select-none " +
-    "transition-[background-color,color,transform] duration-150 ease-out " +
-    "btn-width justify-center motion-reduce:transition-none motion-reduce:transform-none";
+    "transition-[background-color,color,transform] duration-200 ease-out " +
+    "btn-width justify-center";
 
   // const BTN_FIELD =
   //   "relative inline-flex items-center gap-2 px-2 h-8 rounded " +
@@ -224,10 +224,9 @@ export default function Toolbar() {
 
   const BTN_FIELD =
     "h-7 relative inline-flex items-center gap-1 px-1 rounded select-none " +
-    "transition-[background-color,border-color,transform] duration-150 ease-out justify-center " +
+    "transition-[background-color,border-color,transform] duration-200 ease-out justify-center " +
     "bg-neutral-800 hover:bg-neutral-700 hover:border-neutral-700 text-neutral-200 " +
-    "border border-neutral-800 shadow-sm active:scale-[0.97] " +
-    "motion-reduce:transition-none motion-reduce:transform-none";
+    "border border-neutral-800 shadow-sm active:scale-[0.94]";
 
   const FIELD_INNER =
     "bg-transparent outline-none border-none text-sm text-neutral-200 " +
@@ -252,13 +251,13 @@ export default function Toolbar() {
     !hasAnyImage
       ? BTN_DISABLED
       : active
-        ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer active:scale-[0.96]"
-        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]";
+        ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer active:scale-[0.94]"
+        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.94]";
 
   const btnAction = () =>
     !hasAnyImage
       ? BTN_DISABLED
-      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]";
+      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.94]";
 
   async function onOpen() {
     const t0 = useApp.getState().getActiveSafe();
@@ -407,8 +406,8 @@ export default function Toolbar() {
           paneCount < 2
             ? BTN_DISABLED
             : comparisonMode === "blink"
-              ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer active:scale-[0.96]"
-              : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]"
+              ? "bg-blue-600/60 hover:bg-blue-600 text-white cursor-pointer active:scale-[0.94]"
+              : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.94]"
         }`}
       >
         <Layers3 size={16} /> Blink
@@ -631,8 +630,7 @@ export default function Toolbar() {
             onClick={() => applyStyle({ bold: !shownTextStyle.bold })}
             title="Bold"
             className={`h-7 w-7 rounded inline-flex items-center justify-center select-none
-    transition-[background-color,color,transform] duration-150 ease-out
-    motion-reduce:transition-none motion-reduce:transform-none
+    transition-[background-color,color,transform] duration-200 ease-out
     ${btnToggle(!!shownTextStyle.bold)}`}
           >
             <Bold className="w-4 h-4" />
@@ -642,8 +640,7 @@ export default function Toolbar() {
             onClick={() => applyStyle({ italic: !shownTextStyle.italic })}
             title="Italic"
             className={`h-7 w-7 rounded inline-flex items-center justify-center select-none
-            transition-[background-color,color,transform] duration-150 ease-out
-            motion-reduce:transition-none motion-reduce:transform-none ${btnToggle(
+            transition-[background-color,color,transform] duration-200 ease-out ${btnToggle(
               !!shownTextStyle.italic,
             )}`}
           >
@@ -653,8 +650,7 @@ export default function Toolbar() {
             onClick={() => applyStyle({ underline: !shownTextStyle.underline })}
             title="Underline"
             className={`h-7 w-7 rounded inline-flex items-center justify-center select-none
-            transition-[background-color,color,transform] duration-150 ease-out
-            motion-reduce:transition-none motion-reduce:transform-none ${btnToggle(
+            transition-[background-color,color,transform] duration-200 ease-out ${btnToggle(
               !!shownTextStyle.underline,
             )}`}
           >
@@ -693,8 +689,7 @@ export default function Toolbar() {
         className="px-2 py-1 rounded flex items-center gap-1
                   bg-neutral-800 hover:bg-neutral-700 text-neutral-300
                   cursor-pointer select-none transition-[background-color,transform]
-                  duration-150 ease-out active:scale-[0.96]
-                  motion-reduce:transition-none motion-reduce:transform-none
+                  duration-200 ease-out active:scale-[0.94]
                   btn-width justify-center"
       >
         <ImageIcon size={16} /> Open
@@ -711,11 +706,10 @@ export default function Toolbar() {
         className={`px-2 py-1 rounded flex items-center gap-1
             ${
               paneCount === 4
-                ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.96]"
+                ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.94]"
                 : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
             }
-            select-none transition-[background-color,transform] duration-150 ease-out
-            motion-reduce:transition-none motion-reduce:transform-none
+            select-none transition-[background-color,transform] duration-200 ease-out
             btn-width justify-center`}
       >
         {layout === "row1x4" ? (
@@ -741,25 +735,24 @@ export default function Toolbar() {
           }
           className={`!m-0 !min-w-0 !flex-1 !rounded-l-md !rounded-r-none !border-0 !px-1.5 !py-0 !outline-none
             group h-7 flex items-center gap-1 !font-normal select-none justify-center
-            transition-[background-color,transform] duration-150 ease-out
-            motion-reduce:transition-none motion-reduce:transform-none
+            transition-[background-color,transform] duration-200 ease-out
             ${
               exporting
                 ? "!bg-neutral-800 text-neutral-300 cursor-wait"
                 : exportAvailable
-                ? "!bg-neutral-800 hover:!bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.98]"
+                ? "!bg-neutral-800 hover:!bg-neutral-700 text-neutral-300 cursor-pointer active:scale-[0.95]"
                 : "!bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
             }`}
         >
           {exporting ? (
             <LoaderCircle
               size={16}
-              className="animate-spin motion-reduce:animate-none"
+              className="animate-spin"
             />
           ) : (
             <Download
               size={16}
-              className="transition-transform duration-150 group-hover:-translate-y-px group-active:translate-y-0 motion-reduce:transform-none"
+              className="transition-transform duration-200 group-hover:-translate-y-0.5 group-active:translate-y-0"
             />
           )}
           {exporting ? "Saving" : "Export"}
@@ -773,8 +766,7 @@ export default function Toolbar() {
           title="Export options"
           aria-expanded={exportMenuOpen}
           className={`!m-0 !h-7 !w-7 !shrink-0 !rounded-l-none !rounded-r-md !border-0 !p-0 !outline-none
-            flex items-center justify-center transition-[background-color,transform] duration-150 ease-out
-            motion-reduce:transition-none motion-reduce:transform-none
+            flex items-center justify-center transition-[background-color,transform] duration-200 ease-out
             shadow-[inset_1px_0_0_rgba(82,82,91,0.85)] ${
             exportAvailable
               ? "!bg-neutral-800 hover:!bg-neutral-700 cursor-pointer active:scale-[0.92]"
@@ -784,8 +776,7 @@ export default function Toolbar() {
           <ChevronDown
             size={14}
             className={[
-              "text-neutral-400 transition-transform duration-200 ease-out",
-              "motion-reduce:transition-none motion-reduce:transform-none",
+              "text-neutral-400 transition-transform duration-250 ease-out",
               exportMenuOpen ? "rotate-180" : "rotate-0",
             ].join(" ")}
           />
@@ -823,7 +814,7 @@ export default function Toolbar() {
             <span
               className={[
                 "relative h-5 w-9 shrink-0 rounded-full border",
-                "transition-[background-color,border-color] duration-180 ease-out",
+                "transition-[background-color,border-color] duration-220 ease-out",
                 embedExif
                   ? "border-blue-500 bg-blue-600"
                   : "border-neutral-600 bg-neutral-950",
@@ -832,8 +823,7 @@ export default function Toolbar() {
               <span
                 className={[
                   "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow",
-                  "transition-transform duration-180 ease-out",
-                  "motion-reduce:transition-none motion-reduce:transform-none",
+                  "transition-transform duration-220 ease-out",
                   embedExif ? "translate-x-[17px]" : "translate-x-0.5",
                 ].join(" ")}
               />
@@ -849,11 +839,10 @@ export default function Toolbar() {
         className={`px-2 py-1 rounded flex items-center gap-1 select-none btn-width justify-center
                     ${
                       hasAnyImage
-                        ? "bg-neutral-800 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer active:scale-[0.96]"
+                        ? "bg-neutral-800 text-neutral-300 hover:bg-red-600/80 hover:border-red-500 hover:text-black cursor-pointer active:scale-[0.94]"
                         : "bg-neutral-800/60 text-neutral-700 cursor-not-allowed"
                     }
-                    transition-[background-color,color,transform] duration-150 ease-out
-                    motion-reduce:transition-none motion-reduce:transform-none`}
+                    transition-[background-color,color,transform] duration-200 ease-out`}
       >
         <Trash2 size={16} />
         Clear
