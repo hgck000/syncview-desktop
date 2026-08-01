@@ -10,6 +10,7 @@ const bridgeMocks = vi.hoisted(() => ({
 vi.mock("./bridge", () => bridgeMocks);
 
 import { useApp } from "./store";
+import { MAX_VIEW_SCALE } from "./viewLimits";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -47,6 +48,23 @@ describe("tab preparation", () => {
     expect(useApp.getState().getActiveSafe().layout).toBe("row1x4");
     useApp.getState().toggleLayout();
     expect(useApp.getState().getActiveSafe().layout).toBe("auto");
+  });
+
+  it("allows one additional 100% zoom step without exceeding the limit", () => {
+    addTab("Zoom", ["zoom-limit.jpg"]);
+    useApp.getState().setPaneSize("A", 1200, 800);
+    useApp.getState().setImageMeta("A", 4000, 3000);
+
+    useApp.getState().applyZoom("A", 100, {
+      type: "norm",
+      u: 0.5,
+      v: 0.5,
+    });
+
+    expect(useApp.getState().getActiveSafe().view.A.scale).toBe(
+      MAX_VIEW_SCALE,
+    );
+    expect(MAX_VIEW_SCALE).toBe(11);
   });
 
   it("waits for every target image before changing the active tab", async () => {

@@ -840,7 +840,7 @@ export default function Toolbar() {
                     "transition-[background-color,border-color] duration-180 ease-out",
                     "focus-visible:!ring-1 focus-visible:!ring-blue-500/70",
                     selected
-                      ? "!border-blue-500/60 !bg-blue-500/10"
+                      ? "!border-blue-500 !bg-blue-600/60 hover:!bg-blue-600/70"
                       : "!border-neutral-800 !bg-neutral-900/70 hover:!border-neutral-700 hover:!bg-neutral-900",
                   ].join(" ")}
                 >
@@ -849,7 +849,7 @@ export default function Toolbar() {
                       "flex h-8 w-10 shrink-0 items-center justify-center rounded",
                       "text-[9px] font-semibold tracking-wide",
                       selected
-                        ? "bg-blue-500/15 text-blue-300"
+                        ? "bg-blue-700/70 text-white"
                         : "bg-neutral-800 text-neutral-400",
                     ].join(" ")}
                   >
@@ -864,7 +864,12 @@ export default function Toolbar() {
                     >
                       {option.title}
                     </span>
-                    <span className="mt-0.5 block text-[10px] leading-3.5 text-neutral-500">
+                    <span
+                      className={[
+                        "mt-0.5 block text-[10px] leading-3.5",
+                        selected ? "text-blue-100/75" : "text-neutral-500",
+                      ].join(" ")}
+                    >
                       {option.detail}
                     </span>
                   </span>
@@ -873,7 +878,7 @@ export default function Toolbar() {
                     className={[
                       "h-2.5 w-2.5 shrink-0 rounded-full border",
                       selected
-                        ? "border-blue-300 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.45)]"
+                        ? "border-blue-100 bg-white shadow-[0_0_8px_rgba(255,255,255,0.35)]"
                         : "border-neutral-600 bg-neutral-950",
                     ].join(" ")}
                   />

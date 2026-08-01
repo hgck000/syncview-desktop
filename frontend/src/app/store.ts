@@ -5,6 +5,7 @@ import {
   invalidateImageSource,
   prewarmImageSource,
 } from "./bridge";
+import { MAX_VIEW_SCALE, MIN_VIEW_SCALE } from "./viewLimits";
 
 export type PaneId = "A" | "B" | "C" | "D";
 export type ComparisonMode = "none" | "blink" | "reference";
@@ -1062,7 +1063,10 @@ export const useApp = create<AppState>()(
         const w = iw * fit * v.scale;
         const h = ih * fit * v.scale;
 
-        const newScale = Math.max(0.8, Math.min(10, v.scale * factor));
+        const newScale = Math.max(
+          MIN_VIEW_SCALE,
+          Math.min(MAX_VIEW_SCALE, v.scale * factor),
+        );
         const w2 = iw * fit * newScale;
         const h2 = ih * fit * newScale;
 

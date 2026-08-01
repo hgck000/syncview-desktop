@@ -133,10 +133,10 @@
 .sv-reference-active {
   background: radial-gradient(
     circle at center,
-    rgba(37, 99, 235, 0.94) 0%,
-    rgba(37, 99, 235, 0.82) 38%,
-    rgba(37, 99, 235, 0.52) 64%,
-    rgba(37, 99, 235, 0.18) 84%,
+    rgba(37, 99, 235, 1) 0%,
+    rgba(37, 99, 235, 0.98) 38%,
+    rgba(37, 99, 235, 0.82) 62%,
+    rgba(37, 99, 235, 0.42) 82%,
     rgba(37, 99, 235, 0) 100%
   );
 }

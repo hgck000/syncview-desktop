@@ -838,7 +838,10 @@ export default function Pane({
     >
       <div className="absolute top-1 left-0 right-0 z-20 pointer-events-none">
         <div className="flex items-start justify-center mt-1">
-          <div className="pointer-events-auto relative w-[240px] sm:w-[260px]">
+          <div
+            className="pointer-events-auto relative w-[240px] sm:w-[260px]"
+            onDoubleClick={(event) => event.stopPropagation()}
+          >
             <div
               className={
                 "px-2.5 py-1.5 bg-black border border-neutral-700/70 shadow-sm " +
@@ -862,7 +865,10 @@ export default function Pane({
                   </div>
                 </div>
                 <div
-                  onClick={() => toggleDetails(id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleDetails(id);
+                  }}
                   role="button"
                   aria-expanded={detailsOpen}
                   className="ml-1 w-5 h-5 rounded-full flex items-center justify-center

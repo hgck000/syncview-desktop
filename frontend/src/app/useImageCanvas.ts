@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import { readDataUrlImageSource, readImageSource } from "./bridge";
 import { loadHtmlImage } from "./imageLoader";
+import { MAX_VIEW_SCALE, MIN_VIEW_SCALE } from "./viewLimits";
 
 export type ImageLoadState = "loading" | "ready" | "error";
 
@@ -286,7 +287,11 @@ export function useImageCanvas(opts: Opts) {
               Math.max(a, Math.min(b, n));
 
             // giữ tổng zoom thực tế (fit*scale) gần như không đổi
-            const scale2 = clamp(base.scale * (fit1 / fit2), 0.8, 10);
+            const scale2 = clamp(
+              base.scale * (fit1 / fit2),
+              MIN_VIEW_SCALE,
+              MAX_VIEW_SCALE,
+            );
             const total1 = fit1 * base.scale;
             const total2 = fit2 * scale2;
 
