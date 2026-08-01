@@ -840,7 +840,7 @@ export default function Toolbar() {
                     "transition-[background-color,border-color] duration-180 ease-out",
                     "focus-visible:!ring-1 focus-visible:!ring-blue-500/70",
                     selected
-                      ? "!border-blue-500 !bg-blue-600/60 hover:!bg-blue-600/70"
+                      ? "!border-blue-600 !bg-neutral-900/70 hover:!border-blue-500 hover:!bg-neutral-900"
                       : "!border-neutral-800 !bg-neutral-900/70 hover:!border-neutral-700 hover:!bg-neutral-900",
                   ].join(" ")}
                 >
@@ -849,7 +849,7 @@ export default function Toolbar() {
                       "flex h-8 w-10 shrink-0 items-center justify-center rounded",
                       "text-[9px] font-semibold tracking-wide",
                       selected
-                        ? "bg-blue-700/70 text-white"
+                        ? "bg-blue-600 text-white shadow-sm"
                         : "bg-neutral-800 text-neutral-400",
                     ].join(" ")}
                   >
@@ -864,12 +864,7 @@ export default function Toolbar() {
                     >
                       {option.title}
                     </span>
-                    <span
-                      className={[
-                        "mt-0.5 block text-[10px] leading-3.5",
-                        selected ? "text-blue-100/75" : "text-neutral-500",
-                      ].join(" ")}
-                    >
+                    <span className="mt-0.5 block text-[10px] leading-3.5 text-neutral-500">
                       {option.detail}
                     </span>
                   </span>
@@ -878,7 +873,7 @@ export default function Toolbar() {
                     className={[
                       "h-2.5 w-2.5 shrink-0 rounded-full border",
                       selected
-                        ? "border-blue-100 bg-white shadow-[0_0_8px_rgba(255,255,255,0.35)]"
+                        ? "border-blue-400 bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.45)]"
                         : "border-neutral-600 bg-neutral-950",
                     ].join(" ")}
                   />

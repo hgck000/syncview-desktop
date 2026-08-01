@@ -50,7 +50,7 @@ describe("tab preparation", () => {
     expect(useApp.getState().getActiveSafe().layout).toBe("auto");
   });
 
-  it("allows one additional 100% zoom step without exceeding the limit", () => {
+  it("caps image zoom at 1500%", () => {
     addTab("Zoom", ["zoom-limit.jpg"]);
     useApp.getState().setPaneSize("A", 1200, 800);
     useApp.getState().setImageMeta("A", 4000, 3000);
@@ -64,7 +64,7 @@ describe("tab preparation", () => {
     expect(useApp.getState().getActiveSafe().view.A.scale).toBe(
       MAX_VIEW_SCALE,
     );
-    expect(MAX_VIEW_SCALE).toBe(11);
+    expect(MAX_VIEW_SCALE).toBe(15);
   });
 
   it("waits for every target image before changing the active tab", async () => {
