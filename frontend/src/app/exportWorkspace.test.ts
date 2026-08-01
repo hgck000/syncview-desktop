@@ -3,7 +3,21 @@ import {
   buildExifLines,
   formatExportFocalLength,
   formatPixelDimensions,
+  getExportEncoding,
 } from "./exportWorkspace";
+
+describe("export encoding", () => {
+  it("keeps PNG lossless and encodes JPEG at high quality", () => {
+    expect(getExportEncoding("png")).toEqual({
+      mimeType: "image/png",
+      quality: undefined,
+    });
+    expect(getExportEncoding("jpeg")).toEqual({
+      mimeType: "image/jpeg",
+      quality: 0.95,
+    });
+  });
+});
 
 describe("export EXIF focal length", () => {
   it("keeps at most three decimal places", () => {

@@ -828,22 +828,32 @@ class Bridge:
             print(f"[Bridge][EXIF][ERROR] path: {e}")
             return None
 
-    def save_png_dialog(self, dataurl: str, suggested_name: str = "SyncView.png") -> Optional[str]:
+    def save_image_dialog(
+        self,
+        dataurl: str,
+        suggested_name: str = "SyncView.png",
+        image_format: str = "png",
+    ) -> Optional[str]:
         try:
             if not self.window:
                 print("[Bridge][ERROR] window not attached")
                 return None
 
-            # đảm bảo có .png
-            name = suggested_name or "SyncView.png"
-            if not name.lower().endswith(".png"):
-                name += ".png"
+            normalized_format = str(image_format or "png").strip().lower()
+            is_jpeg = normalized_format in {"jpg", "jpeg"}
+            extension = ".jpg" if is_jpeg else ".png"
+            valid_extensions = {".jpg", ".jpeg"} if is_jpeg else {".png"}
+            file_types = ("JPEG (*.jpg;*.jpeg)",) if is_jpeg else ("PNG (*.png)",)
+
+            name = suggested_name or f"SyncView{extension}"
+            if Path(name).suffix.lower() not in valid_extensions:
+                name = str(Path(name).with_suffix(extension))
 
             result = self.window.create_file_dialog(
                 webview.SAVE_DIALOG,
                 directory=str(Path.home()),
                 save_filename=name,
-                file_types=("PNG (*.png)",)
+                file_types=file_types,
             )
             if not result:
                 return None
@@ -851,8 +861,8 @@ class Bridge:
             # pywebview có thể trả string hoặc list
             path = result[0] if isinstance(result, list) else result
             p = Path(path)
-            if p.suffix.lower() != ".png":
-                p = p.with_suffix(".png")
+            if p.suffix.lower() not in valid_extensions:
+                p = p.with_suffix(extension)
             p = p.expanduser().resolve()
 
             # parse data URL
@@ -861,9 +871,13 @@ class Bridge:
 
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(raw)
-            print(f"[Bridge] saved png -> {p}")
+            print(f"[Bridge] saved {normalized_format} -> {p}")
             return str(p)
 
         except Exception as e:
-            print(f"[Bridge][ERROR] save_png_dialog: {e}")
+            print(f"[Bridge][ERROR] save_image_dialog: {e}")
             return None
+
+    def save_png_dialog(self, dataurl: str, suggested_name: str = "SyncView.png") -> Optional[str]:
+        """Compatibility wrapper for older frontends."""
+        return self.save_image_dialog(dataurl, suggested_name, "png")

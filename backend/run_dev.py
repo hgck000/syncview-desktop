@@ -51,6 +51,7 @@ if __name__ == "__main__":
         api.read_exif_from_path, api.read_exif_from_dataurl,
         api.reverse_geocode,
         api.read_last_session, api.write_last_session,
+        api.save_image_dialog,
         api.save_png_dialog,
     )
 

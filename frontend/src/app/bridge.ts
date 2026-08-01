@@ -29,6 +29,11 @@ declare global {
           dataurl: string,
           suggested_name: string
         ) => Promise<string | null>;
+        save_image_dialog?: (
+          dataurl: string,
+          suggested_name: string,
+          image_format: "png" | "jpeg"
+        ) => Promise<string | null>;
       };
     };
     api?: {
@@ -333,4 +338,25 @@ export async function savePngDialog(
     return null;
   }
   return (await api.save_png_dialog(dataurl, suggestedName)) ?? null;
+}
+
+export async function saveImageDialog(
+  dataurl: string,
+  suggestedName: string,
+  format: "png" | "jpeg",
+): Promise<string | null> {
+  const api = await waitForPywebviewApi();
+  if (api?.save_image_dialog) {
+    return (
+      (await api.save_image_dialog(dataurl, suggestedName, format)) ?? null
+    );
+  }
+
+  // A PNG export can still work against an older backend during development.
+  if (format === "png" && api?.save_png_dialog) {
+    return (await api.save_png_dialog(dataurl, suggestedName)) ?? null;
+  }
+
+  alert("Save dialog chưa sẵn sàng. Hãy khởi động lại backend mới nhất.");
+  return null;
 }

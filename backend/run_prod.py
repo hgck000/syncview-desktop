@@ -167,6 +167,7 @@ if __name__ == "__main__":
             getattr(bridge, "reverse_geocode", lambda *a, **k: None),
             getattr(bridge, "write_last_session", lambda *a, **k: None),
             getattr(bridge, "read_last_session",  lambda *a, **k: None),
+            getattr(bridge, "save_image_dialog", lambda *a, **k: None),
             getattr(bridge, "save_png_dialog", lambda *a, **k: None),
         )
         setattr(bridge, "saveLastSession", bridge.write_last_session)

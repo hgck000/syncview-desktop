@@ -50,15 +50,31 @@ type PlacedPane = PreparedPane & {
   heightPx: number;
 };
 
-export type WorkspacePng = {
+export type ExportFormat = "png" | "jpeg";
+
+export type WorkspaceImage = {
   dataUrl: string;
   width: number;
   height: number;
+  format: ExportFormat;
 };
+
+// Kept as an alias so older callers do not break while the export pipeline now
+// supports more than PNG.
+export type WorkspacePng = WorkspaceImage;
 
 export type ExportWorkspaceOptions = {
   embedExif?: boolean;
+  format?: ExportFormat;
 };
+
+export const JPEG_EXPORT_QUALITY = 0.95;
+
+export function getExportEncoding(format: ExportFormat) {
+  return format === "jpeg"
+    ? { mimeType: "image/jpeg" as const, quality: JPEG_EXPORT_QUALITY }
+    : { mimeType: "image/png" as const, quality: undefined };
+}
 
 // Chromium/WebView2 commonly rejects a canvas beyond these limits. Failing
 // explicitly is safer than silently shrinking an export and losing detail.
@@ -286,13 +302,18 @@ function drawGrid(
   ctx.restore();
 }
 
-function canvasToPngDataURL(canvas: HTMLCanvasElement): Promise<string> {
+function canvasToImageDataURL(
+  canvas: HTMLCanvasElement,
+  format: ExportFormat,
+): Promise<string> {
+  const { mimeType, quality } = getExportEncoding(format);
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (!blob) {
         reject(
           new Error(
-            "Không thể mã hóa PNG. Ảnh ghép có thể vượt giới hạn bộ nhớ của máy.",
+            `Không thể mã hóa ${format === "jpeg" ? "JPEG" : "PNG"}. ` +
+              "Ảnh ghép có thể vượt giới hạn bộ nhớ của máy.",
           ),
         );
         return;
@@ -300,9 +321,10 @@ function canvasToPngDataURL(canvas: HTMLCanvasElement): Promise<string> {
 
       const reader = new FileReader();
       reader.onloadend = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error("Không thể đọc dữ liệu PNG."));
+      reader.onerror = () =>
+        reject(new Error("Không thể đọc dữ liệu ảnh đã export."));
       reader.readAsDataURL(blob);
-    }, "image/png");
+    }, mimeType, quality);
   });
 }
 
@@ -739,11 +761,12 @@ function placePanes(
   return { panes: placed, width: targetWidth, height };
 }
 
-export async function renderWorkspacePng(
+export async function renderWorkspaceImage(
   tab: ExportTab,
   gridElement: HTMLElement,
   options: ExportWorkspaceOptions = {},
-): Promise<WorkspacePng> {
+): Promise<WorkspaceImage> {
+  const format = options.format ?? "png";
   const gridRect = gridElement.getBoundingClientRect();
   if (gridRect.width <= 0 || gridRect.height <= 0) {
     throw new Error("Workspace không có kích thước hợp lệ.");
@@ -769,7 +792,7 @@ export async function renderWorkspacePng(
     width * height > MAX_CANVAS_AREA
   ) {
     throw new Error(
-      `Ảnh ghép ${width}×${height}px vượt giới hạn PNG an toàn của WebView. ` +
+      `Ảnh ghép ${width}×${height}px vượt giới hạn an toàn của WebView. ` +
         "Hãy zoom gần hơn hoặc export ít ảnh hơn; ứng dụng sẽ không tự giảm chất lượng.",
     );
   }
@@ -848,9 +871,20 @@ export async function renderWorkspacePng(
     if (options.embedExif) drawExifOverlay(outputCtx, pane);
   }
 
-  const dataUrl = await canvasToPngDataURL(output);
+  const dataUrl = await canvasToImageDataURL(output, format);
   output.width = 1;
   output.height = 1;
 
-  return { dataUrl, width, height };
+  return { dataUrl, width, height, format };
+}
+
+export function renderWorkspacePng(
+  tab: ExportTab,
+  gridElement: HTMLElement,
+  options: ExportWorkspaceOptions = {},
+): Promise<WorkspacePng> {
+  return renderWorkspaceImage(tab, gridElement, {
+    ...options,
+    format: "png",
+  });
 }

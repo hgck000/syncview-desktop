@@ -21,8 +21,11 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useApp, type TextStyle, type PaneId } from "../app/store";
-import { openFileDialog, savePngDialog } from "../app/bridge";
-import { renderWorkspacePng } from "../app/exportWorkspace";
+import { openFileDialog, saveImageDialog } from "../app/bridge";
+import {
+  renderWorkspaceImage,
+  type ExportFormat,
+} from "../app/exportWorkspace";
 
 export default function Toolbar() {
   // const has = useApp(s => s.hasActive()); // dùng để disable nút khi chưa có tab
@@ -171,6 +174,7 @@ export default function Toolbar() {
   const [fontOpen, setFontOpen] = useState(false);
   const fontRef = useRef<HTMLDivElement | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
   const [embedExif, setEmbedExif] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -327,20 +331,30 @@ export default function Toolbar() {
     // Khoá UI export trong lúc tải ảnh gốc và dựng canvas độ phân giải cao.
     setExporting(true);
     try {
-      const png = await renderWorkspacePng(t, gridEl, { embedExif });
-      const suggested = `${sanitizeFilename(t.name)}.png`;
-      const savedPath = await savePngDialog(png.dataUrl, suggested);
+      const image = await renderWorkspaceImage(t, gridEl, {
+        embedExif,
+        format: exportFormat,
+      });
+      const extension = exportFormat === "jpeg" ? "jpg" : "png";
+      const suggested = `${sanitizeFilename(t.name)}.${extension}`;
+      const savedPath = await saveImageDialog(
+        image.dataUrl,
+        suggested,
+        exportFormat,
+      );
       if (!savedPath) return;
 
       console.log(
-        `[Export] saved ${png.width}×${png.height}px ->`,
+        `[Export] saved ${image.width}×${image.height}px as ${exportFormat.toUpperCase()} ->`,
         savedPath,
       );
     } catch (error) {
       console.error("[Export] failed", error);
       const message =
         error instanceof Error ? error.message : "Lỗi export không xác định.";
-      alert(`Không thể export PNG.\n\n${message}`);
+      alert(
+        `Không thể export ${exportFormat === "jpeg" ? "JPEG" : "PNG"}.\n\n${message}`,
+      );
     } finally {
       setExporting(false);
     }
@@ -730,8 +744,8 @@ export default function Toolbar() {
             exporting
               ? "Exporting workspace..."
               : embedExif
-              ? "Export workspace as PNG with EXIF overlay"
-              : "Export workspace as PNG"
+              ? `Export workspace as ${exportFormat.toUpperCase()} with EXIF overlay`
+              : `Export workspace as ${exportFormat.toUpperCase()}`
           }
           className={`!m-0 !min-w-0 !flex-1 !rounded-l-md !rounded-r-none !border-0 !px-1.5 !py-0 !outline-none
             group h-7 flex items-center gap-1 !font-normal select-none justify-center
@@ -785,21 +799,100 @@ export default function Toolbar() {
         <div
           aria-hidden={!exportMenuOpen}
           className={[
-            "sv-export-popover absolute right-0 top-full z-50 mt-1.5 w-60",
+            "sv-export-popover absolute right-0 top-full z-50 mt-1.5 w-72",
             "origin-top-right rounded-lg border border-neutral-700/80",
-            "bg-neutral-950 p-2 shadow-2xl",
+            "bg-neutral-950 p-2.5 shadow-2xl",
             exportMenuOpen
               ? "sv-export-popover-open"
               : "sv-export-popover-closed",
           ].join(" ")}
         >
+          <div className="px-1 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            Image format
+          </div>
+          <div className="grid gap-1.5" role="radiogroup" aria-label="Image format">
+            {(
+              [
+                {
+                  value: "png",
+                  title: "PNG — Lossless",
+                  detail: "Exact pixels · Larger file",
+                },
+                {
+                  value: "jpeg",
+                  title: "JPEG — High quality",
+                  detail: "95% quality · Smaller file",
+                },
+              ] as const
+            ).map((option) => {
+              const selected = exportFormat === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={exportMenuOpen ? 0 : -1}
+                  onClick={() => setExportFormat(option.value)}
+                  className={[
+                    "!m-0 !min-h-0 !w-full !rounded-md !border !px-3 !py-2 !outline-none",
+                    "flex items-center gap-3 text-left cursor-pointer",
+                    "transition-[background-color,border-color] duration-180 ease-out",
+                    "focus-visible:!ring-1 focus-visible:!ring-blue-500/70",
+                    selected
+                      ? "!border-blue-500/60 !bg-blue-500/10"
+                      : "!border-neutral-800 !bg-neutral-900/70 hover:!border-neutral-700 hover:!bg-neutral-900",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "flex h-8 w-10 shrink-0 items-center justify-center rounded",
+                      "text-[9px] font-semibold tracking-wide",
+                      selected
+                        ? "bg-blue-500/15 text-blue-300"
+                        : "bg-neutral-800 text-neutral-400",
+                    ].join(" ")}
+                  >
+                    {option.value === "jpeg" ? "JPG" : "PNG"}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={[
+                        "block text-xs font-medium",
+                        selected ? "text-neutral-100" : "text-neutral-300",
+                      ].join(" ")}
+                    >
+                      {option.title}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] leading-3.5 text-neutral-500">
+                      {option.detail}
+                    </span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={[
+                      "h-2.5 w-2.5 shrink-0 rounded-full border",
+                      selected
+                        ? "border-blue-300 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.45)]"
+                        : "border-neutral-600 bg-neutral-950",
+                    ].join(" ")}
+                  />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mx-1 my-2 h-px bg-neutral-800" />
+          <div className="px-1 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            Image details
+          </div>
           <button
             type="button"
             onClick={() => setEmbedExif((value) => !value)}
             role="switch"
             aria-checked={embedExif}
             tabIndex={exportMenuOpen ? 0 : -1}
-            className="!m-0 !min-h-0 !w-full !rounded-md !border-0 !bg-neutral-900/80 !px-3 !py-2.5 !outline-none
+            className="!m-0 !min-h-0 !w-full !rounded-md !border !border-neutral-800 !bg-neutral-900/70 !px-3 !py-2.5 !outline-none
                 flex items-center gap-3 text-left cursor-pointer
                 focus-visible:!ring-1 focus-visible:!ring-blue-500/70"
           >
