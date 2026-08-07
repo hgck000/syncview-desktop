@@ -1,4 +1,5 @@
 name: Release (macOS + Windows) — single release job
+run-name: ${{ inputs.friend_build == true && 'Friend build' || 'Release' }} — ${{ inputs.tag_name || github.ref_name }}
 
 on:
   push:
@@ -6,8 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Tag để attach assets (ví dụ: vx.y.z). BẮT BUỘC khi chạy tay."
+        description: "Version/tag dùng để đặt tên build (ví dụ: v3.1.1)."
         required: true
+      friend_build:
+        description: "Private friend build: remove Coffee/QR and only upload Actions artifacts"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -36,10 +42,23 @@ jobs:
 
       - name: FE build
         working-directory: frontend
+        env:
+          VITE_ENABLE_COFFEE: ${{ inputs.friend_build == true && 'false' || 'true' }}
         run: |
           npm ci
           npm run test
           npm run build
+
+      - name: Strip Coffee QR from friend frontend
+        if: ${{ inputs.friend_build == true }}
+        working-directory: frontend
+        run: |
+          rm -f dist/syncview-qr.png
+          test ! -f dist/syncview-qr.png
+          if grep -R -E "Buy me a coffee|syncview-qr\.png" dist/assets; then
+            echo "Coffee UI is still present in the friend frontend bundle"
+            exit 1
+          fi
 
       - name: BE deps
         run: |
@@ -99,7 +118,8 @@ jobs:
           cd dist
 
           APP="SyncView-${{ matrix.arch }}.app"
-          DMG="SyncView-mac-${{ matrix.arch }}.dmg"
+          FRIEND_SUFFIX="${{ inputs.friend_build == true && '-Friend' || '' }}"
+          DMG="SyncView${FRIEND_SUFFIX}-mac-${{ matrix.arch }}.dmg"
 
           # clean outputs
           rm -f "$DMG"
@@ -132,8 +152,8 @@ jobs:
       - name: Upload mac artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SyncView-mac-${{ matrix.arch }}
-          path: dist/SyncView-mac-${{ matrix.arch }}.dmg
+          name: SyncView${{ inputs.friend_build == true && '-Friend' || '' }}-mac-${{ matrix.arch }}
+          path: dist/SyncView${{ inputs.friend_build == true && '-Friend' || '' }}-mac-${{ matrix.arch }}.dmg
           if-no-files-found: error
           retention-days: 5
 
@@ -150,6 +170,8 @@ jobs:
       - name: FE build
         shell: pwsh
         working-directory: frontend
+        env:
+          VITE_ENABLE_COFFEE: ${{ inputs.friend_build == true && 'false' || 'true' }}
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
@@ -159,6 +181,24 @@ jobs:
           npm run type-check
           npm run lint
           npm run build
+
+      - name: Strip Coffee QR from friend frontend
+        if: ${{ inputs.friend_build == true }}
+        shell: pwsh
+        working-directory: frontend
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+
+          Remove-Item -Force .\dist\syncview-qr.png -ErrorAction SilentlyContinue
+          if (Test-Path .\dist\syncview-qr.png) {
+            throw "Coffee QR is still present in the friend frontend build"
+          }
+
+          $coffeeReferences = Get-ChildItem .\dist\assets -File | Select-String -Pattern "Buy me a coffee", "syncview-qr.png" -SimpleMatch
+          if ($coffeeReferences) {
+            throw "Coffee UI is still present in the friend frontend bundle"
+          }
 
       - name: BE deps
         shell: pwsh
@@ -219,6 +259,7 @@ jobs:
           # Lấy version từ tag v2.1.0 -> 2.1.0 (khi chạy tag) hoặc từ inputs.tag_name (khi workflow_dispatch)
           $tag = "${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
           $ver = $tag.TrimStart('v')
+          $friendSuffix = if ("${{ inputs.friend_build }}" -eq "true") { "-Friend" } else { "" }
           echo "Tag=$tag  Version=$ver"
 
           # Không để installer cũ đã commit trong Output lọt vào artifact mới.
@@ -238,19 +279,24 @@ jobs:
             throw "WebView2 bootstrapper signature is not valid: $($webViewSignature.Status)"
           }
 
-          # Build installer, truyền define vào installer.iss
-          iscc /DMyAppVersion=$ver .\installer.iss
+          # Build installer. Friend builds use a distinct filename while the
+          # installed application name/version stay identical.
+          if ($friendSuffix) {
+            iscc /DMyAppVersion=$ver /DMyAppOutputSuffix=$friendSuffix .\installer.iss
+          } else {
+            iscc /DMyAppVersion=$ver .\installer.iss
+          }
 
           # Chỉ chấp nhận đúng installer của version đang phát hành.
           Get-ChildItem -Recurse .\Output | Select-Object FullName, Length
-          $setup = ".\Output\SyncView-$ver-Setup.exe"
+          $setup = ".\Output\SyncView-$ver$friendSuffix-Setup.exe"
           if (!(Test-Path $setup)) {
             throw "Missing $setup"
           }
 
           # Bản portable: giải nén rồi chạy SyncView.exe, không cần cài đặt.
           # Nén nội dung bên trong thư mục để SyncView.exe nằm ngay ở gốc ZIP.
-          $portable = ".\Output\SyncView-$tag-win64.zip"
+          $portable = ".\Output\SyncView-$tag$friendSuffix-win64.zip"
           Compress-Archive `
             -Path ".\dist\SyncView\*" `
             -DestinationPath $portable `
@@ -266,7 +312,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           $tag = "${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
           $ver = $tag.TrimStart('v')
-          $setup = (Resolve-Path ".\Output\SyncView-$ver-Setup.exe").Path
+          $friendSuffix = if ("${{ inputs.friend_build }}" -eq "true") { "-Friend" } else { "" }
+          $setup = (Resolve-Path ".\Output\SyncView-$ver$friendSuffix-Setup.exe").Path
           $installDir = Join-Path $env:RUNNER_TEMP "SyncView-Smoke"
 
           Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
@@ -346,7 +393,7 @@ jobs:
       - name: Upload win artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SyncView-Windows-x64
+          name: SyncView${{ inputs.friend_build == true && '-Friend' || '' }}-Windows-x64
           path: |
             Output\SyncView-*-Setup.exe
             Output\SyncView-v*-win64.zip
@@ -356,7 +403,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [build-mac, build-windows]
-    if: ${{ github.ref_type == 'tag' || inputs.tag_name != '' }}
+    if: ${{ inputs.friend_build != true && (github.ref_type == 'tag' || inputs.tag_name != '') }}
     steps:
       - uses: actions/download-artifact@v4
         with:
