@@ -234,7 +234,7 @@ function SortablePaneRow({
               title={
                 reference
                   ? "Exit reference comparison"
-                  : "Use as reference image"
+                  : "Favourite"
               }
             >
               <Target className="w-3.5 h-3.5" strokeWidth={2.2} />
@@ -403,7 +403,7 @@ export default function Sidebar({
               className="flex items-center justify-center w-6 h-6 rounded-md
                          text-neutral-400 hover:text-white hover:bg-white/10
                          active:scale-95 cursor-pointer transition"
-              title="Thu nhỏ sidebar"
+              title="Minimize"
             >
               <ChevronsLeft className="h-4 w-4" />
             </div>

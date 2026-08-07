@@ -414,7 +414,7 @@ export default function Toolbar() {
         title={
           paneCount >= 2
             ? "Manual Blink — switch images with keys 1–4"
-            : "Blink requires at least two images"
+            : "At least 2 images required"
         }
         className={`${BTN_BASE} ${
           paneCount < 2
@@ -715,7 +715,7 @@ export default function Toolbar() {
         title={
           paneCount === 4
             ? `Switch to ${layout === "row1x4" ? "2x2" : "1x4"} layout`
-            : "Layout toggle is available when you have 4 photos"
+            : "Available with 4 images"
         }
         className={`px-2 py-1 rounded flex items-center gap-1
             ${
@@ -743,9 +743,7 @@ export default function Toolbar() {
           title={
             exporting
               ? "Exporting workspace..."
-              : embedExif
-              ? `Export workspace as ${exportFormat.toUpperCase()} with EXIF overlay`
-              : `Export workspace as ${exportFormat.toUpperCase()}`
+              : "Export workspace"
           }
           className={`!m-0 !min-w-0 !flex-1 !rounded-l-md !rounded-r-none !border-0 !px-1.5 !py-0 !outline-none
             group h-7 flex items-center gap-1 !font-normal select-none justify-center
