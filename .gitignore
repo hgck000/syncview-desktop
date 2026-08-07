@@ -3,6 +3,7 @@ node_modules/
 
 # Python
 .venv/
+.venv-build/
 __pycache__/
 *.pyc
 *.pyo
@@ -15,6 +16,7 @@ dist/
 build/
 Output/*.exe
 Output/*.zip
+assets/MicrosoftEdgeWebView2Setup.exe
 
 # OS
 .DS_Store

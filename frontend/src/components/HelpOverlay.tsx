@@ -1,4 +1,5 @@
 import { useApp } from "../app/store";
+import { buildFeatures } from "../app/buildFeatures";
 import { X } from "lucide-react";
 
 export default function HelpOverlay() {
@@ -74,17 +75,19 @@ export default function HelpOverlay() {
               <Row k="" d="github.com/hgck000" />
             </div>
 
-            <div className="shrink-0">
-              <div className="font-medium mb-2 text-neutral-100 flex justify-center">
-                Buy me a coffee
+            {buildFeatures.coffee ? (
+              <div className="shrink-0">
+                <div className="font-medium mb-2 text-neutral-100 flex justify-center">
+                  Buy me a coffee
+                </div>
+                <img
+                  src="/syncview-qr.png"
+                  alt="SyncView QR"
+                  draggable={false}
+                  className="w-35 h-35 rounded bg-white p-1"
+                />
               </div>
-              <img
-                src="/syncview-qr.png"
-                alt="SyncView QR"
-                draggable={false}
-                className="w-35 h-35 rounded bg-white p-1"
-              />
-            </div>
+            ) : null}
           </div>
         </div>
 

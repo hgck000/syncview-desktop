@@ -10,6 +10,10 @@
   #define MyAppVersion "0.0.0"
 #endif
 
+#ifndef MyAppOutputSuffix
+  #define MyAppOutputSuffix ""
+#endif
+
 #define MyAppName "SyncView"
 #define MyAppExeName "SyncView.exe"
 #define MyAppPublisher "hgck000"
@@ -31,7 +35,7 @@ VersionInfoProductName={#MyAppName}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=Output
-OutputBaseFilename={#MyAppName}-{#MyAppVersion}-Setup
+OutputBaseFilename={#MyAppName}-{#MyAppVersion}{#MyAppOutputSuffix}-Setup
 Compression=lzma2
 SolidCompression=yes
 DisableProgramGroupPage=yes
