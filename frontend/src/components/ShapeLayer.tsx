@@ -134,11 +134,13 @@ function ShapeHitbox({
     >
       {selected && (
         <>
-          <button
-            type="button"
+          <CircleX
+            role="button"
+            tabIndex={0}
             aria-label="Delete shape"
             title="Delete shape"
-            className="absolute -right-2 -top-2 z-10 w-4 h-4 p-0 border-0 bg-transparent appearance-none rounded-full text-neutral-300 transition-[color,transform] hover:text-red-400 active:scale-90"
+            className="absolute -right-2 -top-2 z-10 block w-4 h-4 cursor-pointer text-neutral-400 transition-[color,filter,transform] hover:text-white hover:drop-shadow-[0_0_2px_rgba(255,255,255,0.45)] active:scale-90"
+            strokeWidth={2.2}
             onMouseDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -148,9 +150,13 @@ function ShapeHitbox({
               event.stopPropagation();
               onDelete();
             }}
-          >
-            <CircleX className="block w-4 h-4" strokeWidth={2.2} />
-          </button>
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              event.stopPropagation();
+              onDelete();
+            }}
+          />
           <div
             className="absolute -right-1 -bottom-1 w-3 h-3 rounded-sm border border-white/70 bg-black/40"
             style={{ cursor: "se-resize" }}

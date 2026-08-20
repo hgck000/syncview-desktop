@@ -844,20 +844,21 @@ export default function Toolbar() {
 
                 {shapeOpen && (
                   <div
-                    className="sv-popover-enter absolute z-50 mt-1 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
+                    className="sv-popover-enter absolute z-50 mt-1 w-9 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
                     onMouseDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
                     }}
                   >
-                    <div className="flex gap-1">
+                    <div className="flex flex-col gap-1">
                       {SHAPE_OPTIONS.map(({ value, label, Icon }) => (
-                        <button
-                          type="button"
+                        <div
                           key={value}
+                          role="option"
+                          aria-selected={shownShapeStyle.kind === value}
                           aria-label={label}
                           title={label}
-                          className={`h-7 w-7 flex items-center justify-center rounded cursor-pointer select-none transition-[background-color,color,transform] duration-150 active:scale-90 ${
+                          className={`h-7 w-7 flex items-center justify-center rounded cursor-pointer select-none transition-[background-color,color] duration-150 ${
                             shownShapeStyle.kind === value
                               ? "bg-blue-600/60 text-white"
                               : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
@@ -868,7 +869,7 @@ export default function Toolbar() {
                           }}
                         >
                           <Icon className="w-4 h-4" aria-hidden="true" />
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -910,59 +911,67 @@ export default function Toolbar() {
 
                 {strokeOpen && (
                   <div
-                    className="sv-popover-enter absolute z-50 mt-1 w-36 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-2"
+                    className="sv-popover-enter absolute z-50 mt-1 w-24 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
                     onMouseDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
                     }}
                   >
-                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                    <div className="px-1 pt-0.5 pb-1 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
                       Thickness
                     </div>
-                    <div className="grid grid-cols-4 gap-1">
+                    <div className="flex flex-col gap-1">
                       {SHAPE_STROKE_PRESETS.map(
                         ({ value, preview, title }) => (
-                          <button
-                            type="button"
+                          <div
                             key={value}
+                            role="option"
+                            aria-selected={
+                              shownShapeStyle.strokeWidthImgPx === value
+                            }
                             aria-label={title}
                             title={title}
                             onMouseDown={() =>
                               applyShapeStyle({ strokeWidthImgPx: value })
                             }
-                            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition-[background-color,color,transform] duration-150 active:scale-90 ${btnToggle(
-                              shownShapeStyle.strokeWidthImgPx === value,
-                            )}`}
+                            className={`h-6 w-full rounded flex items-center justify-center cursor-pointer select-none transition-[background-color,color] duration-150 ${
+                              shownShapeStyle.strokeWidthImgPx === value
+                                ? "bg-blue-600/60 text-white"
+                                : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
+                            }`}
                           >
                             <svg
-                              viewBox="0 0 24 12"
-                              className="w-5 h-3"
+                              viewBox="0 0 56 12"
+                              className="w-14 h-3"
                               aria-hidden="true"
                             >
                               <line
-                                x1="2"
+                                x1="3"
                                 y1="6"
-                                x2="22"
+                                x2="53"
                                 y2="6"
                                 stroke="currentColor"
                                 strokeWidth={preview}
                                 strokeLinecap="round"
                               />
                             </svg>
-                          </button>
+                          </div>
                         ),
                       )}
                     </div>
 
-                    <div className="my-2 h-px bg-neutral-700/70" />
-                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                    <div className="my-1 h-px bg-neutral-700/70" />
+                    <div className="px-1 py-1 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
                       Style
                     </div>
-                    <div className="grid grid-cols-2 gap-1">
+                    <div className="flex flex-col gap-1">
                       {(["solid", "dashed"] as const).map((strokeStyle) => (
-                        <button
-                          type="button"
+                        <div
                           key={strokeStyle}
+                          role="option"
+                          aria-selected={
+                            shownShapeStyle.strokeStyle === strokeStyle
+                          }
                           aria-label={
                             strokeStyle === "solid"
                               ? "Solid stroke"
@@ -976,19 +985,21 @@ export default function Toolbar() {
                           onMouseDown={() =>
                             applyShapeStyle({ strokeStyle })
                           }
-                          className={`h-7 rounded inline-flex items-center justify-center select-none transition-[background-color,color,transform] duration-150 active:scale-[0.96] ${btnToggle(
-                            shownShapeStyle.strokeStyle === strokeStyle,
-                          )}`}
+                          className={`h-6 w-full rounded flex items-center justify-center cursor-pointer select-none transition-[background-color,color] duration-150 ${
+                            shownShapeStyle.strokeStyle === strokeStyle
+                              ? "bg-blue-600/60 text-white"
+                              : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
+                          }`}
                         >
                           <svg
-                            viewBox="0 0 40 12"
-                            className="w-10 h-3"
+                            viewBox="0 0 56 12"
+                            className="w-14 h-3"
                             aria-hidden="true"
                           >
                             <line
                               x1="3"
                               y1="6"
-                              x2="37"
+                              x2="53"
                               y2="6"
                               stroke="currentColor"
                               strokeWidth="2"
@@ -998,7 +1009,7 @@ export default function Toolbar() {
                               }
                             />
                           </svg>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
