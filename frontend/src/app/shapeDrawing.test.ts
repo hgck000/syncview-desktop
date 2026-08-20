@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ShapeAnnotation } from "./store";
-import { drawShapeOutline, getShapeEndpoints } from "./shapeDrawing";
+import {
+  constrainShapeEnd,
+  drawShapeOutline,
+  getShapeEndpoints,
+} from "./shapeDrawing";
 
 function mockContext() {
   const fill = vi.fn();
   const stroke = vi.fn();
+  const setLineDash = vi.fn();
   const context = {
     save: vi.fn(),
     restore: vi.fn(),
@@ -14,6 +19,7 @@ function mockContext() {
     moveTo: vi.fn(),
     lineTo: vi.fn(),
     closePath: vi.fn(),
+    setLineDash,
     fill,
     stroke,
     globalCompositeOperation: "source-over",
@@ -22,7 +28,7 @@ function mockContext() {
     lineCap: "butt",
     lineJoin: "miter",
   } as unknown as CanvasRenderingContext2D;
-  return { context, fill, stroke };
+  return { context, fill, stroke, setLineDash };
 }
 
 const baseShape: ShapeAnnotation = {
@@ -30,6 +36,7 @@ const baseShape: ShapeAnnotation = {
   kind: "rectangle",
   color: "#ffffff",
   strokeWidthImgPx: 8,
+  strokeStyle: "solid",
   u: 0.1,
   v: 0.2,
   w: 0.3,
@@ -51,7 +58,7 @@ describe("shape drawing", () => {
   it("strokes every supported shape without filling its interior", () => {
     for (const kind of [
       "rectangle",
-      "circle",
+      "ellipse",
       "triangle",
       "line",
       "arrow",
@@ -66,5 +73,37 @@ describe("shape drawing", () => {
       expect(stroke).toHaveBeenCalledOnce();
       expect(fill).not.toHaveBeenCalled();
     }
+  });
+
+  it("uses a dashed canvas pattern when requested", () => {
+    const { context, setLineDash } = mockContext();
+    drawShapeOutline(
+      context,
+      { ...baseShape, strokeStyle: "dashed" },
+      { x: 10, y: 20, width: 100, height: 80 },
+      6,
+    );
+    expect(setLineDash).toHaveBeenCalledWith([18, 12]);
+  });
+
+  it("keeps Ellipse freeform unless Shift constrains it to a Circle", () => {
+    const start = { u: 0.1, v: 0.1 };
+    const end = { u: 0.5, v: 0.3 };
+
+    expect(
+      constrainShapeEnd(start, end, "ellipse", 1000, 1000, false),
+    ).toEqual(end);
+
+    const constrained = constrainShapeEnd(
+      start,
+      end,
+      "ellipse",
+      1000,
+      1000,
+      true,
+    );
+    expect(constrained.u - start.u).toBeCloseTo(
+      constrained.v - start.v,
+    );
   });
 });

@@ -204,7 +204,7 @@ function TextBoxView(props: {
             type="button"
             aria-label="Delete text"
             title="Delete text"
-            className="absolute -right-2 -top-2 z-10 w-4 h-4 rounded-full border border-white/60 bg-neutral-900 text-white flex items-center justify-center shadow-sm hover:bg-red-600 active:scale-90"
+            className="group absolute -right-2 -top-2 z-10 w-4 h-4 flex items-center justify-center text-neutral-300 active:scale-90"
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -215,7 +215,9 @@ function TextBoxView(props: {
               props.onDelete();
             }}
           >
-            <X className="w-3 h-3" strokeWidth={2.5} />
+            <span className="w-3 h-3 rounded-full border border-white/35 bg-neutral-950/90 flex items-center justify-center transition-colors group-hover:border-red-400/80 group-hover:bg-red-600 group-hover:text-white">
+              <X className="w-2 h-2" strokeWidth={2.4} />
+            </span>
           </button>
           <div
             className="absolute -right-1 -bottom-1 w-3 h-3 rounded-sm border border-white/60 bg-black/30"

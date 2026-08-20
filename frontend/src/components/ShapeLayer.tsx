@@ -7,6 +7,7 @@ import {
   type ShapeKind,
 } from "../app/store";
 import { cursorClear, cursorSet } from "../app/cursorManager";
+import { constrainShapeEnd } from "../app/shapeDrawing";
 
 type View = {
   scale: number;
@@ -62,47 +63,6 @@ function clientToUv(
   return {
     u: clamp(x / img.w, 0, 1),
     v: clamp(y / img.h, 0, 1),
-  };
-}
-
-function constrainEnd(
-  start: { u: number; v: number },
-  end: { u: number; v: number },
-  kind: ShapeKind,
-  img: ImgRect,
-  constrained: boolean,
-) {
-  if (!constrained && kind !== "circle") return end;
-
-  let dxPx = (end.u - start.u) * img.w;
-  let dyPx = (end.v - start.v) * img.h;
-
-  if (kind === "line" || kind === "arrow") {
-    const length = Math.hypot(dxPx, dyPx);
-    if (!length) return end;
-    const angle = Math.atan2(dyPx, dxPx);
-    const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-    dxPx = Math.cos(snapped) * length;
-    dyPx = Math.sin(snapped) * length;
-    return {
-      u: clamp(start.u + dxPx / img.w, 0, 1),
-      v: clamp(start.v + dyPx / img.h, 0, 1),
-    };
-  }
-
-  const signX = dxPx < 0 ? -1 : 1;
-  const signY = dyPx < 0 ? -1 : 1;
-  const availableX = (signX > 0 ? 1 - start.u : start.u) * img.w;
-  const availableY = (signY > 0 ? 1 - start.v : start.v) * img.h;
-  const side = Math.min(
-    Math.max(Math.abs(dxPx), Math.abs(dyPx)),
-    availableX,
-    availableY,
-  );
-
-  return {
-    u: start.u + (signX * side) / img.w,
-    v: start.v + (signY * side) / img.h,
   };
 }
 
@@ -178,7 +138,7 @@ function ShapeHitbox({
             type="button"
             aria-label="Delete shape"
             title="Delete shape"
-            className="absolute -right-2 -top-2 z-10 w-4 h-4 rounded-full border border-white/60 bg-neutral-900 text-white flex items-center justify-center shadow-sm hover:bg-red-600 active:scale-90"
+            className="group absolute -right-2 -top-2 z-10 w-4 h-4 flex items-center justify-center text-neutral-300 active:scale-90"
             onMouseDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -189,7 +149,9 @@ function ShapeHitbox({
               onDelete();
             }}
           >
-            <X className="w-3 h-3" strokeWidth={2.5} />
+            <span className="w-3 h-3 rounded-full border border-white/35 bg-neutral-950/90 flex items-center justify-center transition-colors group-hover:border-red-400/80 group-hover:bg-red-600 group-hover:text-white">
+              <X className="w-2 h-2" strokeWidth={2.4} />
+            </span>
           </button>
           <div
             className="absolute -right-1 -bottom-1 w-3 h-3 rounded-sm border border-white/70 bg-black/40"
@@ -256,7 +218,6 @@ export default function ShapeLayer({
     startX: number;
     startY: number;
     start: ShapeRect;
-    shapeKind: ShapeKind;
   }>(null);
 
   useEffect(() => {
@@ -318,11 +279,12 @@ export default function ShapeLayer({
           imgRect,
         );
         if (!rawEnd) return;
-        const end = constrainEnd(
+        const end = constrainShapeEnd(
           drawing.start,
           rawEnd,
           drawing.kind,
-          imgRect,
+          imgRect.w,
+          imgRect.h,
           event.shiftKey,
         );
         setShapeRect(
@@ -349,7 +311,7 @@ export default function ShapeLayer({
 
       let w = clamp(drag.start.w + du, 0, 1 - drag.start.u);
       let h = clamp(drag.start.h + dv, 0, 1 - drag.start.v);
-      if (event.shiftKey || drag.shapeKind === "circle") {
+      if (event.shiftKey) {
         const side = Math.min(
           Math.max(w * imgRect.w, h * imgRect.h),
           (1 - drag.start.u) * imgRect.w,
@@ -422,6 +384,7 @@ export default function ShapeLayer({
       kind: shapeTool.kind,
       color: shapeTool.color,
       strokeWidthImgPx: shapeTool.strokeWidthImgPx,
+      strokeStyle: shapeTool.strokeStyle,
     });
     drawingRef.current = { id, start, kind: shapeTool.kind };
     selectShape(paneId, id);
@@ -463,7 +426,6 @@ export default function ShapeLayer({
                     flipX: shape.flipX,
                     flipY: shape.flipY,
                   },
-                  shapeKind: shape.kind,
                 };
               }}
               onResize={(event) => {
@@ -480,7 +442,6 @@ export default function ShapeLayer({
                     flipX: shape.flipX,
                     flipY: shape.flipY,
                   },
-                  shapeKind: shape.kind,
                 };
               }}
               onDelete={() => deleteShape(targets, shape.id)}

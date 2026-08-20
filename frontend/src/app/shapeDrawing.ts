@@ -1,4 +1,4 @@
-import type { ShapeAnnotation } from "./store";
+import type { ShapeAnnotation, ShapeKind } from "./store";
 
 export type ShapeBounds = {
   x: number;
@@ -6,6 +6,55 @@ export type ShapeBounds = {
   width: number;
   height: number;
 };
+
+type ShapePoint = { u: number; v: number };
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+export function constrainShapeEnd(
+  start: ShapePoint,
+  end: ShapePoint,
+  kind: ShapeKind,
+  imageWidth: number,
+  imageHeight: number,
+  constrained: boolean,
+): ShapePoint {
+  if (!constrained) return end;
+
+  let dxPx = (end.u - start.u) * imageWidth;
+  let dyPx = (end.v - start.v) * imageHeight;
+
+  if (kind === "line" || kind === "arrow") {
+    const length = Math.hypot(dxPx, dyPx);
+    if (!length) return end;
+    const angle = Math.atan2(dyPx, dxPx);
+    const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+    dxPx = Math.cos(snapped) * length;
+    dyPx = Math.sin(snapped) * length;
+    return {
+      u: clamp(start.u + dxPx / imageWidth, 0, 1),
+      v: clamp(start.v + dyPx / imageHeight, 0, 1),
+    };
+  }
+
+  const signX = dxPx < 0 ? -1 : 1;
+  const signY = dyPx < 0 ? -1 : 1;
+  const availableX =
+    (signX > 0 ? 1 - start.u : start.u) * imageWidth;
+  const availableY =
+    (signY > 0 ? 1 - start.v : start.v) * imageHeight;
+  const side = Math.min(
+    Math.max(Math.abs(dxPx), Math.abs(dyPx)),
+    availableX,
+    availableY,
+  );
+
+  return {
+    u: start.u + (signX * side) / imageWidth,
+    v: start.v + (signY * side) / imageHeight,
+  };
+}
 
 export function getShapeEndpoints(
   shape: Pick<ShapeAnnotation, "flipX" | "flipY">,
@@ -33,6 +82,11 @@ export function drawShapeOutline(
   ctx.lineWidth = safeLineWidth;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  ctx.setLineDash(
+    shape.strokeStyle === "dashed"
+      ? [safeLineWidth * 3, safeLineWidth * 2]
+      : [],
+  );
   ctx.beginPath();
 
   switch (shape.kind) {
@@ -40,7 +94,7 @@ export function drawShapeOutline(
       ctx.rect(x, y, width, height);
       break;
 
-    case "circle":
+    case "ellipse":
       ctx.ellipse(
         x + width / 2,
         y + height / 2,

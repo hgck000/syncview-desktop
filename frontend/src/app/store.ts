@@ -87,15 +87,18 @@ export type TextUIState = {
 
 export type ShapeKind =
   | "rectangle"
-  | "circle"
+  | "ellipse"
   | "triangle"
   | "line"
   | "arrow";
+
+export type ShapeStrokeStyle = "solid" | "dashed";
 
 export type ShapeStyle = {
   kind: ShapeKind;
   color: string;
   strokeWidthImgPx: number;
+  strokeStyle: ShapeStrokeStyle;
 };
 
 export type ShapeAnnotation = ShapeStyle & {
@@ -130,7 +133,38 @@ const DEFAULT_SHAPE_TOOL: ShapeToolState = {
   kind: "rectangle",
   color: "#ffffff",
   strokeWidthImgPx: 8,
+  strokeStyle: "solid",
 };
+
+const SHAPE_KINDS: ShapeKind[] = [
+  "rectangle",
+  "ellipse",
+  "triangle",
+  "line",
+  "arrow",
+];
+const SHAPE_STROKE_WIDTHS = [4, 8, 16, 28] as const;
+
+function normalizeShapeKind(value: unknown): ShapeKind {
+  if (value === "circle") return "ellipse";
+  return SHAPE_KINDS.includes(value as ShapeKind)
+    ? (value as ShapeKind)
+    : "rectangle";
+}
+
+function normalizeShapeStrokeStyle(value: unknown): ShapeStrokeStyle {
+  return value === "dashed" ? "dashed" : "solid";
+}
+
+function normalizeShapeStrokeWidth(value: unknown): number {
+  const width = Number(value);
+  if (!Number.isFinite(width)) return DEFAULT_SHAPE_TOOL.strokeWidthImgPx;
+  return SHAPE_STROKE_WIDTHS.reduce((nearest, candidate) =>
+    Math.abs(candidate - width) <= Math.abs(nearest - width)
+      ? candidate
+      : nearest
+  );
+}
 
 type GridState = { on: boolean; size: number; opacity: number };
 type PaneSize = { cw: number; ch: number };
@@ -691,10 +725,47 @@ export const useApp = create<AppState>()(
                 ? layoutRaw
                 : "row1x4";
 
+            const rawShapeTool =
+              raw.shapeTool && typeof raw.shapeTool === "object"
+                ? raw.shapeTool
+                : {};
+            const shapeTool: ShapeToolState = {
+              ...base.shapeTool,
+              ...rawShapeTool,
+              kind: normalizeShapeKind(rawShapeTool.kind),
+              strokeWidthImgPx: normalizeShapeStrokeWidth(
+                rawShapeTool.strokeWidthImgPx
+              ),
+              strokeStyle: normalizeShapeStrokeStyle(
+                rawShapeTool.strokeStyle
+              ),
+            };
+            const shapes = { A: [], B: [], C: [], D: [] } as Record<
+              PaneId,
+              ShapeAnnotation[]
+            >;
+            for (const pane of ORDER) {
+              const rawShapes = raw.shapes?.[pane];
+              shapes[pane] = Array.isArray(rawShapes)
+                ? rawShapes.map((shape: any) => ({
+                    ...shape,
+                    kind: normalizeShapeKind(shape?.kind),
+                    strokeWidthImgPx: normalizeShapeStrokeWidth(
+                      shape?.strokeWidthImgPx
+                    ),
+                    strokeStyle: normalizeShapeStrokeStyle(
+                      shape?.strokeStyle
+                    ),
+                  }))
+                : [];
+            }
+
             return {
               ...base,
               ...raw,
               layout,
+              shapeTool,
+              shapes,
               exif: {},
               comparison: EMPTY_COMPARISON,
             };

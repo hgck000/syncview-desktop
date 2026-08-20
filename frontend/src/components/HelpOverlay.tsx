@@ -66,7 +66,7 @@ export default function HelpOverlay() {
             <Row k="G" d="on/off erase" />
             <Row k="T" d="on/off text" />
             <Row k="S" d="on/off shape" />
-            <Row k="Shift+drag" d="square / snap angle" />
+            <Row k="Shift+drag" d="circle / square / snap angle" />
             <Row k="V" d="on/off loup" />
             <Row k="Drag right mouse" d="adjust tool size" />
           </div>

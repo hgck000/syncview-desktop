@@ -76,6 +76,7 @@ describe("tab preparation", () => {
       kind: "rectangle",
       color: "#ff3b30",
       strokeWidthImgPx: 8,
+      strokeStyle: "solid",
       u: 0.1,
       v: 0.2,
       w: 0.3,
@@ -94,20 +95,26 @@ describe("tab preparation", () => {
     useApp.getState().setShapeRect(["A", "B"], id, { u: 0.4, v: 0.5 });
     useApp
       .getState()
-      .setShapeStyle(["A", "B"], id, { kind: "arrow", strokeWidthImgPx: 12 });
+      .setShapeStyle(["A", "B"], id, {
+        kind: "arrow",
+        strokeWidthImgPx: 16,
+        strokeStyle: "dashed",
+      });
 
     tab = useApp.getState().getActiveSafe();
     expect(tab.shapes.A[0]).toMatchObject({
       u: 0.4,
       v: 0.5,
       kind: "arrow",
-      strokeWidthImgPx: 12,
+      strokeWidthImgPx: 16,
+      strokeStyle: "dashed",
     });
     expect(tab.shapes.B[0]).toMatchObject({
       u: 0.4,
       v: 0.5,
       kind: "arrow",
-      strokeWidthImgPx: 12,
+      strokeWidthImgPx: 16,
+      strokeStyle: "dashed",
     });
 
     useApp.getState().toggleDraw();
@@ -140,6 +147,7 @@ describe("tab preparation", () => {
       kind: "rectangle",
       color: "#ffffff",
       strokeWidthImgPx: 8,
+      strokeStyle: "solid",
     });
     expect(tab.shapes).toEqual({ A: [], B: [], C: [], D: [] });
     expect(tab.shapeUI.selected).toEqual({
@@ -147,6 +155,48 @@ describe("tab preparation", () => {
       B: null,
       C: null,
       D: null,
+    });
+  });
+
+  it("migrates the previous Circle shape to a freeform Ellipse", () => {
+    addTab("Previous shapes", ["shape.jpg"]);
+    const saved = useApp.getState().serialize();
+    saved.tabs[0].shapeTool = {
+      on: true,
+      kind: "circle",
+      color: "#ffffff",
+      strokeWidthImgPx: 12,
+    };
+    saved.tabs[0].shapes.A = [
+      {
+        id: 7,
+        kind: "circle",
+        color: "#ffffff",
+        strokeWidthImgPx: 12,
+        u: 0.1,
+        v: 0.2,
+        w: 0.3,
+        h: 0.2,
+        flipX: false,
+        flipY: false,
+      },
+    ];
+
+    useApp.setState({ tabs: [], activeTabId: "" });
+    useApp.getState().loadFromSession(saved);
+
+    const tab = useApp.getState().getActiveSafe();
+    expect(tab.shapeTool).toMatchObject({
+      kind: "ellipse",
+      strokeStyle: "solid",
+      strokeWidthImgPx: 16,
+    });
+    expect(tab.shapes.A[0]).toMatchObject({
+      kind: "ellipse",
+      strokeStyle: "solid",
+      strokeWidthImgPx: 16,
+      w: 0.3,
+      h: 0.2,
     });
   });
 
