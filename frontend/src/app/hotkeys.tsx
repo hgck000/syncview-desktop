@@ -78,6 +78,8 @@ export default function Hotkeys() {
   const toggleErase = useApp((s) => s.toggleErase);
   const toggleText = useApp((s) => s.toggleText);
   const deleteTextBox = useApp((s) => s.deleteTextBox);
+  const toggleShape = useApp((s) => s.toggleShape);
+  const deleteShape = useApp((s) => s.deleteShape);
 
   const nextEmptyPaneId = useApp((s) => s.nextEmptyPaneId);
 
@@ -144,6 +146,11 @@ export default function Hotkeys() {
         if (isEditableTarget(e)) return;
         e.preventDefault();
         toggleText();
+      },
+      S: (e) => {
+        if (isEditableTarget(e)) return;
+        e.preventDefault();
+        toggleShape();
       },
 
       // "ctrl+o": async (e) => {
@@ -212,6 +219,30 @@ export default function Hotkeys() {
             //   deleteTextBox(panes, idSel);
             //   return;
             // }
+          }
+        }
+        if (t?.shapeTool?.on) {
+          let paneSel: "A" | "B" | "C" | "D" | null = null;
+          let idSel: number | null = null;
+          for (const pane of ["A", "B", "C", "D"] as const) {
+            const id = t.shapeUI?.selected?.[pane] ?? null;
+            if (id != null) {
+              paneSel = pane;
+              idSel = id;
+              break;
+            }
+          }
+
+          if (paneSel && idSel != null) {
+            e.preventDefault();
+            e.stopPropagation();
+            const panes = t.linkAll
+              ? t.panes?.length
+                ? t.panes
+                : ["A", "B", "C", "D"]
+              : [paneSel];
+            deleteShape(panes, idSel);
+            return;
           }
         }
       }
@@ -314,6 +345,8 @@ export default function Hotkeys() {
     toggleErase,
     toggleText,
     deleteTextBox,
+    toggleShape,
+    deleteShape,
   ]);
 
   return null;

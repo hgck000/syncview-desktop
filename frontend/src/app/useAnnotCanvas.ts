@@ -2,12 +2,14 @@ import { useEffect, useRef } from "react";
 import {
   useApp,
   type PaneId,
+  type ShapeAnnotation,
   type Stroke,
   type TextBox,
   type TextStyle,
 } from "./store";
 import { useCallback } from "react";
 import { strokeUVToImgPx } from "./annotCoords";
+import { drawShapeOutline } from "./shapeDrawing";
 
 type Pointer = { u: number; v: number };
 type LoupeOpt = {
@@ -317,6 +319,48 @@ export function useAnnotCanvas(opts: {
     [view.imgW, view.imgH, view.scale, view.offsetX, view.offsetY, paneId]
   );
 
+  const drawShapes = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      cwCss: number,
+      chCss: number,
+      shapes: ShapeAnnotation[],
+    ) => {
+      const iw = view.imgW ?? 0;
+      const ih = view.imgH ?? 0;
+      if (!iw || !ih || !shapes.length) return;
+
+      const fit = Math.min(cwCss / iw, chCss / ih);
+      const total = fit * view.scale;
+      const w = iw * total;
+      const h = ih * total;
+      const x = (cwCss - w) / 2 + view.offsetX;
+      const y = (chCss - h) / 2 + view.offsetY;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+
+      for (const shape of shapes) {
+        drawShapeOutline(
+          ctx,
+          shape,
+          {
+            x: x + shape.u * w,
+            y: y + shape.v * h,
+            width: shape.w * w,
+            height: shape.h * h,
+          },
+          shape.strokeWidthImgPx * total,
+        );
+      }
+
+      ctx.restore();
+    },
+    [view.imgW, view.imgH, view.scale, view.offsetX, view.offsetY],
+  );
+
   const draw = useCallback(() => {
     if (suspendedRef.current) return;
     const canvas = canvasRef.current;
@@ -348,6 +392,9 @@ export function useAnnotCanvas(opts: {
     const strokes = t.strokes[paneId] ?? [];
     drawStrokes(ctx, cwCss, chCss, strokes);
 
+    const shapes = t.shapes[paneId] ?? [];
+    drawShapes(ctx, cwCss, chCss, shapes);
+
     const boxes = t.textBoxes[paneId] ?? [];
     drawTextBoxes(ctx, cwCss, chCss, boxes);
 
@@ -372,6 +419,7 @@ export function useAnnotCanvas(opts: {
       ctx.translate(-cx, -cy);
 
       drawStrokes(ctx, cwCss, chCss, strokes);
+      drawShapes(ctx, cwCss, chCss, shapes);
       drawTextBoxes(ctx, cwCss, chCss, boxes);
 
       ctx.restore();
@@ -422,6 +470,7 @@ export function useAnnotCanvas(opts: {
     pointer.u,
     pointer.v,
     drawStrokes,
+    drawShapes,
     drawTextBoxes,
     view.scale,
     uiActive,
@@ -503,6 +552,14 @@ export function useAnnotCanvas(opts: {
     const unsub = useApp.subscribe(
       (s) => s.getActiveSafe().textBoxes[paneId],
       () => schedule()
+    );
+    return () => unsub();
+  }, [paneId, schedule]);
+
+  useEffect(() => {
+    const unsub = useApp.subscribe(
+      (s) => s.getActiveSafe().shapes[paneId],
+      () => schedule(),
     );
     return () => unsub();
   }, [paneId, schedule]);

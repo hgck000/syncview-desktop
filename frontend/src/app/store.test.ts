@@ -67,6 +67,89 @@ describe("tab preparation", () => {
     expect(MAX_VIEW_SCALE).toBe(15);
   });
 
+  it("keeps shape notes synchronized and mutually exclusive with drawing", () => {
+    addTab("Shapes", ["shape-a.jpg", "shape-b.jpg"]);
+    useApp.getState().toggleLinkAll();
+    useApp.getState().toggleShape();
+
+    const id = useApp.getState().createShape(["A", "B"], "A", {
+      kind: "rectangle",
+      color: "#ff3b30",
+      strokeWidthImgPx: 8,
+      u: 0.1,
+      v: 0.2,
+      w: 0.3,
+      h: 0.25,
+      flipX: false,
+      flipY: false,
+    });
+
+    let tab = useApp.getState().getActiveSafe();
+    expect(tab.shapes.A[0]?.id).toBe(id);
+    expect(tab.shapes.B[0]?.id).toBe(id);
+    expect(tab.shapeUI.selected.A).toBe(id);
+    expect(tab.shapeUI.selected.B).toBe(id);
+    expect(useApp.getState().serialize().tabs[0].shapes.A[0].id).toBe(id);
+
+    useApp.getState().setShapeRect(["A", "B"], id, { u: 0.4, v: 0.5 });
+    useApp
+      .getState()
+      .setShapeStyle(["A", "B"], id, { kind: "arrow", strokeWidthImgPx: 12 });
+
+    tab = useApp.getState().getActiveSafe();
+    expect(tab.shapes.A[0]).toMatchObject({
+      u: 0.4,
+      v: 0.5,
+      kind: "arrow",
+      strokeWidthImgPx: 12,
+    });
+    expect(tab.shapes.B[0]).toMatchObject({
+      u: 0.4,
+      v: 0.5,
+      kind: "arrow",
+      strokeWidthImgPx: 12,
+    });
+
+    useApp.getState().toggleDraw();
+    tab = useApp.getState().getActiveSafe();
+    expect(tab.annotate.mode).toBe("draw");
+    expect(tab.shapeTool.on).toBe(false);
+    expect(tab.shapeUI.selected.A).toBeNull();
+
+    useApp.getState().deleteShape(["A", "B"], id);
+    tab = useApp.getState().getActiveSafe();
+    expect(tab.shapes.A).toHaveLength(0);
+    expect(tab.shapes.B).toHaveLength(0);
+  });
+
+  it("loads sessions created before shape notes existed", () => {
+    addTab("Legacy", ["legacy.jpg"]);
+    const saved = useApp.getState().serialize();
+    for (const tab of saved.tabs) {
+      delete tab.shapeTool;
+      delete tab.shapes;
+      delete tab.shapeUI;
+    }
+
+    useApp.setState({ tabs: [], activeTabId: "" });
+    useApp.getState().loadFromSession(saved);
+
+    const tab = useApp.getState().getActiveSafe();
+    expect(tab.shapeTool).toMatchObject({
+      on: false,
+      kind: "rectangle",
+      color: "#ffffff",
+      strokeWidthImgPx: 8,
+    });
+    expect(tab.shapes).toEqual({ A: [], B: [], C: [], D: [] });
+    expect(tab.shapeUI.selected).toEqual({
+      A: null,
+      B: null,
+      C: null,
+      D: null,
+    });
+  });
+
   it("waits for every target image before changing the active tab", async () => {
     const first = deferred<boolean>();
     const second = deferred<boolean>();

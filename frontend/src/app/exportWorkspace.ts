@@ -7,7 +7,15 @@ import {
 import { loadHtmlImage } from "./imageLoader";
 import { strokeUVToImgPx } from "./annotCoords";
 import { formatDeviceName, formatFocalLengths } from "./exifFormat";
-import type { PaneId, Stroke, TextBox, TextStyle, View } from "./store";
+import { drawShapeOutline } from "./shapeDrawing";
+import type {
+  PaneId,
+  ShapeAnnotation,
+  Stroke,
+  TextBox,
+  TextStyle,
+  View,
+} from "./store";
 
 type ExportTab = {
   panes: PaneId[];
@@ -18,6 +26,7 @@ type ExportTab = {
   grid: { on: boolean; size: number; opacity: number };
   strokes: Record<PaneId, Stroke[]>;
   textBoxes: Record<PaneId, TextBox[]>;
+  shapes: Record<PaneId, ShapeAnnotation[]>;
   exif?: Record<PaneId, Record<string, unknown> | undefined>;
 };
 
@@ -268,6 +277,40 @@ function drawTextBoxes(
       y += lineHeight;
     }
     ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function drawShapes(
+  ctx: CanvasRenderingContext2D,
+  pane: PreparedPane,
+  shapes: ShapeAnnotation[],
+) {
+  if (!shapes.length) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(
+    pane.imageXCss,
+    pane.imageYCss,
+    pane.imageWidthCss,
+    pane.imageHeightCss,
+  );
+  ctx.clip();
+
+  for (const shape of shapes) {
+    drawShapeOutline(
+      ctx,
+      shape,
+      {
+        x: pane.imageXCss + shape.u * pane.imageWidthCss,
+        y: pane.imageYCss + shape.v * pane.imageHeightCss,
+        width: shape.w * pane.imageWidthCss,
+        height: shape.h * pane.imageHeightCss,
+      },
+      shape.strokeWidthImgPx * pane.total,
+    );
   }
 
   ctx.restore();
@@ -838,7 +881,8 @@ export async function renderWorkspaceImage(
 
     const strokes = tab.strokes[pane.id] ?? [];
     const boxes = tab.textBoxes[pane.id] ?? [];
-    if (strokes.length || boxes.length) {
+    const shapes = tab.shapes[pane.id] ?? [];
+    if (strokes.length || boxes.length || shapes.length) {
       // Eraser strokes must clear only annotations, never the photo. Render the
       // transparent layer at source resolution, then scale it with the photo.
       const annotation = document.createElement("canvas");
@@ -850,6 +894,7 @@ export async function renderWorkspaceImage(
       annotationCtx.scale(pane.exportScale, pane.exportScale);
       annotationCtx.translate(-pane.visibleLeftCss, -pane.visibleTopCss);
       drawStrokes(annotationCtx, pane, strokes);
+      drawShapes(annotationCtx, pane, shapes);
       drawTextBoxes(annotationCtx, pane, boxes);
       outputCtx.drawImage(
         annotation,

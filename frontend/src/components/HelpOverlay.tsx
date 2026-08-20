@@ -64,6 +64,9 @@ export default function HelpOverlay() {
             <div className="font-medium mb-2 text-neutral-100">Tools</div>
             <Row k="F" d="on/off brush" />
             <Row k="G" d="on/off erase" />
+            <Row k="T" d="on/off text" />
+            <Row k="S" d="on/off shape" />
+            <Row k="Shift+drag" d="square / snap angle" />
             <Row k="V" d="on/off loup" />
             <Row k="Drag right mouse" d="adjust tool size" />
           </div>

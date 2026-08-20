@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { useApp, type PaneId, type TextBox } from "../app/store";
 import { cursorSet, cursorClear } from "../app/cursorManager";
 
@@ -80,6 +81,7 @@ function TextBoxView(props: {
   onCommit: () => void;
   onStartMove: (e: React.MouseEvent) => void;
   onStartResize: (e: React.MouseEvent) => void;
+  onDelete: () => void;
 }) {
   const {
     box,
@@ -197,11 +199,30 @@ function TextBoxView(props: {
       )}
 
       {selected && !editing && (
-        <div
-          className="absolute -right-1 -bottom-1 w-3 h-3 rounded-sm border border-white/60 bg-black/30"
-          style={{ cursor: "se-resize" }}
-          onMouseDown={(e) => props.onStartResize(e)}
-        />
+        <>
+          <button
+            type="button"
+            aria-label="Delete text"
+            title="Delete text"
+            className="absolute -right-2 -top-2 z-10 w-4 h-4 rounded-full border border-white/60 bg-neutral-900 text-white flex items-center justify-center shadow-sm hover:bg-red-600 active:scale-90"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              props.onDelete();
+            }}
+          >
+            <X className="w-3 h-3" strokeWidth={2.5} />
+          </button>
+          <div
+            className="absolute -right-1 -bottom-1 w-3 h-3 rounded-sm border border-white/60 bg-black/30"
+            style={{ cursor: "se-resize" }}
+            onMouseDown={(e) => props.onStartResize(e)}
+          />
+        </>
       )}
     </div>
   );
@@ -613,6 +634,7 @@ export default function TextLayer({
                   start: { u: b.u, v: b.v, w: b.w, h: b.h },
                 };
               }}
+              onDelete={() => deleteTextBox(targets, b.id)}
             />
           );
         })}

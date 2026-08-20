@@ -17,10 +17,23 @@ import {
   Underline,
   Layers3,
   ChevronDown,
+  Shapes,
+  Square,
+  Circle,
+  Triangle,
+  Minus,
+  MoveUpRight,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
-import { useApp, type TextStyle, type PaneId } from "../app/store";
+import {
+  useApp,
+  type TextStyle,
+  type PaneId,
+  type ShapeKind,
+  type ShapeAnnotation,
+  type ShapeStyle,
+} from "../app/store";
 import { openFileDialog, saveImageDialog } from "../app/bridge";
 import {
   renderWorkspaceImage,
@@ -40,9 +53,14 @@ export default function Toolbar() {
   const toggleText = useApp((s) => s.toggleText);
   const setTextToolStyle = useApp((s) => s.setTextToolStyle);
   const patchTextBoxStyle = useApp((s) => s.patchTextBoxStyle);
+  const toggleShape = useApp((s) => s.toggleShape);
+  const setShapeToolStyle = useApp((s) => s.setShapeToolStyle);
+  const setShapeStyle = useApp((s) => s.setShapeStyle);
 
   const textOn = useApp((s) => s.getActiveSafe().textTool.on);
   const textStyle = useApp((s) => s.getActiveSafe().textTool.style);
+  const shapeTool = useApp((s) => s.getActiveSafe().shapeTool);
+  const shapeOn = shapeTool.on;
 
   // Throttle update màu brush theo rAF để tránh re-render/draw quá dày khi kéo color picker
   const colorRafRef = useRef<number | null>(null);
@@ -67,6 +85,15 @@ export default function Toolbar() {
         boxB: t.textBoxes.B,
         boxC: t.textBoxes.C,
         boxD: t.textBoxes.D,
+
+        shapeSelA: t.shapeUI.selected.A,
+        shapeSelB: t.shapeUI.selected.B,
+        shapeSelC: t.shapeUI.selected.C,
+        shapeSelD: t.shapeUI.selected.D,
+        shapesA: t.shapes.A,
+        shapesB: t.shapes.B,
+        shapesC: t.shapes.C,
+        shapesD: t.shapes.D,
 
         // default tool style
         textToolStyle: t.textTool.style,
@@ -128,6 +155,39 @@ export default function Toolbar() {
   // const shownTextStyle = selection?.box.style ?? snap.textToolStyle;
   const shownTextStyle = selection ? selection.box.style : snap.textToolStyle;
 
+  const shapeSelection = useMemo(() => {
+    const entries: Array<[PaneId, number | null, ShapeAnnotation[]]> = [
+      ["A", snap.shapeSelA, snap.shapesA],
+      ["B", snap.shapeSelB, snap.shapesB],
+      ["C", snap.shapeSelC, snap.shapesC],
+      ["D", snap.shapeSelD, snap.shapesD],
+    ];
+
+    for (const [pane, id, shapes] of entries) {
+      if (id == null) continue;
+      const shape = shapes.find((candidate) => candidate.id === id);
+      if (shape) return { pane, id, shape };
+    }
+    return null;
+  }, [
+    snap.shapeSelA,
+    snap.shapeSelB,
+    snap.shapeSelC,
+    snap.shapeSelD,
+    snap.shapesA,
+    snap.shapesB,
+    snap.shapesC,
+    snap.shapesD,
+  ]);
+
+  const shownShapeStyle: ShapeStyle = shapeSelection
+    ? {
+        kind: shapeSelection.shape.kind,
+        color: shapeSelection.shape.color,
+        strokeWidthImgPx: shapeSelection.shape.strokeWidthImgPx,
+      }
+    : shapeTool;
+
   useEffect(() => {
     return () => {
       if (colorRafRef.current != null)
@@ -173,6 +233,8 @@ export default function Toolbar() {
 
   const [fontOpen, setFontOpen] = useState(false);
   const fontRef = useRef<HTMLDivElement | null>(null);
+  const [shapeOpen, setShapeOpen] = useState(false);
+  const shapeRef = useRef<HTMLDivElement | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
   const [embedExif, setEmbedExif] = useState(false);
@@ -184,6 +246,16 @@ export default function Toolbar() {
       if (!el) return;
       if (el.contains(e.target as Node)) return;
       setFontOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, []);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const el = shapeRef.current;
+      if (!el || el.contains(e.target as Node)) return;
+      setShapeOpen(false);
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
@@ -250,6 +322,18 @@ export default function Toolbar() {
   const FONT_SIZE_PRESETS = [
     2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 32, 48, 72, 120, 300,
   ] as const;
+
+  const SHAPE_OPTIONS = [
+    { value: "rectangle" as ShapeKind, label: "Rectangle", Icon: Square },
+    { value: "circle" as ShapeKind, label: "Circle", Icon: Circle },
+    { value: "triangle" as ShapeKind, label: "Triangle", Icon: Triangle },
+    { value: "line" as ShapeKind, label: "Line", Icon: Minus },
+    { value: "arrow" as ShapeKind, label: "Arrow", Icon: MoveUpRight },
+  ];
+  const activeShapeOption =
+    SHAPE_OPTIONS.find((option) => option.value === shownShapeStyle.kind) ??
+    SHAPE_OPTIONS[0];
+  const ActiveShapeIcon = activeShapeOption.Icon;
 
   const btnToggle = (active: boolean) =>
     !hasAnyImage
@@ -377,6 +461,28 @@ export default function Toolbar() {
     }
   }
 
+  function shapeTargetsForSelection(): PaneId[] {
+    if (!shapeSelection) return [];
+    return snap.linkAll
+      ? ((snap.panes?.length
+          ? (snap.panes as PaneId[])
+          : (["A", "B", "C", "D"] as PaneId[])) as PaneId[])
+      : [shapeSelection.pane];
+  }
+
+  function applyShapeStyle(patch: Partial<ShapeStyle>) {
+    if (shapeSelection) {
+      setShapeStyle(shapeTargetsForSelection(), shapeSelection.id, patch);
+    } else {
+      setShapeToolStyle(patch);
+    }
+  }
+
+  function applyActiveColor(color: string) {
+    if (shapeOn) applyShapeStyle({ color });
+    else applyStyle({ color });
+  }
+
   return (
     <div className="h-10 flex items-center gap-2 px-2 border-b border-neutral-800 bg-neutral-900 text-black text-sm">
       {/* Link All */}
@@ -483,16 +589,33 @@ export default function Toolbar() {
         <Type size={16} /> Text
       </div>
 
+      {/* Outline shape notes */}
+      <div
+        onClick={() =>
+          hasAnyImage && !blinkEditingDisabled && toggleShape()
+        }
+        title={
+          blinkEditingDisabled
+            ? "Shape is unavailable in Blink mode"
+            : "Shape (S)"
+        }
+        className={`${BTN_BASE} ${
+          blinkEditingDisabled ? BTN_DISABLED : btnToggle(shapeOn)
+        }`}
+      >
+        <Shapes size={16} /> Shape
+      </div>
+
       {/* Text style controls */}
-      {textOn && hasAnyImage && (
+      {(textOn || shapeOn) && hasAnyImage && (
         <>
           {/* separator nhỏ để tách khỏi tool buttons */}
           <div className="w-px h-6 bg-neutral-700/70 mx-1" />
-          {/* Text color (button-style) */}
-          <div className={BTN_FIELD} title="Text color">
+          {/* Shared color control for Text and Shape */}
+          <div className={BTN_FIELD} title={shapeOn ? "Shape color" : "Text color"}>
             <input
               type="color"
-              value={shownTextStyle.color}
+              value={shapeOn ? shownShapeStyle.color : shownTextStyle.color}
               onInput={(e) => {
                 const color = (e.currentTarget as HTMLInputElement).value;
                 pendingTextColor.current = color;
@@ -500,16 +623,22 @@ export default function Toolbar() {
                 rafTextColor.current = requestAnimationFrame(() => {
                   rafTextColor.current = null;
                   const c = pendingTextColor.current;
-                  applyStyle({ color: c });
+                  applyActiveColor(c);
                 });
               }}
               className="absolute inset-0 opacity-0 cursor-pointer"
             />
             <div
               className="w-5 h-5 rounded-md border border-white/20 shadow-inner shadow-black/40"
-              style={{ backgroundColor: shownTextStyle.color }}
+              style={{
+                backgroundColor: shapeOn
+                  ? shownShapeStyle.color
+                  : shownTextStyle.color,
+              }}
             />
           </div>
+          {textOn && (
+            <>
           {/* Font dropdown (button-style) */}
           <div className="relative" ref={fontRef}>
             <div
@@ -670,6 +799,76 @@ export default function Toolbar() {
           >
             <Underline className="w-4 h-4" />
           </div>
+            </>
+          )}
+
+          {shapeOn && (
+            <>
+              <div className="relative" ref={shapeRef}>
+                <div
+                  className={BTN_FIELD}
+                  title="Shape"
+                  onMouseDown={(event) => {
+                    if (event.button !== 0) return;
+                    setShapeOpen((open) => !open);
+                  }}
+                >
+                  <ActiveShapeIcon className="w-4 h-4" />
+                  <span className="w-16 text-left text-xs text-neutral-200">
+                    {activeShapeOption.label}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-neutral-400" />
+                </div>
+
+                {shapeOpen && (
+                  <div
+                    className="sv-popover-enter absolute z-50 mt-1 w-36 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                  >
+                    {SHAPE_OPTIONS.map(({ value, label, Icon }) => (
+                      <div
+                        key={value}
+                        className={`h-7 flex items-center gap-2 rounded px-2 text-xs cursor-pointer select-none ${
+                          shownShapeStyle.kind === value
+                            ? "bg-blue-600/60 text-white"
+                            : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
+                        }`}
+                        onMouseDown={() => {
+                          applyShapeStyle({ kind: value });
+                          setShapeOpen(false);
+                        }}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <label className={BTN_FIELD} title="Stroke width">
+                <input
+                  type="number"
+                  min={1}
+                  max={128}
+                  value={shownShapeStyle.strokeWidthImgPx}
+                  onChange={(event) =>
+                    applyShapeStyle({
+                      strokeWidthImgPx: Math.max(
+                        1,
+                        Math.min(128, Number(event.currentTarget.value) || 1),
+                      ),
+                    })
+                  }
+                  className={`${FIELD_INNER} w-9 pl-1 text-center no-spin`}
+                />
+                <span className="pr-1 text-[10px] text-neutral-500">px</span>
+              </label>
+            </>
+          )}
         </>
       )}
 

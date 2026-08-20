@@ -85,6 +85,37 @@ export type TextUIState = {
   editing: { pane: PaneId; id: number } | null;
 };
 
+export type ShapeKind =
+  | "rectangle"
+  | "circle"
+  | "triangle"
+  | "line"
+  | "arrow";
+
+export type ShapeStyle = {
+  kind: ShapeKind;
+  color: string;
+  strokeWidthImgPx: number;
+};
+
+export type ShapeAnnotation = ShapeStyle & {
+  id: number;
+  u: number;
+  v: number;
+  w: number;
+  h: number;
+  flipX: boolean;
+  flipY: boolean;
+};
+
+export type ShapeToolState = ShapeStyle & {
+  on: boolean;
+};
+
+export type ShapeUIState = {
+  selected: Record<PaneId, number | null>;
+};
+
 const DEFAULT_TEXT_STYLE: TextStyle = {
   fontFamily: "Arial",
   fontSizeImgPx: 28,
@@ -92,6 +123,13 @@ const DEFAULT_TEXT_STYLE: TextStyle = {
   bold: false,
   italic: false,
   underline: false,
+};
+
+const DEFAULT_SHAPE_TOOL: ShapeToolState = {
+  on: false,
+  kind: "rectangle",
+  color: "#ffffff",
+  strokeWidthImgPx: 8,
 };
 
 type GridState = { on: boolean; size: number; opacity: number };
@@ -160,6 +198,11 @@ const SAFE_EMPTY_TAB: TabState = {
     selected: { A: null, B: null, C: null, D: null },
     editing: null,
   },
+  shapeTool: DEFAULT_SHAPE_TOOL,
+  shapes: { A: [], B: [], C: [], D: [] },
+  shapeUI: {
+    selected: { A: null, B: null, C: null, D: null },
+  },
   comparison: EMPTY_COMPARISON,
 };
 
@@ -186,6 +229,9 @@ type TabState = {
   textTool: TextToolState;
   textBoxes: Record<PaneId, TextBox[]>;
   textUI: TextUIState;
+  shapeTool: ShapeToolState;
+  shapes: Record<PaneId, ShapeAnnotation[]>;
+  shapeUI: ShapeUIState;
   comparison: ComparisonState;
 };
 
@@ -329,6 +375,29 @@ type AppState = {
     id: number,
     patch: Partial<TextStyle>
   ) => void;
+
+  toggleShape: () => void;
+  setShapeToolStyle: (patch: Partial<ShapeStyle>) => void;
+  createShape: (
+    panes: PaneId[],
+    uiPane: PaneId,
+    shape: Omit<ShapeAnnotation, "id">
+  ) => number;
+  setShapeRect: (
+    panes: PaneId[],
+    id: number,
+    patch: Partial<
+      Pick<ShapeAnnotation, "u" | "v" | "w" | "h" | "flipX" | "flipY">
+    >
+  ) => void;
+  setShapeStyle: (
+    panes: PaneId[],
+    id: number,
+    patch: Partial<ShapeStyle>
+  ) => void;
+  selectShape: (pane: PaneId, id: number | null) => void;
+  clearShapeUI: (pane?: PaneId) => void;
+  deleteShape: (panes: PaneId[], id: number) => void;
   reorderPanes: (fromIndex: number, toIndex: number) => void;
 };
 
@@ -383,6 +452,11 @@ function makeEmptyTab(name = "Untitled"): TabState {
     textUI: {
       selected: { A: null, B: null, C: null, D: null },
       editing: null,
+    },
+    shapeTool: { ...DEFAULT_SHAPE_TOOL },
+    shapes: { A: [], B: [], C: [], D: [] },
+    shapeUI: {
+      selected: { A: null, B: null, C: null, D: null },
     },
     comparison: EMPTY_COMPARISON,
   };
@@ -724,6 +798,10 @@ export const useApp = create<AppState>()(
             textUI: {
               ...tab.textUI,
               editing: null,
+              selected: { A: null, B: null, C: null, D: null },
+            },
+            shapeTool: { ...tab.shapeTool, on: false },
+            shapeUI: {
               selected: { A: null, B: null, C: null, D: null },
             },
             comparison: {
@@ -1205,6 +1283,10 @@ export const useApp = create<AppState>()(
               editing: null,
               selected: { A: null, B: null, C: null, D: null },
             },
+            shapeTool: { ...t.shapeTool, on: false },
+            shapeUI: {
+              selected: { A: null, B: null, C: null, D: null },
+            },
           };
         }),
       });
@@ -1282,6 +1364,7 @@ export const useApp = create<AppState>()(
           const showDetails = { ...t.showDetails, [pane]: false };
           const strokes = { ...t.strokes, [pane]: [] };
           const textBoxes = { ...t.textBoxes, [pane]: [] };
+          const shapes = { ...t.shapes, [pane]: [] };
           const clearedSelected = {
             A: null,
             B: null,
@@ -1324,10 +1407,14 @@ export const useApp = create<AppState>()(
             showDetails,
             strokes,
             textBoxes,
+            shapes,
             textUI: {
               ...t.textUI,
               selected: clearedSelected as any,
               editing: null,
+            },
+            shapeUI: {
+              selected: clearedSelected as Record<PaneId, number | null>,
             },
             linkAll,
             comparison,
@@ -1380,14 +1467,19 @@ export const useApp = create<AppState>()(
             showDetails,
             strokes: { A: [], B: [], C: [], D: [] },
             textBoxes: { A: [], B: [], C: [], D: [] },
+            shapes: { A: [], B: [], C: [], D: [] },
             textUI: {
               ...t.textUI,
               selected: clearedSelected as any,
               editing: null,
             },
+            shapeUI: {
+              selected: clearedSelected as Record<PaneId, number | null>,
+            },
             loupe: { ...t.loupe, on: false },
             annotate: { ...t.annotate, mode: "none" },
             textTool: { ...t.textTool, on: false },
+            shapeTool: { ...t.shapeTool, on: false },
             linkAll:
               t.comparison.mode === "blink"
                 ? (t.comparison.restoreLinkAll ?? t.linkAll)
@@ -1529,6 +1621,10 @@ export const useApp = create<AppState>()(
                     editing: null,
                     selected: { A: null, B: null, C: null, D: null },
                   },
+                  shapeTool: { ...x.shapeTool, on: false },
+                  shapeUI: {
+                    selected: { A: null, B: null, C: null, D: null },
+                  },
                 }
           ),
         };
@@ -1551,6 +1647,10 @@ export const useApp = create<AppState>()(
                   textUI: {
                     ...t.textUI,
                     editing: null,
+                    selected: { A: null, B: null, C: null, D: null },
+                  },
+                  shapeTool: { ...x.shapeTool, on: false },
+                  shapeUI: {
                     selected: { A: null, B: null, C: null, D: null },
                   },
                 }
@@ -1580,6 +1680,10 @@ export const useApp = create<AppState>()(
                   loupe: { ...x.loupe, on: false },
                   annotate: { ...x.annotate, mode: "none" },
                   textTool: { ...x.textTool, on: next },
+                  shapeTool: { ...x.shapeTool, on: false },
+                  shapeUI: {
+                    selected: { A: null, B: null, C: null, D: null },
+                  },
                   textUI: next
                     ? x.textUI
                     : { ...x.textUI, editing: null, selected: clearedSelected },
@@ -1998,6 +2102,189 @@ export const useApp = create<AppState>()(
         }),
       }));
     },
+
+    toggleShape: () =>
+      set((state) => {
+        const tab = state.getActiveSafe();
+        if (tab.comparison.mode === "blink") return state;
+        const next = !tab.shapeTool.on;
+        const cleared = { A: null, B: null, C: null, D: null } as Record<
+          PaneId,
+          number | null
+        >;
+
+        return {
+          tabs: state.tabs.map((candidate) =>
+            candidate.id !== state.activeTabId
+              ? candidate
+              : {
+                  ...candidate,
+                  loupe: { ...candidate.loupe, on: false },
+                  annotate: { ...candidate.annotate, mode: "none" },
+                  textTool: { ...candidate.textTool, on: false },
+                  textUI: {
+                    ...candidate.textUI,
+                    editing: null,
+                    selected: cleared,
+                  },
+                  shapeTool: { ...candidate.shapeTool, on: next },
+                  shapeUI: next
+                    ? candidate.shapeUI
+                    : { selected: cleared },
+                }
+          ),
+        };
+      }),
+
+    setShapeToolStyle: (patch) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const next = { ...tab.shapeTool, ...patch };
+          next.strokeWidthImgPx = clamp(
+            Number(next.strokeWidthImgPx) || 1,
+            1,
+            128
+          );
+          return { ...tab, shapeTool: next };
+        }),
+      })),
+
+    createShape: (panes, uiPane, shape) => {
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const shapes = { ...tab.shapes };
+          for (const pane of panes) {
+            shapes[pane] = [...(shapes[pane] ?? []), { ...shape, id }];
+          }
+
+          const cleared = { A: null, B: null, C: null, D: null } as Record<
+            PaneId,
+            number | null
+          >;
+          const selected = tab.linkAll
+            ? ({ A: id, B: id, C: id, D: id } as Record<
+                PaneId,
+                number | null
+              >)
+            : ({ ...cleared, [uiPane]: id } as Record<
+                PaneId,
+                number | null
+              >);
+
+          return { ...tab, shapes, shapeUI: { selected } };
+        }),
+      }));
+
+      return id;
+    },
+
+    setShapeRect: (panes, id, patch) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const shapes = { ...tab.shapes };
+          for (const pane of panes) {
+            shapes[pane] = (shapes[pane] ?? []).map((shape) =>
+              shape.id === id ? { ...shape, ...patch } : shape
+            );
+          }
+          return { ...tab, shapes };
+        }),
+      })),
+
+    setShapeStyle: (panes, id, patch) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const shapes = { ...tab.shapes };
+          for (const pane of panes) {
+            shapes[pane] = (shapes[pane] ?? []).map((shape) => {
+              if (shape.id !== id) return shape;
+              const next = { ...shape, ...patch };
+              next.strokeWidthImgPx = clamp(
+                Number(next.strokeWidthImgPx) || 1,
+                1,
+                128
+              );
+              return next;
+            });
+          }
+          return { ...tab, shapes };
+        }),
+      })),
+
+    selectShape: (pane, id) =>
+      set((state) => {
+        const tab = state.getActiveSafe();
+        const cleared = { A: null, B: null, C: null, D: null } as Record<
+          PaneId,
+          number | null
+        >;
+        const selected =
+          id == null
+            ? cleared
+            : tab.linkAll
+              ? ({ A: id, B: id, C: id, D: id } as Record<
+                  PaneId,
+                  number | null
+                >)
+              : ({ ...cleared, [pane]: id } as Record<
+                  PaneId,
+                  number | null
+                >);
+
+        return {
+          tabs: state.tabs.map((candidate) =>
+            candidate.id === state.activeTabId
+              ? { ...candidate, shapeUI: { selected } }
+              : candidate
+          ),
+        };
+      }),
+
+    clearShapeUI: (pane) =>
+      set((state) => {
+        const tab = state.getActiveSafe();
+        const selected = { ...tab.shapeUI.selected };
+        if (pane) selected[pane] = null;
+        else {
+          selected.A = null;
+          selected.B = null;
+          selected.C = null;
+          selected.D = null;
+        }
+        return {
+          tabs: state.tabs.map((candidate) =>
+            candidate.id === state.activeTabId
+              ? { ...candidate, shapeUI: { selected } }
+              : candidate
+          ),
+        };
+      }),
+
+    deleteShape: (panes, id) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== state.activeTabId) return tab;
+          const shapes = { ...tab.shapes };
+          for (const pane of panes) {
+            shapes[pane] = (shapes[pane] ?? []).filter(
+              (shape) => shape.id !== id
+            );
+          }
+          return {
+            ...tab,
+            shapes,
+            shapeUI: {
+              selected: { A: null, B: null, C: null, D: null },
+            },
+          };
+        }),
+      })),
 
     setStrokeLineEnd: (panes, strokeId, p1) =>
       set((state) => {

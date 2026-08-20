@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { imgPxToStrokeUV, clamp } from "../app/annotCoords";
 import TextLayer from "./TextLayer";
+import ShapeLayer from "./ShapeLayer";
 import { cursorSet, cursorClear } from "../app/cursorManager";
 import { formatDeviceName, formatFocalLengths } from "../app/exifFormat";
 
@@ -1022,6 +1023,7 @@ export default function Pane({
               className="absolute inset-0 w-full h-full pointer-events-none"
             />
             {/* Text layer: DOM overlay (select/edit/resize). Text thực tế sẽ được vẽ lên canvas annot để export. */}
+            {!suspended && <ShapeLayer paneId={id} view={view} />}
             {!suspended && <TextLayer paneId={id} view={view} />}
           </div>
         ) : (
