@@ -844,7 +844,7 @@ export default function Toolbar() {
 
                 {shapeOpen && (
                   <div
-                    className="sv-popover-enter absolute z-50 mt-1 w-9 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
+                    className="sv-popover-enter absolute left-0 z-50 mt-1 w-7 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-px"
                     onMouseDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -858,7 +858,7 @@ export default function Toolbar() {
                           aria-selected={shownShapeStyle.kind === value}
                           aria-label={label}
                           title={label}
-                          className={`h-7 w-7 flex items-center justify-center rounded cursor-pointer select-none transition-[background-color,color] duration-150 ${
+                          className={`h-6 w-full flex items-center justify-center rounded cursor-pointer select-none transition-[background-color,color] duration-150 ${
                             shownShapeStyle.kind === value
                               ? "bg-blue-600/60 text-white"
                               : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"

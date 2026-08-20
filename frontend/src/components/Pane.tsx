@@ -23,6 +23,7 @@ import {
   Timer,
   SunMedium,
   CircleX,
+  Target,
   Focus,
   Ruler,
 } from "lucide-react";
@@ -64,6 +65,13 @@ export default function Pane({
 
   const exporting = useApp((s) => s.exporting);
   const clearPane = useApp((s) => s.clearPane);
+  const setReferencePane = useApp((s) => s.setReferencePane);
+  const reference = useApp((s) => {
+    const comparison = s.getActiveSafe().comparison;
+    return (
+      comparison.mode === "reference" && comparison.referencePane === id
+    );
+  });
 
   const startStroke = useApp((s) => s.startStroke);
   const appendStrokePoint = useApp((s) => s.appendStrokePoint);
@@ -986,9 +994,44 @@ export default function Pane({
         </div>
 
         {(path || data) && (
-          <div className="absolute top-1.5 right-1.5 pointer-events-auto">
+          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 pointer-events-auto">
             <div
-              onClick={() => {
+              role="button"
+              aria-pressed={reference}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setReferencePane(id);
+              }}
+              className={[
+                "w-5 h-5 rounded-full flex items-center justify-center",
+                "bg-neutral-800/90 text-neutral-300",
+                "border border-neutral-700/60 shadow-sm",
+                "active:scale-95 cursor-pointer transition backdrop-blur-sm",
+                reference
+                  ? "sv-reference-active text-white hover:brightness-110"
+                  : "hover:bg-neutral-700 hover:text-white",
+              ].join(" ")}
+              title={
+                reference ? "Exit reference comparison" : "Favourite"
+              }
+            >
+              <Target className="w-3.5 h-3.5" strokeWidth={2.2} />
+            </div>
+
+            <div
+              role="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
                 console.log(`[pane:${id}] delete via CircleX`);
                 clearPane(id);
               }}
