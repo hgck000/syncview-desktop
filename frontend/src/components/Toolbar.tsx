@@ -18,6 +18,11 @@ import {
   Layers3,
   ChevronDown,
   Shapes,
+  Square,
+  Circle,
+  Triangle,
+  Minus,
+  MoveUpRight,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMemo, useRef, useEffect, useState } from "react";
@@ -231,6 +236,8 @@ export default function Toolbar() {
   const fontRef = useRef<HTMLDivElement | null>(null);
   const [shapeOpen, setShapeOpen] = useState(false);
   const shapeRef = useRef<HTMLDivElement | null>(null);
+  const [strokeOpen, setStrokeOpen] = useState(false);
+  const strokeRef = useRef<HTMLDivElement | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
   const [embedExif, setEmbedExif] = useState(false);
@@ -252,6 +259,16 @@ export default function Toolbar() {
       const el = shapeRef.current;
       if (!el || el.contains(e.target as Node)) return;
       setShapeOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, []);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const el = strokeRef.current;
+      if (!el || el.contains(e.target as Node)) return;
+      setStrokeOpen(false);
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
@@ -320,15 +337,16 @@ export default function Toolbar() {
   ] as const;
 
   const SHAPE_OPTIONS = [
-    { value: "rectangle" as ShapeKind, label: "Rectangle" },
-    { value: "ellipse" as ShapeKind, label: "Ellipse" },
-    { value: "triangle" as ShapeKind, label: "Triangle" },
-    { value: "line" as ShapeKind, label: "Line" },
-    { value: "arrow" as ShapeKind, label: "Arrow" },
+    { value: "rectangle" as ShapeKind, label: "Rectangle", Icon: Square },
+    { value: "ellipse" as ShapeKind, label: "Ellipse", Icon: Circle },
+    { value: "triangle" as ShapeKind, label: "Triangle", Icon: Triangle },
+    { value: "line" as ShapeKind, label: "Line", Icon: Minus },
+    { value: "arrow" as ShapeKind, label: "Arrow", Icon: MoveUpRight },
   ];
   const activeShapeOption =
     SHAPE_OPTIONS.find((option) => option.value === shownShapeStyle.kind) ??
     SHAPE_OPTIONS[0];
+  const ActiveShapeIcon = activeShapeOption.Icon;
 
   const SHAPE_STROKE_PRESETS = [
     { value: 4, preview: 1, title: "Thin stroke" },
@@ -336,6 +354,10 @@ export default function Toolbar() {
     { value: 16, preview: 3, title: "Bold stroke" },
     { value: 28, preview: 4, title: "Heavy stroke" },
   ] as const;
+  const activeStrokePreset =
+    SHAPE_STROKE_PRESETS.find(
+      ({ value }) => value === shownShapeStyle.strokeWidthImgPx,
+    ) ?? SHAPE_STROKE_PRESETS[1];
 
   const btnToggle = (active: boolean) =>
     !hasAnyImage
@@ -809,68 +831,64 @@ export default function Toolbar() {
               <div className="relative" ref={shapeRef}>
                 <div
                   className={BTN_FIELD}
-                  title="Shape"
+                  style={{ width: 28, paddingInline: 0 }}
+                  title={`Shape: ${activeShapeOption.label}`}
                   onMouseDown={(event) => {
                     if (event.button !== 0) return;
+                    setStrokeOpen(false);
                     setShapeOpen((open) => !open);
                   }}
                 >
-                  <div
-                    className={`${FIELD_INNER} w-37.5 pr-5 cursor-pointer select-none`}
-                  >
-                    {activeShapeOption.label}
-                  </div>
-                  <span className="pointer-events-none absolute right-1 text-neutral-400 text-xs">
-                    ▾
-                  </span>
+                  <ActiveShapeIcon className="w-4 h-4" aria-hidden="true" />
                 </div>
 
                 {shapeOpen && (
                   <div
                     className="sv-popover-enter absolute z-50 mt-1 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-1"
-                    style={{ width: 160 }}
                     onMouseDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
                     }}
                   >
-                    <div className="flex flex-col gap-1">
-                    {SHAPE_OPTIONS.map(({ value, label }) => (
-                      <div
-                        key={value}
-                        className={`w-full h-6 flex items-center rounded px-2 py-0.5 text-[14px] leading-4 cursor-pointer select-none ${
-                          shownShapeStyle.kind === value
-                            ? "bg-blue-600/60 text-white"
-                            : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
-                        }`}
-                        onMouseDown={() => {
-                          applyShapeStyle({ kind: value });
-                          setShapeOpen(false);
-                        }}
-                      >
-                        {label}
-                      </div>
-                    ))}
+                    <div className="flex gap-1">
+                      {SHAPE_OPTIONS.map(({ value, label, Icon }) => (
+                        <button
+                          type="button"
+                          key={value}
+                          aria-label={label}
+                          title={label}
+                          className={`h-7 w-7 flex items-center justify-center rounded cursor-pointer select-none transition-[background-color,color,transform] duration-150 active:scale-90 ${
+                            shownShapeStyle.kind === value
+                              ? "bg-blue-600/60 text-white"
+                              : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
+                          }`}
+                          onMouseDown={() => {
+                            applyShapeStyle({ kind: value });
+                            setShapeOpen(false);
+                          }}
+                        >
+                          <Icon className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-1">
-              {SHAPE_STROKE_PRESETS.map(({ value, preview, title }) => (
+              <div className="relative" ref={strokeRef}>
                 <div
-                  key={value}
-                  title={title}
-                  onClick={() =>
-                    applyShapeStyle({ strokeWidthImgPx: value })
-                  }
-                  className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition-[background-color,color,transform] duration-200 ease-out ${btnToggle(
-                    shownShapeStyle.strokeWidthImgPx === value,
-                  )}`}
+                  className={BTN_FIELD}
+                  style={{ width: 34, paddingInline: 0 }}
+                  title="Stroke thickness and style"
+                  onMouseDown={(event) => {
+                    if (event.button !== 0) return;
+                    setShapeOpen(false);
+                    setStrokeOpen((open) => !open);
+                  }}
                 >
                   <svg
                     viewBox="0 0 24 12"
-                    className="w-5 h-3"
+                    className="w-6 h-3"
                     aria-hidden="true"
                   >
                     <line
@@ -879,45 +897,112 @@ export default function Toolbar() {
                       x2="22"
                       y2="6"
                       stroke="currentColor"
-                      strokeWidth={preview}
+                      strokeWidth={activeStrokePreset.preview}
                       strokeLinecap="round"
+                      strokeDasharray={
+                        shownShapeStyle.strokeStyle === "dashed"
+                          ? "4 3"
+                          : undefined
+                      }
                     />
                   </svg>
                 </div>
-              ))}
 
-              <div className="w-px h-4 bg-neutral-700/70 mx-0.5" />
-              <div
-                title="Dashed stroke"
-                onClick={() =>
-                  applyShapeStyle({
-                    strokeStyle:
-                      shownShapeStyle.strokeStyle === "dashed"
-                        ? "solid"
-                        : "dashed",
-                  })
-                }
-                className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition-[background-color,color,transform] duration-200 ease-out ${btnToggle(
-                  shownShapeStyle.strokeStyle === "dashed",
-                )}`}
-              >
-                <svg
-                  viewBox="0 0 24 12"
-                  className="w-5 h-3"
-                  aria-hidden="true"
-                >
-                  <line
-                    x1="2"
-                    y1="6"
-                    x2="22"
-                    y2="6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeDasharray="4 3"
-                  />
-                </svg>
-              </div>
+                {strokeOpen && (
+                  <div
+                    className="sv-popover-enter absolute z-50 mt-1 w-36 rounded border border-neutral-700/70 bg-neutral-900/95 shadow-lg p-2"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                  >
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                      Thickness
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      {SHAPE_STROKE_PRESETS.map(
+                        ({ value, preview, title }) => (
+                          <button
+                            type="button"
+                            key={value}
+                            aria-label={title}
+                            title={title}
+                            onMouseDown={() =>
+                              applyShapeStyle({ strokeWidthImgPx: value })
+                            }
+                            className={`h-7 w-7 rounded inline-flex items-center justify-center select-none transition-[background-color,color,transform] duration-150 active:scale-90 ${btnToggle(
+                              shownShapeStyle.strokeWidthImgPx === value,
+                            )}`}
+                          >
+                            <svg
+                              viewBox="0 0 24 12"
+                              className="w-5 h-3"
+                              aria-hidden="true"
+                            >
+                              <line
+                                x1="2"
+                                y1="6"
+                                x2="22"
+                                y2="6"
+                                stroke="currentColor"
+                                strokeWidth={preview}
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        ),
+                      )}
+                    </div>
+
+                    <div className="my-2 h-px bg-neutral-700/70" />
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                      Style
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {(["solid", "dashed"] as const).map((strokeStyle) => (
+                        <button
+                          type="button"
+                          key={strokeStyle}
+                          aria-label={
+                            strokeStyle === "solid"
+                              ? "Solid stroke"
+                              : "Dashed stroke"
+                          }
+                          title={
+                            strokeStyle === "solid"
+                              ? "Solid stroke"
+                              : "Dashed stroke"
+                          }
+                          onMouseDown={() =>
+                            applyShapeStyle({ strokeStyle })
+                          }
+                          className={`h-7 rounded inline-flex items-center justify-center select-none transition-[background-color,color,transform] duration-150 active:scale-[0.96] ${btnToggle(
+                            shownShapeStyle.strokeStyle === strokeStyle,
+                          )}`}
+                        >
+                          <svg
+                            viewBox="0 0 40 12"
+                            className="w-10 h-3"
+                            aria-hidden="true"
+                          >
+                            <line
+                              x1="3"
+                              y1="6"
+                              x2="37"
+                              y2="6"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeDasharray={
+                                strokeStyle === "dashed" ? "5 4" : undefined
+                              }
+                            />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
